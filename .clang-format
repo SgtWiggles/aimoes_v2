@@ -1,0 +1,6 @@
+# Defines the Chromium style for automatic reformatting.
+# http://clang.llvm.org/docs/ClangFormatStyleOptions.html
+BasedOnStyle: Chromium
+IndentWidth:     4   
+TabWidth:        4   
+UseTab:          Never 
