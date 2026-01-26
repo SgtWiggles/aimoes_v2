@@ -3,16 +3,9 @@
 #include <cstdint>
 #include <span>
 
-namespace ao::pack::bit {
+#include <ao/pack/Error.h>
 
-enum class Error {
-    Ok,
-    Eof,
-    BadArg,     // Bad argument
-    BadData,    // User configured error
-    Unaligned,  // Error when using bytes but not aligned
-    Overflow    // On writes to fixed buffers and no more memory
-};
+namespace ao::pack::bit {
 
 struct BitPosition {
     size_t bitPos;
@@ -27,10 +20,11 @@ class ReadStream {
     ReadStream(std::span<std::byte> data) : m_data(data) {}
     ReadStream& align();
     ReadStream& bits(uint64_t& out, size_t count);
-    ReadStream& bytes(std::span<std::byte>& out, size_t count);
+    ReadStream& bytes(std::span<std::byte const>& out, size_t count);
     ReadStream& require(bool condition, Error err);
 
     size_t remainingBits() const;
+    size_t remainingBytes() const { return remainingBits() / 8; }
 
     bool ok() const { return m_status == Error::Ok; }
     Error error() const { return m_status; }
@@ -44,7 +38,7 @@ class ReadStream {
 
     Error m_status = Error::Ok;
     BitPosition m_position = {0};
-    std::span<std::byte> m_data;
+    std::span<std::byte const> m_data;
 };
 
 class WriteStream {
@@ -57,6 +51,7 @@ class WriteStream {
 
     // Bits remaining in current buffer
     size_t remainingBits() const;
+    size_t remainingBytes() const { return remainingBits() / 8; }
 
     bool ok() const { return m_status == Error::Ok; }
     Error error() const { return m_status; }
@@ -85,6 +80,7 @@ class SizeWriteStream {
 
     // Bits remaining in current buffer
     size_t remainingBits() const;
+    size_t remainingBytes() const { return remainingBits() / 8; }
 
     bool ok() const { return m_status == Error::Ok; }
     Error error() const { return m_status; }

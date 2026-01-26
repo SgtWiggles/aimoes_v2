@@ -39,7 +39,7 @@ ReadStream& ReadStream::bits(uint64_t& out, size_t count) {
     }
 
     while (ok() && count >= 8) {
-        std::span<std::byte> b;
+        std::span<std::byte const> b;
         bytes(b, 1);
         if (!ok())
             return *this;
@@ -58,7 +58,7 @@ ReadStream& ReadStream::bits(uint64_t& out, size_t count) {
     return *this;
 }
 
-ReadStream& ReadStream::bytes(std::span<std::byte>& out, size_t count) {
+ReadStream& ReadStream::bytes(std::span<std::byte const>& out, size_t count) {
     if (!ok())
         return *this;
     if (count == 0)

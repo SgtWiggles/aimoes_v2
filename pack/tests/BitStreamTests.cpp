@@ -1,4 +1,5 @@
 #include <ao/pack/BitStream.h>
+#include <ao/pack/Error.h>
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
@@ -11,6 +12,7 @@
 #include <vector>
 
 using namespace ao::pack::bit;
+using namespace ao::pack;
 
 static void fillPattern(std::span<std::byte> b) {
     for (size_t i = 0; i < b.size(); ++i) {
@@ -99,7 +101,7 @@ TEST_CASE("ReadStream bytes() fails when unaligned",
     rs.bits(oneBit, 1);  // now unaligned
 
     std::array<std::byte, 2> out{};
-    auto outSpan = std::span<std::byte>(out);
+    auto outSpan = std::span<std::byte const>(out);
     rs.bytes(outSpan, 2);
 
     REQUIRE_FALSE(rs.ok());
@@ -199,7 +201,7 @@ TEST_CASE(
     rs.align();
 
     std::array<std::byte, 24> out1{};
-    auto out1Span = std::span<std::byte>(out1);
+    auto out1Span = std::span<std::byte const>(out1);
     rs.bytes(out1Span, bytes1.size());
     REQUIRE(out1Span.size() == bytes1.size());
     std::copy(out1Span.begin(), out1Span.end(), out1.begin());
@@ -208,7 +210,7 @@ TEST_CASE(
     rs.align();
 
     std::array<std::byte, 10> out2{};
-    auto out2Span = std::span<std::byte>(out2);
+    auto out2Span = std::span<std::byte const>(out2);
     rs.bytes(out2Span, bytes2.size());
     REQUIRE(out2Span.size() == bytes2.size());
     std::copy(out2Span.begin(), out2Span.end(), out2.begin());
@@ -468,7 +470,7 @@ TEST_CASE("ReadStream: bytes() matches 8 calls to bits() per byte (LSB-first)",
     {
         ReadStream rs{std::span<std::byte>(data)};
         rs.align();
-        auto outSpan = std::span<std::byte>{};
+        auto outSpan = std::span<std::byte const>{};
         rs.bytes(outSpan, n);
 
         REQUIRE(rs.ok());
