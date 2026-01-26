@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <random>
 #include <span>
 #include <vector>
 
@@ -142,7 +143,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "Varint: truncated input -> decodeVarint fails and ReadStream is EoF") {
+    "Varint: truncated input -> decodeVarint fails and ReadStream is Eof") {
     // Encoding of 300 is [0xAC, 0x02]. Truncate to [0xAC] (continuation bit
     // set).
     std::array<std::uint8_t, 1> truncated{0xAC};
@@ -166,4 +167,115 @@ TEST_CASE(
     REQUIRE(rs.ok());
     REQUIRE(out == 129);
     REQUIRE(rs.remainingBytes() == 1);  // trailing 0xFF not consumed
+}
+
+TEST_CASE("FUZZ: varint roundtrip + sizing invariants") {
+    // Deterministic seed so failures reproduce.
+    std::mt19937_64 rng(0xC0FFEE1234ULL);
+    std::uniform_int_distribution<uint64_t> dist(
+        0, std::numeric_limits<uint64_t>::max());
+
+    // Keep iterations reasonable for unit test runtime.
+    constexpr int ITERS = 50'000;
+
+    std::array<std::uint8_t, 16>
+        buf{};  // varint uint64 fits in <= 10 bytes; 16 is plenty
+    std::array<std::byte, 1> dummy{};
+
+    for (int i = 0; i < ITERS; ++i) {
+        uint64_t v = dist(rng);
+
+        // Size pass
+        SizeWriteStream sws;
+        REQUIRE(encodeVarint(sws, v));
+        REQUIRE(sws.ok());
+        const size_t sized = bytesSized(sws);
+        REQUIRE(sized >= 1);
+        REQUIRE(sized <= 10);  // uint64 varint should be <= 10 bytes
+
+        // Real pass
+        buf.fill(0);
+        WriteStream ws(asBytes(std::span{buf}));
+        REQUIRE(encodeVarint(ws, v));
+        REQUIRE(ws.ok());
+        const size_t written = bytesWritten(buf.size(), ws);
+        REQUIRE(written == sized);
+
+        // Decode
+        ReadStream rs(
+            asConstBytes(std::span<const std::uint8_t>{buf.data(), written}));
+        uint64_t out = 0;
+        REQUIRE(decodeVarint(rs, out));
+        REQUIRE(rs.ok());
+        REQUIRE(out == v);
+        REQUIRE(rs.remainingBytes() == 0);
+    }
+}
+
+TEST_CASE(
+    "FUZZ: decoding random byte streams never overreads; failure is Eof") {
+    std::mt19937_64 rng(0xBADC0DEULL);
+    std::uniform_int_distribution<int> lenDist(0, 64);
+    std::uniform_int_distribution<int> byteDist(0, 255);
+
+    constexpr int ITERS = 20'000;
+
+    for (int i = 0; i < ITERS; ++i) {
+        int len = lenDist(rng);
+        std::vector<std::uint8_t> data(static_cast<size_t>(len));
+        for (auto& b : data)
+            b = static_cast<std::uint8_t>(byteDist(rng));
+
+        ReadStream rs(asConstBytes(
+            std::span<const std::uint8_t>{data.data(), data.size()}));
+        uint64_t out = 0;
+        bool ok = decodeVarint(rs, out);
+
+        // Either decode succeeds, or it fails with Eof (for
+        // truncated/continuation runs).
+        if (!ok) {
+            REQUIRE_FALSE(rs.ok());
+            REQUIRE(rs.error() == Error::Eof);
+        } else {
+            REQUIRE(rs.ok());
+            // If it succeeded, it must have consumed at least 1 byte, and never
+            // more than input length.
+            REQUIRE(rs.remainingBytes() <= data.size());
+        }
+    }
+}
+
+TEST_CASE("FUZZ: truncation of a valid encoding always fails with Eof") {
+    std::mt19937_64 rng(0x12345678ULL);
+    std::uniform_int_distribution<uint64_t> dist(
+        0, std::numeric_limits<uint64_t>::max());
+
+    constexpr int ITERS = 10'000;
+
+    std::array<std::uint8_t, 16> buf{};
+    for (int i = 0; i < ITERS; ++i) {
+        uint64_t v = dist(rng);
+
+        WriteStream ws(asBytes(std::span{buf}));
+        REQUIRE(encodeVarint(ws, v));
+        REQUIRE(ws.ok());
+        size_t n = buf.size() - ws.remainingBytes();
+        REQUIRE(n >= 1);
+        REQUIRE(n <= 10);
+
+        // Pick a truncation length strictly less than n
+        std::uniform_int_distribution<size_t> truncDist(0, n - 1);
+        size_t truncLen = truncDist(rng);
+
+        ReadStream rs(
+            asConstBytes(std::span<const std::uint8_t>{buf.data(), truncLen}));
+        uint64_t out = 0;
+        bool ok = decodeVarint(rs, out);
+
+        // truncating any valid encoding should cause Eof unless truncLen==n
+        // (excluded)
+        REQUIRE_FALSE(ok);
+        REQUIRE_FALSE(rs.ok());
+        REQUIRE(rs.error() == Error::Eof);
+    }
 }
