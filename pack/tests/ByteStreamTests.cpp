@@ -143,7 +143,7 @@ TEST_CASE("Sizing pass matches real pass: size computed equals bytes written (no
     for (size_t n : ops) sws.bytes(std::span{dummy}, n);
     REQUIRE(sws.ok());
 
-    const size_t sized = sws.size();
+    const size_t sized = sws.byteSize();
 
     std::array<std::uint8_t, 64> dst{};
     WriteStream ws(asBytes(std::span<uint8_t>{dst}));

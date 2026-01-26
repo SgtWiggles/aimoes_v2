@@ -47,4 +47,64 @@ bool decodeVarint(ReadStream& enc, uint64_t& result) {
     return enc.ok();
 }
 
+inline std::tuple<uint8_t, uint8_t, uint8_t> encodePrefixIntHeader(uint64_t v) {
+    uint8_t header = 0;
+
+    int64_t headerBits = 7;
+    uint64_t headerCapacity = 0x7F;
+    uint8_t extraBytes = 0;
+    uint64_t byteCapacity = 0;
+
+    while ((headerCapacity | (byteCapacity << headerBits)) < v) {
+        headerBits = std::max(headerBits - 1, 0LL);
+        headerCapacity >>= 1;
+        header >>= 1;
+        header |= 0x80;
+
+        ++extraBytes;
+        byteCapacity <<= 8;
+        byteCapacity |= 0xFF;
+    }
+
+    header |= (v & headerCapacity);
+    return {header, headerBits, extraBytes};
+}
+inline std::tuple<uint8_t, uint8_t, uint64_t> decodePrefixIntHeader(
+    uint8_t header) {
+    auto extraBytes = std::countl_one(header);
+    auto const headerBitCnt = (uint64_t)std::min(extraBytes + 1, 8);
+    auto const headerNumberBits = (8 - headerBitCnt);
+    auto mask = ~(~0ull << headerNumberBits);
+    uint64_t v = header & mask;
+    return {extraBytes, headerNumberBits, v};
+}
+
+template <class WriteStream>
+bool encodePrefixInt(WriteStream& enc, uint64_t v) {
+    auto [header, shift, extraBytes] = encodePrefixIntHeader(v);
+    v >>= shift;
+    auto rest = std::span<std::byte>{(std::byte*)&v, extraBytes};
+
+    std::array<std::byte, sizeof(v) * 8 / 7 + 1> buffer = {};
+    std::fill(buffer.begin(), buffer.end(), std::byte(0));
+    buffer[0] = (std::byte)header;
+    std::copy(rest.begin(), rest.end(), buffer.begin() + 1);
+    return enc.bytes(std::span<std::byte>{buffer}, extraBytes + 1).ok();
+}
+
+template <class ReadStream>
+bool decodePrefixInt(ReadStream& enc, uint64_t& out) {
+    auto buf = std::span<std::byte const>{};
+    if (!enc.bytes(buf, 1).ok())
+        return false;
+    auto [extra, shift, base] = decodePrefixIntHeader((uint8_t)buf[0]);
+    if (!enc.bytes(buf, extra).ok())
+        return false;
+
+    auto rest = std::span<std::byte>{(std::byte*)&out, sizeof(uint64_t)};
+    std::copy(buf.begin(), buf.end(), rest.begin());
+    out = ((out << shift) | base);
+    return true;
+}
+
 }  // namespace ao::pack

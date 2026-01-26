@@ -57,7 +57,7 @@ class SizeWriteStream {
     bool ok() const { return m_status == Error::Ok; }
     Error error() const { return m_status; }
 
-    size_t size() const { return m_position; }
+    size_t byteSize() const { return m_position; }
 
    private:
     Error m_status = Error::Ok;
@@ -74,6 +74,8 @@ class WriteStream {
 
     bool ok() const { return m_status == Error::Ok; }
     Error error() const { return m_status; }
+
+    size_t byteSize() const { return m_position; }
 
    private:
     WriteStream& fail(Error err) {
