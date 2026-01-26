@@ -235,7 +235,10 @@ TEST_CASE(
         // truncated/continuation runs).
         if (!ok) {
             REQUIRE_FALSE(rs.ok());
-            REQUIRE(rs.error() == Error::Eof);
+            INFO("Error was: " << (int)rs.error());
+            auto passed =
+                rs.error() == Error::Eof || rs.error() == Error::BadData;
+            REQUIRE(passed);
         } else {
             REQUIRE(rs.ok());
             // If it succeeded, it must have consumed at least 1 byte, and never

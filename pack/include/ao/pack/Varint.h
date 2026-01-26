@@ -30,6 +30,7 @@ bool decodeVarint(ReadStream& enc, uint64_t& result) {
     result = 0;
     uint64_t shift = 0;
     uint8_t byte;
+    uint64_t iterCount = 0;
     do {
         std::span<std::byte const> read;
         enc.bytes(read, 1);
@@ -39,7 +40,10 @@ bool decodeVarint(ReadStream& enc, uint64_t& result) {
         byte = (uint8_t)read[0];
         result |= (uint64_t(byte & 0x7f) << shift);
         shift += 7;
-    } while ((byte & 0x80) != 0);
+        ++iterCount;
+    } while ((byte & 0x80) != 0 && iterCount <= 10);
+
+    enc.require(iterCount <= 10, Error::BadData);
     return enc.ok();
 }
 
