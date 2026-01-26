@@ -20,6 +20,8 @@ class ReadStream {
     ReadStream(std::span<std::byte> data) : m_data(data) {}
     ReadStream& align();
     ReadStream& bits(uint64_t& out, size_t count);
+
+    // TODO maybe relax the alignment requirements of this?
     ReadStream& bytes(std::span<std::byte const>& out, size_t count);
     ReadStream& require(bool condition, Error err);
 
