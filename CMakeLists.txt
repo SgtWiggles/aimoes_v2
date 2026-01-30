@@ -16,3 +16,4 @@ FetchContent_MakeAvailable(Catch2)
 
 # Packing helpers
 add_subdirectory(pack)
+add_subdirectory(compiler)
