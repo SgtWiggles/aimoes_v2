@@ -7,5 +7,5 @@ target_include_directories(compiler PUBLIC include)
 add_executable(CompilerTests
  "tests/AstTests.cpp"
  "tests/ImportTests.cpp"
-)
+ "tests/ValidateModulesTests.cpp")
 target_link_libraries(CompilerTests PRIVATE compiler Catch2::Catch2WithMain)

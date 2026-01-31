@@ -3,6 +3,7 @@
 #include <expected>
 #include <memory>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <variant>
@@ -11,6 +12,7 @@
 #include "Error.h"
 
 namespace ao::schema {
+using ResolvedTypeId = uint64_t;
 
 enum class AstBaseType {
     INT,       // int k -> mirror C++ type
@@ -23,6 +25,33 @@ enum class AstBaseType {
 
 struct AstQualifiedName {
     std::vector<std::string> name;
+    std::string toString() const {
+        std::stringstream ss;
+        bool needsDot = false;
+        for (auto const& section : name) {
+            if (needsDot)
+                ss << ".";
+            ss << section;
+            needsDot = true;
+        }
+        return ss.str();
+    }
+    std::string qualifyName(std::string const& v) const {
+        std::stringstream ss;
+        bool needsDot = false;
+        for (auto const& section : name) {
+            if (needsDot)
+                ss << ".";
+            ss << section;
+            needsDot = true;
+        }
+
+        if (needsDot) {
+            ss << ".";
+        }
+        ss << v;
+        return ss.str();
+    }
 };
 
 struct AstImport {
@@ -44,16 +73,20 @@ struct AstTypeName {
 
     std::vector<std::shared_ptr<AstTypeName>> subtypes;
     SourceLocation loc;
+
+    // Types for resolving the names to their IDS
+    std::optional<ResolvedTypeId> resolvedDef;
+    std::optional<std::string> resolvedFqn;
 };
 
-enum ValueLiteral {
+enum ValueLiteralType {
     BOOLEAN,
     INT,
     NUMBER,
     STRING,
 };
 struct AstDirectiveValueLiteral {
-    ValueLiteral type;
+    ValueLiteralType type;
     std::string contents;
     SourceLocation loc;
 };
@@ -67,7 +100,7 @@ enum class AstFieldDirectiveType {
 struct AstDirective {
     AstFieldDirectiveType type;
     std::string directiveName;
-    std::unordered_map<std::string, ValueLiteral> properties;
+    std::unordered_map<std::string, AstDirectiveValueLiteral> properties;
     SourceLocation loc;
 };
 
@@ -99,8 +132,7 @@ struct AstMessage {
 };
 
 struct AstDecl {
-    std::variant<AstImport, AstPackageDecl, AstTypeName, AstMessage, AstDefault>
-        decl;
+    std::variant<AstImport, AstPackageDecl, AstMessage, AstDefault> decl;
     SourceLocation loc;
 };
 
@@ -111,9 +143,5 @@ struct AstFile {
     std::string absolutePath;
     SourceLocation loc;
 };
-
-
-
-
 
 }  // namespace ao::schema
