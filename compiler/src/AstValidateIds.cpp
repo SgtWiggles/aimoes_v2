@@ -50,8 +50,6 @@ bool validateGlobalMessageIds(
     return errs.errors.size() == 0;
 }
 
-
-
 void validateMessageFieldsNumbers(ao::schema::ErrorContext& errs,
                                   AstMessageBlock& message) {
     auto& idList = message.fieldsByFieldId;
