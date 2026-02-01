@@ -30,7 +30,7 @@ bool validateGlobalMessageIds(
             if (!msgId)
                 continue;
             if (globalMessages.contains(*msgId)) {
-                auto const& prev = module.messagesById.at(msgId.value());
+                auto const& prev = globalMessages.at(msgId.value());
                 errs.require(
                     false, {
                                ErrorCode::MULTIPLY_DEFINED_MESSAGE_ID,

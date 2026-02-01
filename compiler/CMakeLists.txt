@@ -11,5 +11,5 @@ add_executable(CompilerTests
  "tests/ResolveSymbolsTests.cpp"
  "tests/ResolveSymbolsOneOfTests.cpp"
  "tests/Helpers.h"
- "tests/Helpers.cpp")
+ "tests/Helpers.cpp" "tests/ValidateIdTests.cpp")
 target_link_libraries(CompilerTests PRIVATE compiler Catch2::Catch2WithMain)

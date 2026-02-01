@@ -2,8 +2,8 @@
 
 using namespace ao::schema;
 
-ao::schema::AstQualifiedName qnameFromString(std::string const& s) {
-    ao::schema::AstQualifiedName q;
+AstQualifiedName qnameFromString(std::string const& s) {
+    AstQualifiedName q;
     std::stringstream ss(s);
     std::string part;
     while (std::getline(ss, part, '.')) {
@@ -13,23 +13,23 @@ ao::schema::AstQualifiedName qnameFromString(std::string const& s) {
     return q;
 }
 
-ao::schema::SourceLocation locFor(std::string const& path) {
-    return ao::schema::SourceLocation{path, 1, 1};
+SourceLocation locFor(std::string const& path) {
+    return SourceLocation{path, 1, 1};
 }
 
-std::shared_ptr<ao::schema::AstFile> makeFileWithPackageAndDecls(
+std::shared_ptr<AstFile> makeFileWithPackageAndDecls(
     std::string absolutePath,
     std::optional<std::string> packageName,
-    std::vector<ao::schema::AstDecl> decls,
+    std::vector<AstDecl> decls,
     std::vector<std::string> imports) {
-    auto f = std::make_shared<ao::schema::AstFile>();
+    auto f = std::make_shared<AstFile>();
     f->absolutePath = absolutePath;
     f->loc = locFor(absolutePath);
 
     // Insert package decl if present
     if (packageName.has_value()) {
-        ao::schema::AstDecl pd;
-        ao::schema::AstPackageDecl pdDecl;
+        AstDecl pd;
+        AstPackageDecl pdDecl;
         pdDecl.name = qnameFromString(*packageName);
         pdDecl.loc = locFor(absolutePath);
         pd.decl = pdDecl;
@@ -37,10 +37,10 @@ std::shared_ptr<ao::schema::AstFile> makeFileWithPackageAndDecls(
         f->decls.push_back(std::move(pd));
     }
 
-    // Insert imports first (so tests can control ordering if needed)
+    // Insert imports first
     for (auto const& imp : imports) {
-        ao::schema::AstDecl id;
-        ao::schema::AstImport ai;
+        AstDecl id;
+        AstImport ai;
         ai.path = imp;
         ai.loc = locFor(absolutePath);
         id.decl = ai;
@@ -55,49 +55,83 @@ std::shared_ptr<ao::schema::AstFile> makeFileWithPackageAndDecls(
     return f;
 }
 
-ao::schema::AstMessage makeMessage(
-    std::string const& name,
-    std::vector<ao::schema::AstFieldDecl> fields) {
-    ao::schema::AstMessage m;
+AstMessage makeMessage(std::string const& name,
+                       std::vector<AstFieldDecl> fields,
+                       std::optional<uint64_t> messageId) {
+    AstMessage m;
     m.name = name;
     m.block.fields = std::move(fields);
-    m.loc = {};  // tests don't rely on exact loc
+    m.loc = {};
+    m.messageId = messageId;
     return m;
 }
 
-ao::schema::AstFieldDecl makeFieldDecl(ao::schema::AstField field) {
-    ao::schema::AstFieldDecl d;
+AstFieldDecl makeFieldDecl(AstField field) {
+    AstFieldDecl d;
     d.field = std::move(field);
     d.loc = field.loc;
     return d;
 }
 
-ao::schema::AstField makeField(std::string const& name,
-                               uint64_t number,
-                               ao::schema::AstTypeName type) {
-    ao::schema::AstField f;
+AstFieldDecl makeFieldDeclFromOneOf(AstFieldOneOf oneof) {
+    AstFieldDecl d;
+    d.field = std::move(oneof);
+    d.loc = {};
+    return d;
+}
+
+AstFieldDecl makeFieldDeclReserved(std::vector<uint64_t> reservedIds) {
+    AstFieldDecl d;
+    AstFieldReserved r;
+    r.fieldNumbers = std::move(reservedIds);
+    r.loc = {};
+    d.field = std::move(r);
+    d.loc = {};
+    return d;
+}
+
+AstField makeField(std::string const& name, uint64_t number, AstTypeName type) {
+    AstField f;
     f.name = name;
     f.fieldNumber = number;
     f.typeName = std::move(type);
-    f.loc = {};  // not used by these tests
+    f.loc = {};
     return f;
 }
 
-ao::schema::AstTypeName makeUserType(
-    std::string const& qualifiedName,
-    std::vector<std::shared_ptr<ao::schema::AstTypeName>> subtypes) {
-    ao::schema::AstTypeName t;
-    t.type = ao::schema::AstBaseType::USER;
+AstFieldReserved makeReserved(std::vector<uint64_t> ids) {
+    AstFieldReserved r;
+    r.fieldNumbers = std::move(ids);
+    r.loc = {};
+    return r;
+}
+
+AstFieldOneOf makeOneOf(std::string const& name,
+                        uint64_t fieldNumber,
+                        std::vector<AstFieldDecl> innerFields) {
+    AstFieldOneOf o;
+    o.name = name;
+    o.fieldNumber = fieldNumber;
+    o.directives = {};
+    o.block.fields = std::move(innerFields);
+    o.block.loc = {};
+    o.loc = {};
+    return o;
+}
+
+AstTypeName makeUserType(std::string const& qualifiedName,
+                         std::vector<std::shared_ptr<AstTypeName>> subtypes) {
+    AstTypeName t;
+    t.type = AstBaseType::USER;
     t.name = qnameFromString(qualifiedName);
     t.subtypes = std::move(subtypes);
     t.loc = {};
     return t;
 }
 
-ao::schema::AstTypeName makeCtorType(
-    ao::schema::AstBaseType base,
-    std::vector<std::shared_ptr<ao::schema::AstTypeName>> subtypes) {
-    ao::schema::AstTypeName t;
+AstTypeName makeCtorType(AstBaseType base,
+                         std::vector<std::shared_ptr<AstTypeName>> subtypes) {
+    AstTypeName t;
     t.type = base;
     t.subtypes = std::move(subtypes);
     t.loc = {};
@@ -114,7 +148,7 @@ std::expected<std::string, std::string> SimpleTestFrontend::resolvePath(
     return std::unexpected<std::string>("could not resolve: " + path);
 }
 
-std::expected<std::shared_ptr<ao::schema::AstFile>, std::string>
+std::expected<std::shared_ptr<AstFile>, std::string>
 SimpleTestFrontend::loadFile(std::string resolvedPath) {
     auto it = resolvedModules.find(resolvedPath);
     if (it == resolvedModules.end())
