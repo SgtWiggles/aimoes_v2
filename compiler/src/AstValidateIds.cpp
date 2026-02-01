@@ -49,8 +49,11 @@ bool validateGlobalMessageIds(
 
     return errs.errors.size() == 0;
 }
+
+
+
 void validateMessageFieldsNumbers(ao::schema::ErrorContext& errs,
-                                  AstMessage& message) {
+                                  AstMessageBlock& message) {
     auto& idList = message.fieldsByFieldId;
     // Process reserved first
     for (auto& fieldDecl : message.fields) {
@@ -62,34 +65,41 @@ void validateMessageFieldsNumbers(ao::schema::ErrorContext& errs,
                                    idList.try_emplace(id, &fieldDecl);
                            }
                        },
+                       [](AstFieldOneOf const&) {},
                        [](AstDefault const&) {},
                        [](AstField const&) {},
                    },
                    fieldDecl.field);
     }
+
+    auto insertFieldId = [&](uint64_t id, AstFieldDecl* decl,
+                             SourceLocation loc) {
+        auto [iter, inserted] = idList.try_emplace(id, decl);
+        errs.require(
+            inserted,
+            {ErrorCode::MULTIPLY_DEFINED_FIELD_ID,
+             std::format("Field ID {} was already defined at {}:{}:{}", id,
+                         iter->second->loc.file, iter->second->loc.lineNumber,
+                         iter->second->loc.col),
+             loc});
+        return inserted;
+    };
     // Then process the actual fields
     for (auto& fieldDecl : message.fields) {
         std::visit(
             Overloaded{
                 [&](AstField& field) {
-                    auto [iter, inserted] =
-                        idList.try_emplace(field.fieldNumber, &fieldDecl);
-                    errs.require(
-                        inserted,
-                        {ErrorCode::MULTIPLY_DEFINED_FIELD_ID,
-                         std::format(
-                             "Field ID {} was already defined at {}:{}:{}",
-                             field.fieldNumber, iter->second->loc.file,
-                             iter->second->loc.lineNumber,
-                             iter->second->loc.col),
-                         field.loc});
+                    insertFieldId(field.fieldNumber, &fieldDecl, field.loc);
+                },
+                [&](AstFieldOneOf& field) {
+                    insertFieldId(field.fieldNumber, &fieldDecl, field.loc);
+                    // Process field IDs of the oneof
                 },
                 [](AstFieldReserved const&) {},
                 [](AstDefault const&) {},
             },
             fieldDecl.field);
     }
-
 }
 
 bool validateFieldNumbers(
@@ -102,7 +112,7 @@ bool validateFieldNumbers(
                            [](AstImport const&) {},
                            [](AstPackageDecl const&) {},
                            [&](AstMessage& msg) {
-                               validateMessageFieldsNumbers(errs, msg);
+                               validateMessageFieldsNumbers(errs, msg.block);
                            },
                            [](AstDefault const&) {},
                        },

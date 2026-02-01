@@ -281,16 +281,6 @@ void resolveTypeName(ErrorContext& errors,
                                msg.loc,
                            });
             break;
-
-        case AstBaseType::ONEOF:
-            errors.require(arity > 0,
-                           {
-                               ErrorCode::INVALID_TYPE_ARGS,
-                               "Expected at least 1 type argument for oneof",
-                               msg.loc,
-                           });
-            break;
-
         default:
             errors.require(false,
                            {ErrorCode::INTERNAL, "Unknown base type", msg.loc});
@@ -357,11 +347,14 @@ void resolveTypeName(ErrorContext& errors,
 
 void resolveMessage(ErrorContext& errors,
                     ResolveSymbolsContext& ctx,
-                    AstMessage& msg) {
+                    AstMessageBlock& msg) {
     for (auto& f : msg.fields) {
         std::visit(Overloaded{
                        [&](AstField& field) {
                            resolveTypeName(errors, ctx, field.typeName);
+                       },
+                       [&](AstFieldOneOf& field) {
+                           resolveMessage(errors, ctx, field.block);
                        },
                        [](AstFieldReserved const&) {},
                        [](AstDefault const&) {},
@@ -398,7 +391,7 @@ void resolveModuleSymbols(
     for (auto& decl : currentModule.ast->decls) {
         std::visit(
             Overloaded{
-                [&](AstMessage& msg) { resolveMessage(errors, ctx, msg); },
+                [&](AstMessage& msg) { resolveMessage(errors, ctx, msg.block); },
                 // Ignore the rest of the cases
                 [](AstImport const&) {},
                 [](AstPackageDecl const&) {},

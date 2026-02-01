@@ -19,7 +19,6 @@ enum class AstBaseType {
     UINT,      // uint k -> mirror C++ type
     ARRAY,     // Generate to std::vector
     OPTIONAL,  // Generate to std::optional
-    ONEOF,     // Generate to std::variant
     USER,      // Used for messages, oneof, etc
 };
 
@@ -104,6 +103,8 @@ struct AstDirective {
     SourceLocation loc;
 };
 
+struct AstFieldDecl;
+
 struct AstField {
     std::string name;
     uint64_t fieldNumber;
@@ -112,6 +113,24 @@ struct AstField {
     std::vector<AstDirective> directives;
     SourceLocation loc;
 };
+
+struct AstMessageBlock {
+    std::vector<AstFieldDecl> fields;
+    // points into the local fields, computed later
+    std::unordered_map<uint64_t, AstFieldDecl*> fieldsByFieldId;
+    SourceLocation loc;
+};
+
+struct AstFieldOneOf {
+    std::string name;
+    uint64_t fieldNumber;
+
+    std::vector<AstDirective> directives;
+
+    AstMessageBlock block;
+    SourceLocation loc;
+};
+
 struct AstFieldReserved {
     std::vector<uint64_t> fieldNumbers;
     SourceLocation loc;
@@ -121,17 +140,14 @@ struct AstDefault {
     SourceLocation loc;
 };
 struct AstFieldDecl {
-    std::variant<AstField, AstFieldReserved, AstDefault> field;
+    std::variant<AstField, AstFieldOneOf, AstFieldReserved, AstDefault> field;
     SourceLocation loc;
 };
 struct AstMessage {
     std::string name;
     std::optional<uint64_t> messageId;
-    std::vector<AstFieldDecl> fields;
+    AstMessageBlock block;
     SourceLocation loc;
-
-    // points into the local fields, computed later
-    std::unordered_map<uint64_t, AstFieldDecl*> fieldsByFieldId;
 };
 
 struct AstDecl {
