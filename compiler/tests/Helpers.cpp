@@ -138,6 +138,47 @@ AstTypeName makeCtorType(AstBaseType base,
     return t;
 }
 
+// Directive helpers ----------------------------------------------------------
+
+AstDirectiveValueLiteral makeStrLit(std::string const& s) {
+    AstDirectiveValueLiteral lit;
+    lit.type = ValueLiteralType::STRING;
+    lit.contents = s;
+    lit.loc = {};
+    return lit;
+}
+
+AstDirective makeDirective(
+    std::string const& directiveName,
+    std::vector<std::pair<std::string, std::string>> properties) {
+    AstDirective d;
+    d.type = AstFieldDirectiveType::CUSTOM;
+    d.directiveName = directiveName;
+    d.properties.clear();
+    for (auto const& p : properties) {
+        d.properties[p.first] = makeStrLit(p.second);
+    }
+    d.loc = {};
+    return d;
+}
+
+AstDirectiveBlock makeDirectiveBlock(std::vector<AstDirective> directives) {
+    AstDirectiveBlock b;
+    b.directives = std::move(directives);
+    b.effectiveDirectives.clear();
+    return b;
+}
+
+AstDecl makeDefaultDeclWithDirectiveBlock(AstDirectiveBlock block) {
+    AstDecl decl;
+    AstDefault def;
+    def.directives = std::move(block);
+    def.loc = {};
+    decl.decl = def;
+    decl.loc = {};
+    return decl;
+}
+
 // SimpleTestFrontend method implementations ----------------------------------
 
 std::expected<std::string, std::string> SimpleTestFrontend::resolvePath(

@@ -10,6 +10,7 @@
 #include "ao/utils/Overloaded.h"
 
 #include "AstValidateIds.h"
+#include "ComputeDirectives.h"
 
 namespace ao::schema {
 std::expected<SymbolInfo, Error> SymbolTable::populateFromQualifiedId(
@@ -389,15 +390,16 @@ void resolveModuleSymbols(
 
     // Iterate over AST
     for (auto& decl : currentModule.ast->decls) {
-        std::visit(
-            Overloaded{
-                [&](AstMessage& msg) { resolveMessage(errors, ctx, msg.block); },
-                // Ignore the rest of the cases
-                [](AstImport const&) {},
-                [](AstPackageDecl const&) {},
-                [](AstDefault const&) {},
-            },
-            decl.decl);
+        std::visit(Overloaded{
+                       [&](AstMessage& msg) {
+                           resolveMessage(errors, ctx, msg.block);
+                       },
+                       // Ignore the rest of the cases
+                       [](AstImport const&) {},
+                       [](AstPackageDecl const&) {},
+                       [](AstDefault const&) {},
+                   },
+                   decl.decl);
     }
 }
 
@@ -417,6 +419,10 @@ bool CompilerContext::validateIds() {
     auto globalIds = validateGlobalMessageIds(m_errors, m_modules);
     auto localIds = validateFieldNumbers(m_errors, m_modules);
     return globalIds && localIds;
+}
+
+bool CompilerContext::computeDirectives() {
+    return ::computeDirectives(m_errors, m_modules);
 }
 
 }  // namespace ao::schema

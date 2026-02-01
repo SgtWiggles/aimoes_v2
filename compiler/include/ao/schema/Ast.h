@@ -63,21 +63,6 @@ struct AstPackageDecl {
     SourceLocation loc;
 };
 
-struct AstTypeName {
-    AstBaseType type;
-    AstQualifiedName name;
-
-    std::optional<uint64_t> width;
-    std::optional<uint64_t> maxLen;
-
-    std::vector<std::shared_ptr<AstTypeName>> subtypes;
-    SourceLocation loc;
-
-    // Types for resolving the names to their IDS
-    std::optional<ResolvedTypeId> resolvedDef;
-    std::optional<std::string> resolvedFqn;
-};
-
 enum ValueLiteralType {
     BOOLEAN,
     INT,
@@ -96,11 +81,36 @@ enum class AstFieldDirectiveType {
     FIELD,
     CUSTOM,
 };
+
 struct AstDirective {
     AstFieldDirectiveType type;
     std::string directiveName;
     std::unordered_map<std::string, AstDirectiveValueLiteral> properties;
     SourceLocation loc;
+};
+
+struct AstDirectiveBlock {
+    std::vector<AstDirective> directives;
+    std::unordered_map<
+        std::string,
+        std::unordered_map<std::string, AstDirectiveValueLiteral>>
+        effectiveDirectives;
+};
+
+struct AstTypeName {
+    AstBaseType type;
+    AstQualifiedName name;
+
+    std::optional<uint64_t> width;
+    std::optional<uint64_t> maxLen;
+
+    std::vector<std::shared_ptr<AstTypeName>> subtypes;
+    AstDirectiveBlock directives;
+    SourceLocation loc;
+
+    // Types for resolving the names to their IDS
+    std::optional<ResolvedTypeId> resolvedDef;
+    std::optional<std::string> resolvedFqn;
 };
 
 struct AstFieldDecl;
@@ -110,7 +120,7 @@ struct AstField {
     uint64_t fieldNumber;
     AstTypeName typeName;
 
-    std::vector<AstDirective> directives;
+    AstDirectiveBlock directives;
     SourceLocation loc;
 };
 
@@ -125,7 +135,7 @@ struct AstFieldOneOf {
     std::string name;
     uint64_t fieldNumber;
 
-    std::vector<AstDirective> directives;
+    AstDirectiveBlock directives;
 
     AstMessageBlock block;
     SourceLocation loc;
@@ -136,7 +146,7 @@ struct AstFieldReserved {
     SourceLocation loc;
 };
 struct AstDefault {
-    std::vector<AstDirective> directives;
+    AstDirectiveBlock directives;
     SourceLocation loc;
 };
 struct AstFieldDecl {

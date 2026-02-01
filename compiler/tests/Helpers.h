@@ -53,6 +53,16 @@ ao::schema::AstTypeName makeCtorType(
     ao::schema::AstBaseType base,
     std::vector<std::shared_ptr<ao::schema::AstTypeName>> subtypes = {});
 
+// Directive helpers
+ao::schema::AstDirectiveValueLiteral makeStrLit(std::string const& s);
+ao::schema::AstDirective makeDirective(
+    std::string const& directiveName,
+    std::vector<std::pair<std::string, std::string>> properties);
+ao::schema::AstDirectiveBlock makeDirectiveBlock(
+    std::vector<ao::schema::AstDirective> directives);
+ao::schema::AstDecl makeDefaultDeclWithDirectiveBlock(
+    ao::schema::AstDirectiveBlock block);
+
 // Minimal test frontend that resolves by identity and returns provided
 // AstFiles.
 class SimpleTestFrontend : public ao::schema::CompilerFrontend {

@@ -1,0 +1,125 @@
+#include "ComputeDirectives.h"
+
+#include <deque>
+#include <variant>
+
+#include "ao/utils/Overloaded.h"
+
+using namespace ao;
+using namespace ao::schema;
+
+struct DirectiveTable {
+    std::unordered_map<
+        std::string,
+        std::unordered_map<std::string, AstDirectiveValueLiteral>>
+        directives;
+
+    void setDirectives(AstDirectiveBlock const& block) {
+        for (auto const& dir : block.directives) {
+            for (auto const& [tag, value] : dir.properties) {
+                directives[dir.directiveName][tag] = value;
+            }
+        }
+    }
+
+    void merge(DirectiveTable const& other) {
+        for (auto const& [profile, directives] : other.directives) {
+            for (auto const& [tag, value] : directives)
+                this->directives[profile][tag] = value;
+        }
+    }
+};
+
+struct DirectiveContext {
+    ErrorContext& errors;
+    // Deque for pointer stability
+    std::deque<DirectiveTable> tables;
+
+    DirectiveTable getCurrentTable() const {
+        DirectiveTable ret;
+        for (auto& table : tables) {
+            ret.merge(table);
+        }
+        return ret;
+    }
+    void pop() {
+        if (!tables.empty())
+            tables.pop_back();
+    }
+    DirectiveTable& push() {
+        tables.push_back({});
+        return tables.back();
+    }
+};
+
+void computeTypeNameDirectives(DirectiveContext& ctx, AstTypeName& type) {
+    auto& localDirectives = ctx.push();
+    localDirectives.setDirectives(type.directives);
+    type.directives.effectiveDirectives = ctx.getCurrentTable().directives;
+    ctx.pop();
+
+    for (auto& sub : type.subtypes) {
+        computeTypeNameDirectives(ctx, *sub);
+    }
+}
+
+void computeMessageBlockDirectives(DirectiveContext& ctx,
+                                   AstMessageBlock& blk) {
+    auto& currentBlock = ctx.push();
+    for (auto& field : blk.fields) {
+        std::visit(Overloaded{
+                       [&](AstField& field) {
+                           auto& fieldBlock = ctx.push();
+                           fieldBlock.setDirectives(field.directives);
+                           field.directives.effectiveDirectives =
+                               ctx.getCurrentTable().directives;
+                           computeTypeNameDirectives(ctx, field.typeName);
+                           ctx.pop();
+                       },
+                       [&](AstFieldOneOf& field) {
+                           auto& fieldBlock = ctx.push();
+                           fieldBlock.setDirectives(field.directives);
+                           field.directives.effectiveDirectives =
+                               ctx.getCurrentTable().directives;
+                           computeMessageBlockDirectives(ctx, field.block);
+                           ctx.pop();
+                       },
+                       [&](AstDefault& field) {
+                           currentBlock.setDirectives(field.directives);
+                       },
+
+                       [](AstFieldReserved) {},
+                   },
+                   field.field);
+    }
+    ctx.pop();
+}
+
+bool computeModuleDirectives(ao::schema::ErrorContext& errors,
+                             ao::schema::CompilerContext::Module& module) {
+    DirectiveContext ctx{errors, {}};
+    auto& globalTable = ctx.push();
+    for (auto& decl : module.ast->decls) {
+        std::visit(Overloaded{
+                       [](AstImport&) {},
+                       [](AstPackageDecl&) {},
+                       [&](AstMessage& msg) {
+                           computeMessageBlockDirectives(ctx, msg.block);
+                       },
+                       [&](AstDefault& node) {
+                           globalTable.setDirectives(node.directives);
+                       },
+                   },
+                   decl.decl);
+    }
+    return errors.errors.size() == 0;
+}
+
+bool computeDirectives(
+    ao::schema::ErrorContext& errors,
+    std::unordered_map<std::string, ao::schema::CompilerContext::Module>&
+        modules) {
+    for (auto& [path, module] : modules)
+        computeModuleDirectives(errors, module);
+    return errors.errors.size() == 0;
+}

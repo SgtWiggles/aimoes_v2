@@ -1,0 +1,11 @@
+#pragma once
+
+#include <unordered_map>
+
+#include "ao/schema/CompilerContext.h"
+
+
+bool computeDirectives(
+    ao::schema::ErrorContext& errors,
+    std::unordered_map<std::string, ao::schema::CompilerContext::Module>&
+        modules);

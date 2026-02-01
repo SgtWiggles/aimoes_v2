@@ -37,6 +37,7 @@ class CompilerContext {
     // Builds creates type dependency graph
     bool resolveSymbols();
     bool validateIds();
+    bool computeDirectives();
 
     // AstImport must be resolved here
     struct Module {
