@@ -35,7 +35,8 @@ class CompilerContext {
 
     // Builds symbol table
     // Builds creates type dependency graph
-    bool validateModules();
+    bool resolveSymbols();
+    bool validateIds();
 
     // AstImport must be resolved here
     struct Module {
@@ -43,6 +44,7 @@ class CompilerContext {
         std::shared_ptr<AstFile> ast;
         std::unordered_set<std::string> dependencies;
         std::unordered_map<std::string, SymbolInfo> exportedSymbols;
+        std::unordered_map<uint64_t, AstMessage*> messagesById;
         AstQualifiedName packageName;
     };
 

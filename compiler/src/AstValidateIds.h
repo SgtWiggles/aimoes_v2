@@ -1,0 +1,14 @@
+#pragma once
+
+#include <unordered_map>
+
+#include "ao/schema/CompilerContext.h"
+
+bool validateGlobalMessageIds(
+    ao::schema::ErrorContext& errors,
+    std::unordered_map<std::string, ao::schema::CompilerContext::Module>&
+        modules);
+bool validateFieldNumbers(
+    ao::schema::ErrorContext& errors,
+    std::unordered_map<std::string, ao::schema::CompilerContext::Module>&
+        modules);

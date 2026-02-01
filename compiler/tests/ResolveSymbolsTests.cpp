@@ -140,7 +140,7 @@ class SimpleTestFrontend : public CompilerFrontend {
 
 // Tests ----------------------------------------------------------------------
 
-TEST_CASE("validateModules: succeeds for a single well-formed module") {
+TEST_CASE("resolveSymbols: succeeds for a single well-formed module") {
     SimpleTestFrontend frontend;
 
     // A package "pkg" with a single message "M"
@@ -152,11 +152,11 @@ TEST_CASE("validateModules: succeeds for a single well-formed module") {
     CompilerContext ctx{frontend};
     REQUIRE(ctx.loadFile("A") == true);
 
-    CHECK(ctx.validateModules() == true);
+    CHECK(ctx.resolveSymbols() == true);
     CHECK(ctx.getErrorContext().errors.empty());
 }
 
-TEST_CASE("validateModules: missing package declaration is reported") {
+TEST_CASE("resolveSymbols: missing package declaration is reported") {
     SimpleTestFrontend frontend;
 
     AstDecl mdecl;
@@ -168,7 +168,7 @@ TEST_CASE("validateModules: missing package declaration is reported") {
     CompilerContext ctx{frontend};
     REQUIRE(ctx.loadFile("A") == true);
 
-    CHECK(ctx.validateModules() == false);
+    CHECK(ctx.resolveSymbols() == false);
 
     bool foundMissingPackage = false;
     for (auto const& e : ctx.getErrorContext().errors) {
@@ -178,7 +178,7 @@ TEST_CASE("validateModules: missing package declaration is reported") {
     CHECK(foundMissingPackage == true);
 }
 
-TEST_CASE("validateModules: multiple package declarations reported") {
+TEST_CASE("resolveSymbols: multiple package declarations reported") {
     SimpleTestFrontend frontend;
 
     // Build a file that contains two package declarations
@@ -201,7 +201,7 @@ TEST_CASE("validateModules: multiple package declarations reported") {
     CompilerContext ctx{frontend};
     REQUIRE(ctx.loadFile("A") == true);
 
-    CHECK(ctx.validateModules() == false);
+    CHECK(ctx.resolveSymbols() == false);
 
     bool foundMultiple = false;
     for (auto const& e : ctx.getErrorContext().errors) {
@@ -211,7 +211,7 @@ TEST_CASE("validateModules: multiple package declarations reported") {
     CHECK(foundMultiple == true);
 }
 
-TEST_CASE("validateModules: multiply defined symbol across modules detected") {
+TEST_CASE("resolveSymbols: multiply defined symbol across modules detected") {
     SimpleTestFrontend frontend;
 
     // A and B both export pkg.M
@@ -231,7 +231,7 @@ TEST_CASE("validateModules: multiply defined symbol across modules detected") {
     CompilerContext ctx{frontend};
     REQUIRE(ctx.loadFile("root") == true);
 
-    auto validateResult = ctx.validateModules();
+    auto validateResult = ctx.resolveSymbols();
     CHECK(validateResult == false);
 
     bool foundMultiply = false;
@@ -243,7 +243,7 @@ TEST_CASE("validateModules: multiply defined symbol across modules detected") {
 }
 
 TEST_CASE(
-    "validateModules: resolves types from dependencies and unqualified names") {
+    "resolveSymbols: resolves types from dependencies and unqualified names") {
     SimpleTestFrontend frontend;
 
     // Module A defines pkg.Target
@@ -267,12 +267,12 @@ TEST_CASE(
     REQUIRE(ctx.loadFile("B") == true);
 
     // Validation should succeed: B can resolve unqualified name "Target" from A
-    CHECK(ctx.validateModules() == true);
+    CHECK(ctx.resolveSymbols() == true);
     CHECK(ctx.getErrorContext().errors.empty());
 }
 
 TEST_CASE(
-    "validateModules: undefined and ambiguous type names produce errors") {
+    "resolveSymbols: undefined and ambiguous type names produce errors") {
     SimpleTestFrontend frontend;
 
     // Module A: pkg1.Target
@@ -309,7 +309,7 @@ TEST_CASE(
     REQUIRE(ctx.loadFile("C") == true);
     REQUIRE(ctx.loadFile("D") == true);
 
-    CHECK(ctx.validateModules() == false);
+    CHECK(ctx.resolveSymbols() == false);
 
     bool foundAmb = false;
     bool foundNotDefined = false;
@@ -323,7 +323,7 @@ TEST_CASE(
     CHECK(foundNotDefined == true);
 }
 
-TEST_CASE("validateModules: invalid type arguments are reported") {
+TEST_CASE("resolveSymbols: invalid type arguments are reported") {
     SimpleTestFrontend frontend;
 
     // Message with ARRAY but no subtype -> INVALID_TYPE_ARGS
@@ -341,7 +341,7 @@ TEST_CASE("validateModules: invalid type arguments are reported") {
     CompilerContext ctx{frontend};
     REQUIRE(ctx.loadFile("A") == true);
 
-    CHECK(ctx.validateModules() == false);
+    CHECK(ctx.resolveSymbols() == false);
 
     bool foundInvalidArgs = false;
     for (auto const& e : ctx.getErrorContext().errors) {

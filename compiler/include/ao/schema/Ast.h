@@ -129,6 +129,9 @@ struct AstMessage {
     std::optional<uint64_t> messageId;
     std::vector<AstFieldDecl> fields;
     SourceLocation loc;
+
+    // points into the local fields, computed later
+    std::unordered_map<uint64_t, AstFieldDecl*> fieldsByFieldId;
 };
 
 struct AstDecl {

@@ -7,7 +7,9 @@
 #include <unordered_set>
 #include <variant>
 
-#include "ao/utils/Overload.h"
+#include "ao/utils/Overloaded.h"
+
+#include "AstValidateIds.h"
 
 namespace ao::schema {
 std::expected<SymbolInfo, Error> SymbolTable::populateFromQualifiedId(
@@ -368,7 +370,7 @@ void resolveMessage(ErrorContext& errors,
     }
 }
 
-void resolveSymbols(
+void resolveModuleSymbols(
     ErrorContext& errors,
     CompilerContext::Module& currentModule,
     std::unordered_map<std::string, CompilerContext::Module> const&
@@ -406,15 +408,22 @@ void resolveSymbols(
     }
 }
 
-bool CompilerContext::validateModules() {
+bool CompilerContext::resolveSymbols() {
     // Setup module names
     for (auto& [fileName, module] : m_modules)
         exportSymbols(m_errors, m_symbolTable, module);
 
     for (auto& [fileName, module] : m_modules)
-        resolveSymbols(m_errors, module, m_modules);
+        resolveModuleSymbols(m_errors, module, m_modules);
     if (m_errors.errors.size() > 0)
         return false;
     return true;
 }
+
+bool CompilerContext::validateIds() {
+    auto globalIds = validateGlobalMessageIds(m_errors, m_modules);
+    auto localIds = validateFieldNumbers(m_errors, m_modules);
+    return globalIds && localIds;
+}
+
 }  // namespace ao::schema
