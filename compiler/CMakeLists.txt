@@ -1,6 +1,6 @@
 add_library(compiler OBJECT
  "src/Ast.cpp"
- "src/CompilerContext.cpp"
+ "src/SemanticContext.cpp"
  "src/AstValidateIds.h"
  "src/AstValidateIds.cpp" "src/ComputeDirectives.h" "src/ComputeDirectives.cpp")
 target_include_directories(compiler PUBLIC include)

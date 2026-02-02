@@ -1,7 +1,7 @@
 #include "AstQueries.h"
 #include "Helpers.h"
 
-#include "ao/schema/CompilerContext.h"
+#include "ao/schema/SemanticContext.h"
 #include "ao/schema/Error.h"
 
 #include <catch2/catch_all.hpp>
@@ -36,7 +36,7 @@ TEST_CASE(
     auto file = makeFileWithPackageAndDecls("A", "pkg", {defaultDecl, msgDecl});
     frontend.resolvedModules["A"] = file;
 
-    CompilerContext ctx{frontend};
+    SemanticContext ctx{frontend};
     REQUIRE(ctx.loadFile("A") == true);
 
     // copy modules to mutable map and compute directives
@@ -81,7 +81,7 @@ TEST_CASE(
     auto file = makeFileWithPackageAndDecls("A", "pkg", {defaultDecl, msgDecl});
     frontend.resolvedModules["A"] = file;
 
-    CompilerContext ctx{frontend};
+    SemanticContext ctx{frontend};
     REQUIRE(ctx.loadFile("A") == true);
 
     auto modules = ctx.getModules();
@@ -130,7 +130,7 @@ TEST_CASE(
     auto file = makeFileWithPackageAndDecls("A", "pkg", {defaultDecl, msgDecl});
     frontend.resolvedModules["A"] = file;
 
-    CompilerContext ctx{frontend};
+    SemanticContext ctx{frontend};
     REQUIRE(ctx.loadFile("A") == true);
 
     auto modules = ctx.getModules();
@@ -204,7 +204,7 @@ TEST_CASE(
     auto file = makeFileWithPackageAndDecls("A", "pkg", {defaultDecl, msgDecl});
     frontend.resolvedModules["A"] = file;
 
-    CompilerContext ctx{frontend};
+    SemanticContext ctx{frontend};
     REQUIRE(ctx.loadFile("A") == true);
 
     auto modules = ctx.getModules();

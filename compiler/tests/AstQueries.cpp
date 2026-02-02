@@ -18,7 +18,7 @@ AstMessage* findMessageByUnresolvedName(std::shared_ptr<AstFile> file,
 }
 
 AstMessage* findMessageInModules(
-    std::unordered_map<std::string, ao::schema::CompilerContext::Module> const&
+    std::unordered_map<std::string, ao::schema::SemanticContext::Module> const&
         modules,
     std::string const& moduleName,
     std::string const& messageName) {
@@ -57,7 +57,7 @@ AstFieldOneOf* findOneOfByName(AstMessage& message,
 }
 
 AstField* findFieldInModule(
-    std::unordered_map<std::string, ao::schema::CompilerContext::Module> const&
+    std::unordered_map<std::string, ao::schema::SemanticContext::Module> const&
         modules,
     std::string const& moduleName,
     std::string const& messageName,

@@ -1,5 +1,5 @@
 #include <ao/schema/Ast.h>
-#include <ao/schema/CompilerContext.h>
+#include <ao/schema/SemanticContext.h>
 
 #include <catch2/catch_all.hpp>
 
@@ -99,7 +99,7 @@ TEST_CASE("Import cycles and passing cases") {
     frontend.resolvedModules["Z"] = makeImportFile("Z", {"X"});
 
     SECTION("Simple passing import (A -> B)") {
-        CompilerContext ctx{frontend};
+        SemanticContext ctx{frontend};
 
         bool ok = ctx.loadFile("A");
         CHECK(ok == true);
@@ -114,7 +114,7 @@ TEST_CASE("Import cycles and passing cases") {
     }
 
     SECTION("Larger acyclic graph (P -> Q,R, Q -> S)") {
-        CompilerContext ctx{frontend};
+        SemanticContext ctx{frontend};
 
         bool ok = ctx.loadFile("P");
         CHECK(ok == true);
@@ -129,7 +129,7 @@ TEST_CASE("Import cycles and passing cases") {
     }
 
     SECTION("Cycle of size 2 (C <-> D) is detected") {
-        CompilerContext ctx{frontend};
+        SemanticContext ctx{frontend};
 
         bool ok = ctx.loadFile("C");
         CHECK(ok == false);
@@ -144,7 +144,7 @@ TEST_CASE("Import cycles and passing cases") {
     }
 
     SECTION("Cycle of size 3 (X -> Y -> Z -> X) is detected") {
-        CompilerContext ctx{frontend};
+        SemanticContext ctx{frontend};
 
         bool ok = ctx.loadFile("X");
         CHECK(ok == false);
@@ -165,7 +165,7 @@ TEST_CASE("Unfound import cases") {
     SECTION(
         "Root resolution failure returns false and reports "
         "FAILED_TO_RESOLVE_IMPORT") {
-        CompilerContext ctx{frontend};
+        SemanticContext ctx{frontend};
 
         bool ok = ctx.loadFile("NONEXISTENT_ROOT");
         CHECK(ok == false);
@@ -184,7 +184,7 @@ TEST_CASE("Unfound import cases") {
         frontend.resolvedModules.clear();
         frontend.resolvedModules["A"] = makeImportFile("A", {"MISSING"});
 
-        CompilerContext ctx{frontend};
+        SemanticContext ctx{frontend};
         bool ok = ctx.loadFile("A");
         // loadFile should succeed for A even though one import couldn't be
         // resolved
@@ -212,10 +212,10 @@ TEST_CASE("Unfound import cases") {
         frontend.resolvedModules["A"] = makeImportFile("A", {"B"});
         frontend.allowResolveEvenIfMissing.insert("B");
 
-        CompilerContext ctx{frontend};
+        SemanticContext ctx{frontend};
 
         bool ok = ctx.loadFile("A");
-        // CompilerContext continues when a dependency cannot be loaded and
+        // SemanticContext continues when a dependency cannot be loaded and
         // ultimately returns true (root loaded) but records the error.
         CHECK(ok == true);
 
@@ -240,7 +240,7 @@ TEST_CASE("Multiple loadFile calls do not reload already-loaded modules") {
         frontend.resolvedModules["A"] = makeImportFile("A", {"B"});
         frontend.resolvedModules["B"] = makeImportFile("B", {});
 
-        CompilerContext ctx{frontend};
+        SemanticContext ctx{frontend};
 
         CHECK(ctx.loadFile("A") == true);
         CHECK(ctx.loadFile("A") == true);
@@ -264,7 +264,7 @@ TEST_CASE("Multiple loadFile calls do not reload already-loaded modules") {
         frontend.resolvedModules["C"] = makeImportFile("C", {"D"});
         frontend.resolvedModules["D"] = makeImportFile("D", {});
 
-        CompilerContext ctx{frontend};
+        SemanticContext ctx{frontend};
 
         CHECK(ctx.loadFile("A") == true);
 
@@ -289,7 +289,7 @@ TEST_CASE("Multiple loadFile calls do not reload already-loaded modules") {
         frontend.resolvedModules["B"] = makeImportFile("B", {"C"});
         frontend.resolvedModules["C"] = makeImportFile("C", {});
 
-        CompilerContext ctx{frontend};
+        SemanticContext ctx{frontend};
 
         CHECK(ctx.loadFile("A") == true);
         CHECK(ctx.loadFile("B") == true);
@@ -315,7 +315,7 @@ TEST_CASE("Multiple loadFile calls do not reload already-loaded modules") {
         frontend.resolvedModules["Q"] = makeImportFile("Q", {"R"});
         frontend.resolvedModules["R"] = makeImportFile("R", {});
 
-        CompilerContext ctx{frontend};
+        SemanticContext ctx{frontend};
 
         CHECK(ctx.loadFile("P") == true);
 
@@ -340,7 +340,7 @@ TEST_CASE("Multiple loadFile calls do not reload already-loaded modules") {
         frontend.resolvedModules["A"] = makeImportFile("A", {"B"});
         frontend.resolvedModules["B"] = makeImportFile("B", {});
 
-        CompilerContext ctx{frontend};
+        SemanticContext ctx{frontend};
 
         CHECK(ctx.loadFile("B") == true);
         CHECK(ctx.loadFile("A") == true);
@@ -363,7 +363,7 @@ TEST_CASE("Loading dependency first: B depends on A, load A then B") {
     frontend.resolvedModules["A"] = makeImportFile("A", {});
     frontend.resolvedModules["B"] = makeImportFile("B", {"A"});
 
-    CompilerContext ctx{frontend};
+    SemanticContext ctx{frontend};
 
     SECTION("Load A first, then load B") {
         // Load dependency explicitly
@@ -394,7 +394,7 @@ TEST_CASE(
         // A imports MISSING, but resolvePath will fail for MISSING
         frontend.resolvedModules["A"] = makeImportFile("A", {"MISSING"});
 
-        CompilerContext ctx{frontend};
+        SemanticContext ctx{frontend};
         REQUIRE(ctx.loadFile("A") == true);
 
         auto const& mods = ctx.getModules();
@@ -420,7 +420,7 @@ TEST_CASE(
 
         frontend.resolveOverrides["./B"] = "B";
 
-        CompilerContext ctx{frontend};
+        SemanticContext ctx{frontend};
         REQUIRE(ctx.loadFile("A") == true);
 
         auto const& mods = ctx.getModules();
@@ -445,7 +445,7 @@ TEST_CASE(
         frontend.resolveOverrides["pkg:B"] = "B";
         frontend.resolveOverrides["./B"] = "B";
 
-        CompilerContext ctx{frontend};
+        SemanticContext ctx{frontend};
         REQUIRE(ctx.loadFile("A") == true);
 
         auto const& mods = ctx.getModules();
@@ -470,7 +470,7 @@ TEST_CASE(
         frontend.resolveOverrides["./B"] = "B";
         frontend.resolveOverrides["./C"] = "C";
 
-        CompilerContext ctx{frontend};
+        SemanticContext ctx{frontend};
         REQUIRE(ctx.loadFile("A") == true);
 
         auto const& mods = ctx.getModules();

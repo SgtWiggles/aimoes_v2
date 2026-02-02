@@ -1,7 +1,7 @@
 #pragma once
 
 #include "ao/schema/Ast.h"
-#include "ao/schema/CompilerContext.h"
+#include "ao/schema/SemanticContext.h"
 
 #include <memory>
 #include <string>
@@ -18,7 +18,7 @@ ao::schema::AstMessage* findMessageByUnresolvedName(
 // Find a message by name in a particular module (by module unique name).
 // Returns nullptr if not found.
 ao::schema::AstMessage* findMessageInModules(
-    std::unordered_map<std::string, ao::schema::CompilerContext::Module> const&
+    std::unordered_map<std::string, ao::schema::SemanticContext::Module> const&
         modules,
     std::string const& moduleName,
     std::string const& messageName);
@@ -36,7 +36,7 @@ ao::schema::AstFieldOneOf* findOneOfByName(ao::schema::AstMessage& message,
 // Convenience: find a field by name inside a given module/message.
 // Returns nullptr if module, message or field is not found.
 ao::schema::AstField* findFieldInModule(
-    std::unordered_map<std::string, ao::schema::CompilerContext::Module> const&
+    std::unordered_map<std::string, ao::schema::SemanticContext::Module> const&
         modules,
     std::string const& moduleName,
     std::string const& messageName,

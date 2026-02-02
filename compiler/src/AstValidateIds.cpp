@@ -9,7 +9,7 @@ using namespace ao::schema;
 
 bool validateGlobalMessageIds(
     ao::schema::ErrorContext& errs,
-    std::unordered_map<std::string, ao::schema::CompilerContext::Module>&
+    std::unordered_map<std::string, ao::schema::SemanticContext::Module>&
         modules) {
     std::unordered_map<uint64_t, AstMessage*> globalMessages;
     // Fill message id to message list
@@ -102,7 +102,7 @@ void validateMessageFieldsNumbers(ao::schema::ErrorContext& errs,
 
 bool validateFieldNumbers(
     ao::schema::ErrorContext& errs,
-    std::unordered_map<std::string, ao::schema::CompilerContext::Module>&
+    std::unordered_map<std::string, ao::schema::SemanticContext::Module>&
         modules) {
     for (auto& [path, module] : modules) {
         for (auto& decl : module.ast->decls) {

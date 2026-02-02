@@ -1,7 +1,7 @@
 #pragma once
 
 #include "ao/schema/Ast.h"
-#include "ao/schema/CompilerContext.h"
+#include "ao/schema/SemanticContext.h"
 
 #include <expected>
 #include <memory>

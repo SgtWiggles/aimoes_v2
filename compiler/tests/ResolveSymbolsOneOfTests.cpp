@@ -1,5 +1,5 @@
 #include <ao/schema/Ast.h>
-#include <ao/schema/CompilerContext.h>
+#include <ao/schema/SemanticContext.h>
 
 #include <catch2/catch_all.hpp>
 
@@ -43,7 +43,7 @@ TEST_CASE(
     frontend.resolvedModules["B"] =
         makeFileWithPackageAndDecls("B", "other", {msgDecl}, {"A"});
 
-    CompilerContext ctx{frontend};
+    SemanticContext ctx{frontend};
     REQUIRE(ctx.loadFile("B") == true);
 
     CHECK(ctx.resolveSymbols() == true);
@@ -72,7 +72,7 @@ TEST_CASE("oneof: undefined type inside oneof yields SYMBOL_NOT_DEFINED") {
     frontend.resolvedModules["B"] =
         makeFileWithPackageAndDecls("B", "pkg", {msgDecl}, {});
 
-    CompilerContext ctx{frontend};
+    SemanticContext ctx{frontend};
     REQUIRE(ctx.loadFile("B") == true);
 
     CHECK(ctx.resolveSymbols() == false);
@@ -117,7 +117,7 @@ TEST_CASE("oneof: ambiguous type inside oneof yields SYMBOL_AMBIGUOUS") {
     frontend.resolvedModules["B"] =
         makeFileWithPackageAndDecls("B", "consumer", {msgDecl}, {"A", "C"});
 
-    CompilerContext ctx{frontend};
+    SemanticContext ctx{frontend};
     REQUIRE(ctx.loadFile("B") == true);
 
     CHECK(ctx.resolveSymbols() == false);
@@ -155,7 +155,7 @@ TEST_CASE(
     frontend.resolvedModules["A"] =
         makeFileWithPackageAndDecls("A", "pkg", {msgDecl});
 
-    CompilerContext ctx{frontend};
+    SemanticContext ctx{frontend};
     REQUIRE(ctx.loadFile("A") == true);
 
     CHECK(ctx.resolveSymbols() == false);

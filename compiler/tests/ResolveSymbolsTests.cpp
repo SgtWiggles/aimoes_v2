@@ -1,5 +1,5 @@
 #include <ao/schema/Ast.h>
-#include <ao/schema/CompilerContext.h>
+#include <ao/schema/SemanticContext.h>
 
 #include <catch2/catch_all.hpp>
 
@@ -23,7 +23,7 @@ TEST_CASE("resolveSymbols: succeeds for a single well-formed module") {
     auto fileA = makeFileWithPackageAndDecls("A", "pkg", {mdecl});
     frontend.resolvedModules["A"] = fileA;
 
-    CompilerContext ctx{frontend};
+    SemanticContext ctx{frontend};
     REQUIRE(ctx.loadFile("A") == true);
 
     CHECK(ctx.resolveSymbols() == true);
@@ -39,7 +39,7 @@ TEST_CASE("resolveSymbols: missing package declaration is reported") {
     auto fileA = makeFileWithPackageAndDecls("A", std::nullopt, {mdecl});
     frontend.resolvedModules["A"] = fileA;
 
-    CompilerContext ctx{frontend};
+    SemanticContext ctx{frontend};
     REQUIRE(ctx.loadFile("A") == true);
 
     CHECK(ctx.resolveSymbols() == false);
@@ -72,7 +72,7 @@ TEST_CASE("resolveSymbols: multiple package declarations reported") {
 
     frontend.resolvedModules["A"] = fileA;
 
-    CompilerContext ctx{frontend};
+    SemanticContext ctx{frontend};
     REQUIRE(ctx.loadFile("A") == true);
 
     CHECK(ctx.resolveSymbols() == false);
@@ -102,7 +102,7 @@ TEST_CASE("resolveSymbols: multiply defined symbol across modules detected") {
     frontend.resolvedModules["root"] =
         makeFileWithPackageAndDecls("root", "rootpkg", {}, {"A", "B"});
 
-    CompilerContext ctx{frontend};
+    SemanticContext ctx{frontend};
     REQUIRE(ctx.loadFile("root") == true);
 
     auto validateResult = ctx.resolveSymbols();
@@ -137,7 +137,7 @@ TEST_CASE(
     frontend.resolvedModules["B"] =
         makeFileWithPackageAndDecls("B", "other", {useDecl}, {"A"});
 
-    CompilerContext ctx{frontend};
+    SemanticContext ctx{frontend};
     REQUIRE(ctx.loadFile("B") == true);
 
     // Validation should succeed: B can resolve unqualified name "Target" from A
@@ -179,7 +179,7 @@ TEST_CASE(
     frontend.resolvedModules["D"] =
         makeFileWithPackageAndDecls("D", "consumer2", {useBadDecl}, {"A"});
 
-    CompilerContext ctx{frontend};
+    SemanticContext ctx{frontend};
     REQUIRE(ctx.loadFile("C") == true);
     REQUIRE(ctx.loadFile("D") == true);
 
@@ -212,7 +212,7 @@ TEST_CASE("resolveSymbols: invalid type arguments are reported") {
     frontend.resolvedModules["A"] =
         makeFileWithPackageAndDecls("A", "pkg", {mdecl});
 
-    CompilerContext ctx{frontend};
+    SemanticContext ctx{frontend};
     REQUIRE(ctx.loadFile("A") == true);
 
     CHECK(ctx.resolveSymbols() == false);

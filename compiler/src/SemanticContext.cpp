@@ -1,4 +1,4 @@
-#include "ao/schema/CompilerContext.h"
+#include "ao/schema/SemanticContext.h"
 #include "ao/schema/Error.h"
 
 #include <format>
@@ -42,7 +42,7 @@ struct ModuleLoadContext {
     AstImport import;
 };
 
-bool CompilerContext::loadFile(std::string rootPath) {
+bool SemanticContext::loadFile(std::string rootPath) {
     std::queue<std::tuple<std::string, SourceLocation>> toResolve;
     auto rootPathResolved = m_frontend->resolvePath("", rootPath);
     if (!rootPathResolved.has_value()) {
@@ -171,7 +171,7 @@ bool CompilerContext::loadFile(std::string rootPath) {
 
 bool setPackageName(ErrorContext& errors,
                     SymbolTable& symbolTable,
-                    CompilerContext::Module& module) {
+                    SemanticContext::Module& module) {
     bool moduleNameSet = false;
     SourceLocation loc;
     for (auto const& decl : module.ast->decls) {
@@ -221,7 +221,7 @@ bool setPackageName(ErrorContext& errors,
 
 void exportSymbols(ErrorContext& errors,
                    SymbolTable& symbolTable,
-                   CompilerContext::Module& module) {
+                   SemanticContext::Module& module) {
     if (!setPackageName(errors, symbolTable, module))
         return;
 
@@ -366,8 +366,8 @@ void resolveMessage(ErrorContext& errors,
 
 void resolveModuleSymbols(
     ErrorContext& errors,
-    CompilerContext::Module& currentModule,
-    std::unordered_map<std::string, CompilerContext::Module> const&
+    SemanticContext::Module& currentModule,
+    std::unordered_map<std::string, SemanticContext::Module> const&
         allModules) {
     ResolveSymbolsContext ctx;
 
@@ -403,7 +403,7 @@ void resolveModuleSymbols(
     }
 }
 
-bool CompilerContext::resolveSymbols() {
+bool SemanticContext::resolveSymbols() {
     // Setup module names
     for (auto& [fileName, module] : m_modules)
         exportSymbols(m_errors, m_symbolTable, module);
@@ -415,13 +415,13 @@ bool CompilerContext::resolveSymbols() {
     return true;
 }
 
-bool CompilerContext::validateIds() {
+bool SemanticContext::validateIds() {
     auto globalIds = validateGlobalMessageIds(m_errors, m_modules);
     auto localIds = validateFieldNumbers(m_errors, m_modules);
     return globalIds && localIds;
 }
 
-bool CompilerContext::computeDirectives() {
+bool SemanticContext::computeDirectives() {
     return ::computeDirectives(m_errors, m_modules);
 }
 

@@ -28,9 +28,9 @@ struct SymbolTable {
         fullyQualifiedNameToId;
 };
 
-class CompilerContext {
+class SemanticContext {
    public:
-    CompilerContext(CompilerFrontend& frontend) : m_frontend(&frontend) {}
+    SemanticContext(CompilerFrontend& frontend) : m_frontend(&frontend) {}
     bool loadFile(std::string path);
 
     // Builds symbol table

@@ -96,7 +96,7 @@ void computeMessageBlockDirectives(DirectiveContext& ctx,
 }
 
 bool computeModuleDirectives(ao::schema::ErrorContext& errors,
-                             ao::schema::CompilerContext::Module& module) {
+                             ao::schema::SemanticContext::Module& module) {
     DirectiveContext ctx{errors, {}};
     auto& globalTable = ctx.push();
     for (auto& decl : module.ast->decls) {
@@ -117,7 +117,7 @@ bool computeModuleDirectives(ao::schema::ErrorContext& errors,
 
 bool computeDirectives(
     ao::schema::ErrorContext& errors,
-    std::unordered_map<std::string, ao::schema::CompilerContext::Module>&
+    std::unordered_map<std::string, ao::schema::SemanticContext::Module>&
         modules) {
     for (auto& [path, module] : modules)
         computeModuleDirectives(errors, module);

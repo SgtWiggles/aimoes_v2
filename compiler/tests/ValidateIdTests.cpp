@@ -1,6 +1,6 @@
 #include "Helpers.h"
 
-#include "ao/schema/CompilerContext.h"
+#include "ao/schema/SemanticContext.h"
 #include "ao/schema/Error.h"
 
 #include <catch2/catch_all.hpp>
@@ -22,7 +22,7 @@ TEST_CASE("validateIds: succeeds for unique message ids and field numbers") {
     frontend.resolvedModules["A"] =
         makeFileWithPackageAndDecls("A", "pkg", {decl});
 
-    CompilerContext ctx{frontend};
+    SemanticContext ctx{frontend};
     REQUIRE(ctx.loadFile("A") == true);
 
     CHECK(ctx.validateIds() == true);
@@ -48,7 +48,7 @@ TEST_CASE("validateIds: multiply defined message id across modules detected") {
     frontend.resolvedModules["root"] =
         makeFileWithPackageAndDecls("root", "r", {}, {"A", "B"});
 
-    CompilerContext ctx{frontend};
+    SemanticContext ctx{frontend};
     REQUIRE(ctx.loadFile("root") == true);
 
     auto validateResult = ctx.validateIds();
@@ -77,7 +77,7 @@ TEST_CASE("validateIds: multiply defined field id within a message detected") {
     frontend.resolvedModules["A"] =
         makeFileWithPackageAndDecls("A", "pkg", {decl});
 
-    CompilerContext ctx{frontend};
+    SemanticContext ctx{frontend};
     REQUIRE(ctx.loadFile("A") == true);
 
     CHECK(ctx.validateIds() == false);
@@ -104,7 +104,7 @@ TEST_CASE(
     frontend.resolvedModules["A"] =
         makeFileWithPackageAndDecls("A", "pkg", {dOk});
 
-    CompilerContext ctxOk{frontend};
+    SemanticContext ctxOk{frontend};
     REQUIRE(ctxOk.loadFile("A") == true);
     CHECK(ctxOk.validateIds() == true);
 
@@ -118,7 +118,7 @@ TEST_CASE(
     frontend.resolvedModules["B"] =
         makeFileWithPackageAndDecls("B", "pkg2", {dErr});
 
-    CompilerContext ctxErr{frontend};
+    SemanticContext ctxErr{frontend};
     REQUIRE(ctxErr.loadFile("B") == true);
     CHECK(ctxErr.validateIds() == false);
 
