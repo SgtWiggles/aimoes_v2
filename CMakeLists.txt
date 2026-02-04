@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.31)
 project(AOIDL CXX)
 set(CMAKE_CXX_STANDARD 23)
 
@@ -13,6 +13,18 @@ FetchContent_Declare(
   GIT_TAG v3.12.0 # Use the latest stable version
 )
 FetchContent_MakeAvailable(Catch2)
+
+set(BOOST_INCLUDE_LIBRARIES container_hash)
+set(BOOST_ENABLE_CMAKE ON)
+
+include(FetchContent)
+FetchContent_Declare(
+  Boost
+  GIT_REPOSITORY https://github.com/boostorg/boost.git
+  GIT_TAG boost-1.90.0
+  GIT_SHALLOW ON
+)
+FetchContent_MakeAvailable(Boost)
 
 # Packing helpers
 add_subdirectory(pack)

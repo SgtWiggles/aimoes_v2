@@ -16,7 +16,7 @@ bool validateGlobalMessageIds(
     for (auto& [path, module] : modules) {
         for (auto& decl : module.ast->decls) {
             std::optional<uint64_t> msgId;
-            AstMessage* msgPtr;
+            AstMessage* msgPtr = nullptr;
             std::visit(Overloaded{
                            [](AstImport const&) {},
                            [](AstPackageDecl const&) {},
