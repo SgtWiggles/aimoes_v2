@@ -119,3 +119,58 @@ bool validateFieldNumbers(
     }
     return errs.errors.size() == 0;
 }
+
+void validateFieldNames(ao::schema::ErrorContext& errs,
+                        ao::schema::AstMessageBlock const& blk) {
+    std::unordered_map<std::string, SourceLocation> definedFields;
+    auto addFieldName = [&definedFields, &errs](std::string const& str,
+                                                SourceLocation const& loc) {
+        auto [iter, inserted] = definedFields.try_emplace(str, loc);
+        errs.require(inserted,
+                     {
+                         .code = ErrorCode::MULTIPLY_DEFINED_SYMBOL,
+                         .message = std::format(
+                             "Multiple declarations of field with name '{}'. "
+                             "Previously declared at: {}:{}:{}",
+                             str, iter->second.file, iter->second.lineNumber,
+                             iter->second.col),
+                         .loc = loc,
+                     });
+    };
+    for (auto const& fieldDecl : blk.fields) {
+        std::visit(Overloaded{
+                       [&](AstField const& field) {
+                           addFieldName(field.name, field.loc);
+                       },
+                       [&](AstFieldOneOf const& oneOf) {
+                           addFieldName(oneOf.name, oneOf.loc);
+                           validateFieldNames(errs, oneOf.block);
+                       },
+                       // Ignore these cases
+                       [](AstFieldReserved const&) {},
+                       [](AstDefault const&) {},
+                   },
+                   fieldDecl.field);
+    }
+}
+
+bool validateFieldNames(
+    ao::schema::ErrorContext& errors,
+    std::unordered_map<std::string, ao::schema::SemanticContext::Module>&
+        modules) {
+    for (auto& [path, module] : modules) {
+        for (auto& decl : module.ast->decls) {
+            std::visit(Overloaded{
+                           [](AstImport const&) {},
+                           [](AstPackageDecl const&) {},
+                           [&](AstMessage& msg) {
+                               validateFieldNames(errors, msg.block);
+                           },
+                           [](AstDefault const&) {},
+                       },
+                       decl.decl);
+        }
+    }
+
+    return errors.errors.size() == 0;
+}

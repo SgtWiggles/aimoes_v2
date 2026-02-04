@@ -2,7 +2,7 @@ add_library(compiler OBJECT
  "src/Ast.cpp"
  "src/SemanticContext.cpp"
  "src/AstValidateIds.h"
- "src/AstValidateIds.cpp" "src/ComputeDirectives.h" "src/ComputeDirectives.cpp")
+ "src/AstValidateIds.cpp" "src/ComputeDirectives.h" "src/ComputeDirectives.cpp" "include/ao/schema/IR.h" "src/IR.cpp")
 target_include_directories(compiler PUBLIC include)
 
 add_executable(CompilerTests

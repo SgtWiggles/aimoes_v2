@@ -418,7 +418,8 @@ bool SemanticContext::resolveSymbols() {
 bool SemanticContext::validateIds() {
     auto globalIds = validateGlobalMessageIds(m_errors, m_modules);
     auto localIds = validateFieldNumbers(m_errors, m_modules);
-    return globalIds && localIds;
+    auto validFieldNames = validateFieldNames(m_errors, m_modules);
+    return globalIds && localIds && validFieldNames;
 }
 
 bool SemanticContext::computeDirectives() {

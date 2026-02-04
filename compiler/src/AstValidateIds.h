@@ -12,3 +12,7 @@ bool validateFieldNumbers(
     ao::schema::ErrorContext& errors,
     std::unordered_map<std::string, ao::schema::SemanticContext::Module>&
         modules);
+bool validateFieldNames(
+    ao::schema::ErrorContext& errors,
+    std::unordered_map<std::string, ao::schema::SemanticContext::Module>&
+        modules);
