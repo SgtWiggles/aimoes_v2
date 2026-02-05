@@ -15,7 +15,8 @@
 namespace ao::schema {
 std::expected<SymbolInfo, Error> SymbolTable::populateFromQualifiedId(
     std::string const& name,
-    SourceLocation loc) {
+    SourceLocation loc,
+    AstDecl const* decl) {
     auto iter = fullyQualifiedNameToId.find(name);
     if (iter != fullyQualifiedNameToId.end()) {
         return std::unexpected(Error{
@@ -27,14 +28,15 @@ std::expected<SymbolInfo, Error> SymbolTable::populateFromQualifiedId(
     }
 
     auto id = nextQualifiedIdName++;
-    fullyQualifiedNameToId[name] = {id, loc};
-    return SymbolInfo{name, id, loc};
+    auto info = SymbolInfo{name, id, loc, decl};
+    fullyQualifiedNameToId[name] = info;
+    return info;
 }
 std::optional<uint64_t> SymbolTable::getQualifiedId(std::string const& name) {
     auto iter = fullyQualifiedNameToId.find(name);
     if (iter == fullyQualifiedNameToId.end())
         return {};
-    return {iter->second.first};
+    return {iter->second.id};
 }
 
 struct ModuleLoadContext {
@@ -226,31 +228,33 @@ void exportSymbols(ErrorContext& errors,
         return;
 
     for (auto const& decl : module.ast->decls) {
-        std::visit(Overloaded{
-                       [&](AstMessage const& message) {
-                           // Add fully resolved name to local definitions
-                           auto qualifiedName =
-                               module.packageName.qualifyName(message.name);
-                           auto entry = symbolTable.populateFromQualifiedId(
-                               qualifiedName, message.loc);
-                           if (!entry.has_value()) {
-                               errors.errors.push_back(entry.error());
-                           } else {
-                               module.exportedSymbols[message.name] =
-                                   entry.value();
-                           }
-                       },
-                       [](AstImport const&) {
-                           // ignore
-                       },
-                       [](AstDefault const&) {
-                           // ignore
-                       },
-                       [](AstPackageDecl const& decl) {
-                           // ignore
-                       },
-                   },
-                   decl.decl);
+        std::visit(
+            Overloaded{
+                [&](AstMessage const& message) {
+                    // Add fully resolved name to local definitions
+                    auto qualifiedName =
+                        module.packageName.qualifyName(message.name);
+                    auto entry = symbolTable.populateFromQualifiedId(
+                        qualifiedName, message.loc, &decl);
+                    if (!entry.has_value()) {
+                        errors.errors.push_back(entry.error());
+                    } else {
+                        module.exportedSymbols[message.name] = entry.value();
+                        module.messagesBySymbolId[entry->id] = &message;
+                        module.symbolInfoBySymbolId[entry->id] = entry.value();
+                    }
+                },
+                [](AstImport const&) {
+                    // ignore
+                },
+                [](AstDefault const&) {
+                    // ignore
+                },
+                [](AstPackageDecl const& decl) {
+                    // ignore
+                },
+            },
+            decl.decl);
     }
 }
 

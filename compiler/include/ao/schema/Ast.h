@@ -63,7 +63,7 @@ struct AstPackageDecl {
     SourceLocation loc;
 };
 
-enum ValueLiteralType {
+enum class ValueLiteralType {
     BOOLEAN,
     INT,
     NUMBER,
@@ -131,6 +131,8 @@ struct AstMessageBlock {
     SourceLocation loc;
 };
 
+// TODO convert oneof into a type instead of a field
+// This will allow for real composition
 struct AstFieldOneOf {
     std::string name;
     uint64_t fieldNumber;
@@ -157,7 +159,10 @@ struct AstMessage {
     std::string name;
     std::optional<uint64_t> messageId;
     AstMessageBlock block;
+    AstDirectiveBlock directives;
     SourceLocation loc;
+
+    uint64_t symbolId;
 };
 
 struct AstDecl {
