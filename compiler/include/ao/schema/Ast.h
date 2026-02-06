@@ -107,12 +107,16 @@ struct AstMessageBlock {
 };
 
 struct NormalizedAstTypeProperties {
+    // int/uint properties
     std::optional<int> bits;
+    std::optional<std::string> encoding;
+
+    // array properties
     std::optional<int> minLength;
     std::optional<int> maxLength;
 
     // TODO fixed point parameters!!
-    
+    // TODO better validation here, minLength < maxLength
 };
 
 struct AstType {

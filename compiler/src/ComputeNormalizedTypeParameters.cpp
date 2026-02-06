@@ -23,6 +23,20 @@ bool parseLiteral(ErrorContext& ctx,
     output = std::stoi(value.contents);
     return true;
 }
+bool parseLiteral(ErrorContext& ctx,
+                  AstValueLiteral const& value,
+                  std::optional<std::string>& output) {
+    ctx.require(value.type == ValueLiteralType::INT,
+                {
+                    ErrorCode::INVALID_VALUE_FOR_TYPE_PROPERTY,
+                    "Expected integer for type property",
+                    value.loc,
+                });
+    if (value.type != ValueLiteralType::INT)
+        return false;
+    output = value.contents;
+    return true;
+}
 
 template <class T>
 std::optional<T> checkProperty(ErrorContext& errs,
@@ -72,6 +86,9 @@ void computeNormalizedTypeParameters(ErrorContext& errs, AstType& type) {
                              property.loc,
                          });
         }
+
+        checkProperty(errs, property, "encoding", toStore.encoding);
+
         if (auto prop =
                 checkProperty(errs, property, "min_len", toStore.minLength)) {
             errs.require(*prop >= 0,
