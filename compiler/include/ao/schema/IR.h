@@ -131,8 +131,6 @@ struct Scalar {
         UInt,  // unsigned
         F32,
         F64,
-        String,
-        Bytes,
     };
     ScalarKind kind;
     size_t width = 0;

@@ -56,6 +56,10 @@ void computeTypeNameDirectives(DirectiveContext& ctx, AstType& type) {
     switch (type.type) {
         case AstBaseType::INT:
         case AstBaseType::UINT:
+        case AstBaseType::F32:
+        case AstBaseType::F64:
+        case AstBaseType::STRING:
+        case AstBaseType::BYTES:
         case AstBaseType::USER:
             break;
         case AstBaseType::ARRAY:

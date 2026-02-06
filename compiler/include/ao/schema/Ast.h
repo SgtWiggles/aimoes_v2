@@ -17,6 +17,12 @@ using ResolvedTypeId = uint64_t;
 enum class AstBaseType {
     INT,       // int k -> mirror C++ type
     UINT,      // uint k -> mirror C++ type
+    F32,       // float
+    F64,       // double
+
+    STRING,    // strings
+    BYTES,     // byte array (still a string)
+
     ARRAY,     // Generate to std::vector
     OPTIONAL,  // Generate to std::optional
     ONEOF,     // Generate to std::variant
