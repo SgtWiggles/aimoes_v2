@@ -19,6 +19,7 @@ enum class AstBaseType {
     UINT,      // uint k -> mirror C++ type
     ARRAY,     // Generate to std::vector
     OPTIONAL,  // Generate to std::optional
+    ONEOF,     // Generate to std::variant
     USER,      // Used for messages, oneof, etc
 };
 
@@ -69,7 +70,7 @@ enum class ValueLiteralType {
     NUMBER,
     STRING,
 };
-struct AstDirectiveValueLiteral {
+struct AstValueLiteral {
     ValueLiteralType type;
     std::string contents;
     SourceLocation loc;
@@ -81,49 +82,16 @@ enum class AstFieldDirectiveType {
     FIELD,
     CUSTOM,
 };
-
-struct AstDirective {
-    AstFieldDirectiveType type;
-    std::string directiveName;
-    std::unordered_map<std::string, AstDirectiveValueLiteral> properties;
-    SourceLocation loc;
+struct AstTypeProperty {
+    std::string name;
+    AstValueLiteral value;
 };
 
-struct AstDirectiveBlock {
-    std::vector<AstDirective> directives;
-    std::unordered_map<
-        std::string,
-        std::unordered_map<std::string, AstDirectiveValueLiteral>>
-        effectiveDirectives;
-};
-
-struct AstTypeName {
-    AstBaseType type;
-    AstQualifiedName name;
-
-    std::optional<uint64_t> width;
-    std::optional<uint64_t> maxLen;
-
-    std::vector<std::shared_ptr<AstTypeName>> subtypes;
-    AstDirectiveBlock directives;
-    SourceLocation loc;
-
-    // Types for resolving the names to their IDS
-    std::optional<ResolvedTypeId> resolvedDef;
-    std::optional<std::string> resolvedFqn;
+struct AstTypeProperties {
+    std::vector<AstTypeProperty> props;
 };
 
 struct AstFieldDecl;
-
-struct AstField {
-    std::string name;
-    uint64_t fieldNumber;
-    AstTypeName typeName;
-
-    AstDirectiveBlock directives;
-    SourceLocation loc;
-};
-
 struct AstMessageBlock {
     std::vector<AstFieldDecl> fields;
     // points into the local fields, computed later
@@ -131,15 +99,41 @@ struct AstMessageBlock {
     SourceLocation loc;
 };
 
-// TODO convert oneof into a type instead of a field
-// This will allow for real composition
-struct AstFieldOneOf {
+struct AstType {
+    AstBaseType type;
+    AstQualifiedName name;
+
+    std::vector<std::shared_ptr<AstType>> subtypes;  // used in parametric types
+    AstTypeProperties properties;                    // used in all types
+    AstMessageBlock block;                           // used in one of
+
+    SourceLocation loc;
+
+    // Types for resolving the names to their IDS
+    std::optional<ResolvedTypeId> resolvedDef;
+    std::optional<std::string> resolvedFqn;
+};
+
+struct AstDirective {
+    AstFieldDirectiveType type;
+    std::string directiveName;
+    std::unordered_map<std::string, AstValueLiteral> properties;
+    SourceLocation loc;
+};
+
+struct AstDirectiveBlock {
+    std::vector<AstDirective> directives;
+    std::unordered_map<std::string,
+                       std::unordered_map<std::string, AstValueLiteral>>
+        effectiveDirectives;
+};
+
+struct AstField {
     std::string name;
     uint64_t fieldNumber;
+    AstType typeName;
 
     AstDirectiveBlock directives;
-
-    AstMessageBlock block;
     SourceLocation loc;
 };
 
@@ -152,7 +146,7 @@ struct AstDefault {
     SourceLocation loc;
 };
 struct AstFieldDecl {
-    std::variant<AstField, AstFieldOneOf, AstFieldReserved, AstDefault> field;
+    std::variant<AstField, AstFieldReserved, AstDefault> field;
     SourceLocation loc;
 };
 struct AstMessage {

@@ -12,8 +12,6 @@
 
 using namespace ao::schema;
 
-
-
 TEST_CASE("resolveSymbols: succeeds for a single well-formed module") {
     SimpleTestFrontend frontend;
 
@@ -145,8 +143,7 @@ TEST_CASE(
     CHECK(ctx.getErrorContext().errors.empty());
 }
 
-TEST_CASE(
-    "resolveSymbols: undefined and ambiguous type names produce errors") {
+TEST_CASE("resolveSymbols: undefined and ambiguous type names produce errors") {
     SimpleTestFrontend frontend;
 
     // Module A: pkg1.Target
@@ -201,8 +198,7 @@ TEST_CASE("resolveSymbols: invalid type arguments are reported") {
     SimpleTestFrontend frontend;
 
     // Message with ARRAY but no subtype -> INVALID_TYPE_ARGS
-    AstTypeName arrayNoArg =
-        makeCtorType(AstBaseType::ARRAY, {});  // wrong arity
+    AstType arrayNoArg = makeCtorType(AstBaseType::ARRAY, {});  // wrong arity
     AstField f = makeField("arr", 1, arrayNoArg);
     AstFieldDecl fd = makeFieldDecl(f);
     AstMessage m = makeMessage("HasBadArray", {fd});

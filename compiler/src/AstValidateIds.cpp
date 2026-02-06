@@ -51,6 +51,18 @@ bool validateGlobalMessageIds(
 }
 
 void validateMessageFieldsNumbers(ao::schema::ErrorContext& errs,
+                                  AstMessageBlock& message);
+void validateMessageFieldsNumbers(ao::schema::ErrorContext& errs,
+                                  AstType& type) {
+    for (auto const& subtype : type.subtypes) {
+        if (!subtype)
+            continue;
+        validateMessageFieldsNumbers(errs, *subtype);
+    }
+    validateMessageFieldsNumbers(errs, type.block);
+}
+
+void validateMessageFieldsNumbers(ao::schema::ErrorContext& errs,
                                   AstMessageBlock& message) {
     auto& idList = message.fieldsByFieldId;
     // Process reserved first
@@ -63,7 +75,6 @@ void validateMessageFieldsNumbers(ao::schema::ErrorContext& errs,
                                    idList.try_emplace(id, &fieldDecl);
                            }
                        },
-                       [](AstFieldOneOf const&) {},
                        [](AstDefault const&) {},
                        [](AstField const&) {},
                    },
@@ -84,19 +95,16 @@ void validateMessageFieldsNumbers(ao::schema::ErrorContext& errs,
     };
     // Then process the actual fields
     for (auto& fieldDecl : message.fields) {
-        std::visit(
-            Overloaded{
-                [&](AstField& field) {
-                    insertFieldId(field.fieldNumber, &fieldDecl, field.loc);
-                },
-                [&](AstFieldOneOf& field) {
-                    insertFieldId(field.fieldNumber, &fieldDecl, field.loc);
-                    // Process field IDs of the oneof
-                },
-                [](AstFieldReserved const&) {},
-                [](AstDefault const&) {},
-            },
-            fieldDecl.field);
+        std::visit(Overloaded{
+                       [&](AstField& field) {
+                           insertFieldId(field.fieldNumber, &fieldDecl,
+                                         field.loc);
+                           validateMessageFieldsNumbers(errs, field.typeName);
+                       },
+                       [](AstFieldReserved const&) {},
+                       [](AstDefault const&) {},
+                   },
+                   fieldDecl.field);
     }
 }
 
@@ -121,6 +129,21 @@ bool validateFieldNumbers(
 }
 
 void validateFieldNames(ao::schema::ErrorContext& errs,
+                        ao::schema::AstMessageBlock const& blk);
+
+void validateFieldNames(ao::schema::ErrorContext& errs,
+                        ao::schema::AstType const& type) {
+    for (auto const& subtype : type.subtypes) {
+        errs.require((bool)subtype,
+                     {ErrorCode::INTERNAL, "Got nullptr on subtype", type.loc});
+        if (!subtype) {
+            validateFieldNames(errs, *subtype);
+        }
+    }
+    validateFieldNames(errs, type.block);
+}
+
+void validateFieldNames(ao::schema::ErrorContext& errs,
                         ao::schema::AstMessageBlock const& blk) {
     std::unordered_map<std::string, SourceLocation> definedFields;
     auto addFieldName = [&definedFields, &errs](std::string const& str,
@@ -141,10 +164,7 @@ void validateFieldNames(ao::schema::ErrorContext& errs,
         std::visit(Overloaded{
                        [&](AstField const& field) {
                            addFieldName(field.name, field.loc);
-                       },
-                       [&](AstFieldOneOf const& oneOf) {
-                           addFieldName(oneOf.name, oneOf.loc);
-                           validateFieldNames(errs, oneOf.block);
+                           validateFieldNames(errs, field.typeName);
                        },
                        // Ignore these cases
                        [](AstFieldReserved const&) {},

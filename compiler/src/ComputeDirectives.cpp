@@ -9,9 +9,8 @@ using namespace ao;
 using namespace ao::schema;
 
 struct DirectiveTable {
-    std::unordered_map<
-        std::string,
-        std::unordered_map<std::string, AstDirectiveValueLiteral>>
+    std::unordered_map<std::string,
+                       std::unordered_map<std::string, AstValueLiteral>>
         directives;
 
     void setDirectives(AstDirectiveBlock const& block) {
@@ -51,15 +50,23 @@ struct DirectiveContext {
         return tables.back();
     }
 };
+void computeMessageBlockDirectives(DirectiveContext& ctx, AstMessageBlock& blk);
 
-void computeTypeNameDirectives(DirectiveContext& ctx, AstTypeName& type) {
-    auto& localDirectives = ctx.push();
-    localDirectives.setDirectives(type.directives);
-    type.directives.effectiveDirectives = ctx.getCurrentTable().directives;
-    ctx.pop();
-
-    for (auto& sub : type.subtypes) {
-        computeTypeNameDirectives(ctx, *sub);
+void computeTypeNameDirectives(DirectiveContext& ctx, AstType& type) {
+    switch (type.type) {
+        case AstBaseType::INT:
+        case AstBaseType::UINT:
+        case AstBaseType::USER:
+            break;
+        case AstBaseType::ARRAY:
+        case AstBaseType::OPTIONAL:
+            for (auto& sub : type.subtypes) {
+                computeTypeNameDirectives(ctx, *sub);
+            }
+            break;
+        case AstBaseType::ONEOF:
+            computeMessageBlockDirectives(ctx, type.block);
+            break;
     }
 }
 
@@ -74,14 +81,6 @@ void computeMessageBlockDirectives(DirectiveContext& ctx,
                            field.directives.effectiveDirectives =
                                ctx.getCurrentTable().directives;
                            computeTypeNameDirectives(ctx, field.typeName);
-                           ctx.pop();
-                       },
-                       [&](AstFieldOneOf& field) {
-                           auto& fieldBlock = ctx.push();
-                           fieldBlock.setDirectives(field.directives);
-                           field.directives.effectiveDirectives =
-                               ctx.getCurrentTable().directives;
-                           computeMessageBlockDirectives(ctx, field.block);
                            ctx.pop();
                        },
                        [&](AstDefault& field) {

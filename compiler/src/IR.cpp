@@ -22,11 +22,7 @@ struct IRContext {
     ResourceCache<Type> types = {};
 };
 
-IdFor<Type> generateIR(IRContext& ctx, AstTypeName const& type) {
-    // TODO generate the type of the oneof
-    return {};
-}
-IdFor<Type> generateIR(IRContext& ctx, AstFieldOneOf const& type) {
+IdFor<Type> generateIR(IRContext& ctx, AstType const& type) {
     // TODO generate the type of the oneof
     return {};
 }
@@ -112,15 +108,6 @@ std::optional<IdFor<Field>> generateIR(IRContext& ctx,
                     .name = ctx.strings.getId(v.name),
                     .fieldNumber = v.fieldNumber,
                     .type = generateIR(ctx, v.typeName),
-                    .directives = generateIR(ctx, v.directives),
-                };
-                return ctx.fields.getId(field);
-            },
-            [&](AstFieldOneOf const& v) -> Ret {
-                auto field = Field{
-                    .name = ctx.strings.getId(v.name),
-                    .fieldNumber = v.fieldNumber,
-                    .type = generateIR(ctx, v),
                     .directives = generateIR(ctx, v.directives),
                 };
                 return ctx.fields.getId(field);

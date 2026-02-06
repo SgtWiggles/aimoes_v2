@@ -261,9 +261,13 @@ void exportSymbols(ErrorContext& errors,
 struct ResolveSymbolsContext {
     std::unordered_map<std::string, std::vector<SymbolInfo>> symbols;
 };
+
+void resolveMessage(ErrorContext& errors,
+                    ResolveSymbolsContext& ctx,
+                    AstMessageBlock& msg);
 void resolveTypeName(ErrorContext& errors,
                      ResolveSymbolsContext& ctx,
-                     AstTypeName& msg) {
+                     AstType& msg) {
     int const arity = msg.subtypes.size();
 
     switch (msg.type) {
@@ -286,6 +290,15 @@ void resolveTypeName(ErrorContext& errors,
                                msg.loc,
                            });
             break;
+        case AstBaseType::ONEOF:
+            errors.require(arity == 0, {
+                                           ErrorCode::INVALID_TYPE_ARGS,
+                                           "Expected no type arguments",
+                                           msg.loc,
+                                       });
+            resolveMessage(errors, ctx, msg.block);
+            break;
+
         default:
             errors.require(false,
                            {ErrorCode::INTERNAL, "Unknown base type", msg.loc});
@@ -357,9 +370,6 @@ void resolveMessage(ErrorContext& errors,
         std::visit(Overloaded{
                        [&](AstField& field) {
                            resolveTypeName(errors, ctx, field.typeName);
-                       },
-                       [&](AstFieldOneOf& field) {
-                           resolveMessage(errors, ctx, field.block);
                        },
                        [](AstFieldReserved const&) {},
                        [](AstDefault const&) {},

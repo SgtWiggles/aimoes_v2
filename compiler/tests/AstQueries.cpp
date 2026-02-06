@@ -33,24 +33,6 @@ AstField* findFieldByName(AstMessage& message, std::string const& fieldName) {
         if (auto pf = std::get_if<AstField>(&fd.field)) {
             if (pf->name == fieldName)
                 return pf;
-        } else if (auto po = std::get_if<AstFieldOneOf>(&fd.field)) {
-            for (auto& inner : po->block.fields) {
-                if (auto pif = std::get_if<AstField>(&inner.field)) {
-                    if (pif->name == fieldName)
-                        return pif;
-                }
-            }
-        }
-    }
-    return nullptr;
-}
-
-AstFieldOneOf* findOneOfByName(AstMessage& message,
-                               std::string const& oneOfName) {
-    for (auto& fd : message.block.fields) {
-        if (auto po = std::get_if<AstFieldOneOf>(&fd.field)) {
-            if (po->name == oneOfName)
-                return po;
         }
     }
     return nullptr;

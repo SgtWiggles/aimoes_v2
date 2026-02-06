@@ -73,13 +73,6 @@ AstFieldDecl makeFieldDecl(AstField field) {
     return d;
 }
 
-AstFieldDecl makeFieldDeclFromOneOf(AstFieldOneOf oneof) {
-    AstFieldDecl d;
-    d.field = std::move(oneof);
-    d.loc = {};
-    return d;
-}
-
 AstFieldDecl makeFieldDeclReserved(std::vector<uint64_t> reservedIds) {
     AstFieldDecl d;
     AstFieldReserved r;
@@ -90,7 +83,7 @@ AstFieldDecl makeFieldDeclReserved(std::vector<uint64_t> reservedIds) {
     return d;
 }
 
-AstField makeField(std::string const& name, uint64_t number, AstTypeName type) {
+AstField makeField(std::string const& name, uint64_t number, AstType type) {
     AstField f;
     f.name = name;
     f.fieldNumber = number;
@@ -106,22 +99,10 @@ AstFieldReserved makeReserved(std::vector<uint64_t> ids) {
     return r;
 }
 
-AstFieldOneOf makeOneOf(std::string const& name,
-                        uint64_t fieldNumber,
-                        std::vector<AstFieldDecl> innerFields) {
-    AstFieldOneOf o;
-    o.name = name;
-    o.fieldNumber = fieldNumber;
-    o.directives = {};
-    o.block.fields = std::move(innerFields);
-    o.block.loc = {};
-    o.loc = {};
-    return o;
-}
 
-AstTypeName makeUserType(std::string const& qualifiedName,
-                         std::vector<std::shared_ptr<AstTypeName>> subtypes) {
-    AstTypeName t;
+AstType makeUserType(std::string const& qualifiedName,
+                         std::vector<std::shared_ptr<AstType>> subtypes) {
+    AstType t;
     t.type = AstBaseType::USER;
     t.name = qnameFromString(qualifiedName);
     t.subtypes = std::move(subtypes);
@@ -129,9 +110,9 @@ AstTypeName makeUserType(std::string const& qualifiedName,
     return t;
 }
 
-AstTypeName makeCtorType(AstBaseType base,
-                         std::vector<std::shared_ptr<AstTypeName>> subtypes) {
-    AstTypeName t;
+AstType makeCtorType(AstBaseType base,
+                         std::vector<std::shared_ptr<AstType>> subtypes) {
+    AstType t;
     t.type = base;
     t.subtypes = std::move(subtypes);
     t.loc = {};
@@ -140,8 +121,8 @@ AstTypeName makeCtorType(AstBaseType base,
 
 // Directive helpers ----------------------------------------------------------
 
-AstDirectiveValueLiteral makeStrLit(std::string const& s) {
-    AstDirectiveValueLiteral lit;
+AstValueLiteral makeStrLit(std::string const& s) {
+    AstValueLiteral lit;
     lit.type = ValueLiteralType::STRING;
     lit.contents = s;
     lit.loc = {};

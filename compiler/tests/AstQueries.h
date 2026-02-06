@@ -28,11 +28,6 @@ ao::schema::AstMessage* findMessageInModules(
 ao::schema::AstField* findFieldByName(ao::schema::AstMessage& message,
                                       std::string const& fieldName);
 
-// Find an `AstFieldOneOf` by its oneof name inside `message`. nullptr if not
-// found.
-ao::schema::AstFieldOneOf* findOneOfByName(ao::schema::AstMessage& message,
-                                           std::string const& oneOfName);
-
 // Convenience: find a field by name inside a given module/message.
 // Returns nullptr if module, message or field is not found.
 ao::schema::AstField* findFieldInModule(

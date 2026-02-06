@@ -29,32 +29,26 @@ ao::schema::AstMessage makeMessage(
 
 // Field / type helpers
 ao::schema::AstFieldDecl makeFieldDecl(ao::schema::AstField field);
-ao::schema::AstFieldDecl makeFieldDeclFromOneOf(
-    ao::schema::AstFieldOneOf oneof);
 ao::schema::AstFieldDecl makeFieldDeclReserved(
     std::vector<uint64_t> reservedIds);
 
 ao::schema::AstField makeField(std::string const& name,
                                uint64_t number,
-                               ao::schema::AstTypeName type);
+                               ao::schema::AstType type);
 
 ao::schema::AstFieldReserved makeReserved(std::vector<uint64_t> ids);
-ao::schema::AstFieldOneOf makeOneOf(
-    std::string const& name,
-    uint64_t fieldNumber,
-    std::vector<ao::schema::AstFieldDecl> innerFields = {});
 
 // Type constructors
-ao::schema::AstTypeName makeUserType(
+ao::schema::AstType makeUserType(
     std::string const& qualifiedName,
-    std::vector<std::shared_ptr<ao::schema::AstTypeName>> subtypes = {});
+    std::vector<std::shared_ptr<ao::schema::AstType>> subtypes = {});
 
-ao::schema::AstTypeName makeCtorType(
+ao::schema::AstType makeCtorType(
     ao::schema::AstBaseType base,
-    std::vector<std::shared_ptr<ao::schema::AstTypeName>> subtypes = {});
+    std::vector<std::shared_ptr<ao::schema::AstType>> subtypes = {});
 
 // Directive helpers
-ao::schema::AstDirectiveValueLiteral makeStrLit(std::string const& s);
+ao::schema::AstValueLiteral makeStrLit(std::string const& s);
 ao::schema::AstDirective makeDirective(
     std::string const& directiveName,
     std::vector<std::pair<std::string, std::string>> properties);
