@@ -11,6 +11,7 @@
 
 #include "AstValidateIds.h"
 #include "ComputeDirectives.h"
+#include "ComputeNormalizedTypeParameters.h"
 
 namespace ao::schema {
 std::expected<SymbolInfo, Error> SymbolTable::populateFromQualifiedId(
@@ -441,7 +442,9 @@ bool SemanticContext::validateIds() {
 }
 
 bool SemanticContext::computeDirectives() {
-    return ::computeDirectives(m_errors, m_modules);
+    ::computeDirectives(m_errors, m_modules);
+    ::computeNormalizedTypeParameters(m_errors, m_modules);
+    return m_errors.errors.size() == 0;
 }
 
 }  // namespace ao::schema

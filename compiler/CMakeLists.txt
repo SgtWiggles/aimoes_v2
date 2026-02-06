@@ -8,7 +8,7 @@ add_library(compiler OBJECT
  "src/IR.cpp"
  "include/ao/schema/IR.h"
  "include/ao/schema/ResourceCache.h"
-)
+ "src/ComputeNormalizedTypeParameters.cpp")
 target_include_directories(compiler PUBLIC include)
 target_link_libraries(compiler PUBLIC Boost::container_hash)
 

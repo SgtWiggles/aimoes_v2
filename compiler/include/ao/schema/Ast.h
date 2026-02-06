@@ -91,6 +91,7 @@ enum class AstFieldDirectiveType {
 struct AstTypeProperty {
     std::string name;
     AstValueLiteral value;
+    SourceLocation loc;
 };
 
 struct AstTypeProperties {
@@ -103,6 +104,15 @@ struct AstMessageBlock {
     // points into the local fields, computed later
     std::unordered_map<uint64_t, AstFieldDecl*> fieldsByFieldId;
     SourceLocation loc;
+};
+
+struct NormalizedAstTypeProperties {
+    std::optional<int> bits;
+    std::optional<int> minLength;
+    std::optional<int> maxLength;
+
+    // TODO fixed point parameters!!
+    
 };
 
 struct AstType {
@@ -118,6 +128,8 @@ struct AstType {
     // Types for resolving the names to their IDS
     std::optional<ResolvedTypeId> resolvedDef;
     std::optional<std::string> resolvedFqn;
+
+    std::optional<NormalizedAstTypeProperties> normalizedProperties;
 };
 
 struct AstDirective {
