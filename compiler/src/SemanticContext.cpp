@@ -22,8 +22,8 @@ std::expected<SymbolInfo, Error> SymbolTable::populateFromQualifiedId(
     if (iter != fullyQualifiedNameToId.end()) {
         return std::unexpected(Error{
             ErrorCode::MULTIPLY_DEFINED_SYMBOL,
-            std::format("Symbol {} was already defined at location {}:{}:{}",
-                        name, loc.file, loc.lineNumber, loc.col),
+            std::format("Symbol {} was already defined at location {}", name,
+                        loc),
             loc,
         });
     }
@@ -62,7 +62,7 @@ bool SemanticContext::loadFile(std::string rootPath) {
         rootPathResolved.value(),
         SourceLocation{
             .file = "",
-            .lineNumber = 0,
+            .line = 0,
             .col = 0,
         },
     });
@@ -148,9 +148,7 @@ bool SemanticContext::loadFile(std::string rootPath) {
         for (auto const& [dependedOn, from] : dependedOnBy) {
             for (auto const& [fromPath, fromImport] : from) {
                 ss << "\n\t";
-                ss << std::format("at {}:{}:{} for file {}",
-                                  fromImport.loc.file,
-                                  fromImport.loc.lineNumber, fromImport.loc.col,
+                ss << std::format("at {} for file {}", fromImport.loc,
                                   fromImport.path);
             }
         }
@@ -178,36 +176,35 @@ bool setPackageName(ErrorContext& errors,
     bool moduleNameSet = false;
     SourceLocation loc;
     for (auto const& decl : module.ast->decls) {
-        std::visit(
-            Overloaded{
-                [&](AstPackageDecl const& decl) {
-                    // Set name of package
-                    if (moduleNameSet) {
-                        errors.errors.push_back({
-                            ErrorCode::MULTIPLE_PACKAGE_DECLARATION,
-                            std::format("Package name was previously "
-                                        "declared at {}:{}:{}",
-                                        loc.file, loc.lineNumber, loc.col),
-                            decl.loc,
-                        });
-                        return;
-                    }
+        std::visit(Overloaded{
+                       [&](AstPackageDecl const& decl) {
+                           // Set name of package
+                           if (moduleNameSet) {
+                               errors.errors.push_back({
+                                   ErrorCode::MULTIPLE_PACKAGE_DECLARATION,
+                                   std::format("Package name was previously "
+                                               "declared at {}",
+                                               loc),
+                                   decl.loc,
+                               });
+                               return;
+                           }
 
-                    moduleNameSet = true;
-                    module.packageName = decl.name;
-                    loc = decl.loc;
-                },
-                [](AstMessage const& message) {
-                    // ignore
-                },
-                [](AstImport const&) {
-                    // ignore
-                },
-                [](AstDefault const&) {
-                    // ignore
-                },
-            },
-            decl.decl);
+                           moduleNameSet = true;
+                           module.packageName = decl.name;
+                           loc = decl.loc;
+                       },
+                       [](AstMessage const& message) {
+                           // ignore
+                       },
+                       [](AstImport const&) {
+                           // ignore
+                       },
+                       [](AstDefault const&) {
+                           // ignore
+                       },
+                   },
+                   decl.decl);
     }
 
     if (!moduleNameSet) {
@@ -353,8 +350,7 @@ void resolveTypeName(ErrorContext& errors,
                           msg.name.toString());
         for (auto const& symbol : iter->second) {
             ss << "\n\t" << symbol.qualifiedName << " defined at "
-               << symbol.defLoc.file << ":" << symbol.defLoc.lineNumber << ":"
-               << symbol.defLoc.col;
+               << std::format("{}", symbol.defLoc);
         }
 
         errors.require(false, {

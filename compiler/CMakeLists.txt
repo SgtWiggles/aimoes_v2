@@ -8,9 +8,9 @@ add_library(compiler OBJECT
  "src/IR.cpp"
  "include/ao/schema/IR.h"
  "include/ao/schema/ResourceCache.h"
- "src/ComputeNormalizedTypeParameters.cpp")
+ "src/ComputeNormalizedTypeParameters.cpp" "include/ao/schema/Parser.h" "src/Parser.cpp")
 target_include_directories(compiler PUBLIC include)
-target_link_libraries(compiler PUBLIC Boost::container_hash)
+target_link_libraries(compiler PUBLIC Boost::container_hash lexy)
 
 add_executable(CompilerTests
  "tests/AstTests.cpp"

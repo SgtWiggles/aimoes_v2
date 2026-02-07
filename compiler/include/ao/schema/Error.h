@@ -1,11 +1,12 @@
 #pragma once
 
 #include <vector>
+#include <format>
 
 namespace ao::schema {
 struct SourceLocation {
     std::string file;
-    size_t lineNumber;
+    size_t line;
     size_t col;
 };
 
@@ -41,3 +42,11 @@ struct ErrorContext {
     std::vector<Error> errors;
 };
 }  // namespace ao::schema
+
+template <>
+struct std::formatter<ao::schema::SourceLocation> {
+    constexpr auto parse(std::format_parse_context& ctx) { return ctx.begin(); }
+    auto format(ao::schema::SourceLocation const& p, std::format_context& ctx) const {
+        return std::format_to(ctx.out(), "{}:{}:{}", p.file, p.line, p.col);
+    }
+};

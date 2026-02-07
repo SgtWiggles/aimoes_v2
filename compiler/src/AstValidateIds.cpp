@@ -31,15 +31,13 @@ bool validateGlobalMessageIds(
                 continue;
             if (globalMessages.contains(*msgId)) {
                 auto const& prev = globalMessages.at(msgId.value());
-                errs.require(
-                    false, {
-                               ErrorCode::MULTIPLY_DEFINED_MESSAGE_ID,
-                               std::format("Message with id {} was "
-                                           "already defined at {}:{}:{}",
-                                           *msgId, prev->loc.file,
-                                           prev->loc.lineNumber, prev->loc.col),
-                               msgPtr->loc,
-                           });
+                errs.require(false, {
+                                        ErrorCode::MULTIPLY_DEFINED_MESSAGE_ID,
+                                        std::format("Message with id {} was "
+                                                    "already defined at {}",
+                                                    *msgId, prev->loc),
+                                        msgPtr->loc,
+                                    });
             } else {
                 globalMessages[*msgId] = msgPtr;
                 module.messagesById[*msgId] = msgPtr;
@@ -84,13 +82,11 @@ void validateMessageFieldsNumbers(ao::schema::ErrorContext& errs,
     auto insertFieldId = [&](uint64_t id, AstFieldDecl* decl,
                              SourceLocation loc) {
         auto [iter, inserted] = idList.try_emplace(id, decl);
-        errs.require(
-            inserted,
-            {ErrorCode::MULTIPLY_DEFINED_FIELD_ID,
-             std::format("Field ID {} was already defined at {}:{}:{}", id,
-                         iter->second->loc.file, iter->second->loc.lineNumber,
-                         iter->second->loc.col),
-             loc});
+        errs.require(inserted,
+                     {ErrorCode::MULTIPLY_DEFINED_FIELD_ID,
+                      std::format("Field ID {} was already defined at {}", id,
+                                  iter->second->loc),
+                      loc});
         return inserted;
     };
     // Then process the actual fields
@@ -154,9 +150,8 @@ void validateFieldNames(ao::schema::ErrorContext& errs,
                          .code = ErrorCode::MULTIPLY_DEFINED_SYMBOL,
                          .message = std::format(
                              "Multiple declarations of field with name '{}'. "
-                             "Previously declared at: {}:{}:{}",
-                             str, iter->second.file, iter->second.lineNumber,
-                             iter->second.col),
+                             "Previously declared at: {}",
+                             str, iter->second),
                          .loc = loc,
                      });
     };
