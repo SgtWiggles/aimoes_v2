@@ -54,6 +54,7 @@ void computeMessageBlockDirectives(DirectiveContext& ctx, AstMessageBlock& blk);
 
 void computeTypeNameDirectives(DirectiveContext& ctx, AstType& type) {
     switch (type.type) {
+        case AstBaseType::BOOL:
         case AstBaseType::INT:
         case AstBaseType::UINT:
         case AstBaseType::F32:
@@ -62,6 +63,7 @@ void computeTypeNameDirectives(DirectiveContext& ctx, AstType& type) {
         case AstBaseType::BYTES:
         case AstBaseType::USER:
             break;
+
         case AstBaseType::ARRAY:
         case AstBaseType::OPTIONAL:
             for (auto& sub : type.subtypes) {

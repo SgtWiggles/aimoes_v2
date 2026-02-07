@@ -5,6 +5,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include <format>
+
 namespace ao::schema {
 template <class T>
 struct IdFor {
@@ -66,3 +68,12 @@ class KeyedResourceCache {
 };
 
 }  // namespace ao::schema
+
+template <class T>
+struct std::formatter<ao::schema::IdFor<T>> {
+    constexpr auto parse(std::format_parse_context& ctx) { return ctx.begin(); }
+    auto format(ao::schema::IdFor<T> const& p, std::format_context& ctx) const {
+        return std::format_to(ctx.out(), "IdFor<{}>(idx={})", typeid(T).name(),
+                              p.idx);
+    }
+};

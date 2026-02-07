@@ -272,6 +272,7 @@ void resolveTypeName(ErrorContext& errors,
     int const arity = msg.subtypes.size();
 
     switch (msg.type) {
+        case AstBaseType::BOOL:
         case AstBaseType::INT:
         case AstBaseType::UINT:
         case AstBaseType::F32:

@@ -15,6 +15,7 @@ namespace ao::schema {
 using ResolvedTypeId = uint64_t;
 
 enum class AstBaseType {
+    BOOL,
     INT,       // int k -> mirror C++ type
     UINT,      // uint k -> mirror C++ type
     F32,       // float

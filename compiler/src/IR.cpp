@@ -18,13 +18,110 @@ struct IRContext {
 
     // Keyed by symbol ID
     KeyedResourceCache<uint64_t, Message> messages = {};
-
     ResourceCache<Type> types = {};
 };
+IdFor<DirectiveSet> generateIR(IRContext& ctx,
+                               AstDirectiveBlock const& directives);
 
 IdFor<Type> generateIR(IRContext& ctx, AstType const& type) {
-    // TODO generate the type of the oneof
-    return {};
+    Type currentType;
+    switch (type.type) {
+        case AstBaseType::BOOL:
+            currentType = Type{Scalar{Scalar::BOOL}};
+            break;
+        case AstBaseType::INT:
+            currentType = Type{Scalar{
+                Scalar::INT,
+                (uint64_t)type.normalizedProperties->bits.value_or(0),
+            }};
+            break;
+        case AstBaseType::UINT:
+            currentType = Type{Scalar{
+                Scalar::UINT,
+                (uint64_t)type.normalizedProperties->bits.value_or(0),
+            }};
+            break;
+        case AstBaseType::F32:
+            currentType = Type{Scalar{Scalar::F32}};
+            break;
+        case AstBaseType::F64:
+            currentType = Type{Scalar{Scalar::F64}};
+            break;
+        case AstBaseType::STRING:
+        case AstBaseType::BYTES:
+            currentType = Type{Array{
+                .type = ctx.types.getId(Type{Scalar{
+                    .kind = Scalar::INT,
+                    .width = 8,
+                }}),
+                .minSize = type.normalizedProperties->minLength,
+                .maxSize = type.normalizedProperties->maxLength,
+            }};
+            break;
+
+        case AstBaseType::ARRAY:
+            currentType = Type{Array{
+                .type = generateIR(ctx, *type.subtypes[0]),
+                .minSize = type.normalizedProperties->minLength,
+                .maxSize = type.normalizedProperties->maxLength,
+            }};
+            break;
+        case AstBaseType::OPTIONAL:
+            currentType = Type{Optional{
+                .type = generateIR(ctx, *type.subtypes[0]),
+            }};
+            break;
+        case AstBaseType::ONEOF: {
+            // TODO generate the type of the oneof
+            auto oneof = OneOf{};
+            std::vector<std::pair<uint64_t, IdFor<Field>>> arms;
+            for (auto const& [fieldNum, field] : type.block.fieldsByFieldId) {
+                std::visit(
+                    Overloaded{
+                        [&arms, &ctx, &field](AstField const& f) {
+                            auto fieldForInsert = Field{};
+                            fieldForInsert.name = ctx.strings.getId(f.name);
+                            fieldForInsert.fieldNumber = f.fieldNumber;
+                            fieldForInsert.type = generateIR(ctx, f.typeName);
+                            fieldForInsert.directives =
+                                generateIR(ctx, f.directives);
+
+                            arms.push_back({
+                                f.fieldNumber,
+                                ctx.fields.getId(fieldForInsert),
+                            });
+                        },
+                        [](AstFieldReserved const&) {},
+                        [](AstDefault const&) {},
+
+                    },
+                    field->field);
+            }
+
+            std::sort(
+                arms.begin(), arms.end(),
+                [](auto const& l, auto const& r) { return l.first < r.first; });
+
+            for (auto const& arm : arms) {
+                oneof.arms.push_back(arm.second);
+            }
+            auto id = ctx.oneOfs.getId(oneof);
+            currentType = Type{id};
+        } break;
+        case AstBaseType::USER:
+            if (type.resolvedDef) {
+                currentType = Type{ctx.messages.getId(*type.resolvedDef)};
+            } else {
+                ctx.errors.require(false,
+                                   {
+                                       ErrorCode::INTERNAL,
+                                       "Unresolved user type found in codegen",
+                                       type.loc,
+                                   });
+            }
+            break;
+    }
+    return ctx.types.getId(currentType);
 }
 
 IdFor<DirectiveSet> generateIR(IRContext& ctx,

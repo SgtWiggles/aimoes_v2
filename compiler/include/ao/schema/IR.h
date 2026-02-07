@@ -126,14 +126,16 @@ struct Message {
 
 struct Scalar {
     enum ScalarKind : uint8_t {
-        Bool,
-        Int,   // signed
-        UInt,  // unsigned
+        BOOL,
+        INT,   // signed
+        UINT,  // unsigned
         F32,
         F64,
     };
     ScalarKind kind;
     size_t width = 0;
+    // TODO varint encoding
+    // bool varintEncoded = false;
     auto operator<=>(Scalar const& other) const = default;
 };
 inline size_t hash_value(Scalar const& scalar) {
@@ -145,7 +147,8 @@ inline size_t hash_value(Scalar const& scalar) {
 
 struct Array {
     IdFor<Type> type;
-    std::optional<size_t> maxSize;
+    std::optional<int> minSize;
+    std::optional<int> maxSize;
 
     auto operator<=>(Array const& other) const = default;
     
@@ -187,5 +190,6 @@ struct IR {
 IR generateIR(
     std::unordered_map<std::string, ao::schema::SemanticContext::Module> const&
         modules);
-
 }  // namespace ao::schema::ir
+
+
