@@ -133,10 +133,9 @@ struct TypeName {
 };
 
 struct TypeArgs {
-    static constexpr auto rule =
-        dsl::opt(dsl::angle_bracketed(dsl::opt(dsl::list(
-            dsl::peek(dsl::p<TypeName>) >> dsl::recurse_branch<struct Type>,
-            dsl::sep(LEXY_LIT(","))))));
+    static constexpr auto rule = dsl::opt(dsl::angle_bracketed(dsl::list(
+        dsl::peek(dsl::p<TypeName>) >> dsl::recurse_branch<struct Type>,
+        dsl::trailing_sep(LEXY_LIT(",")))));
 };
 
 struct TypePropertyArgItem {
@@ -146,8 +145,8 @@ struct TypePropertyArgItem {
 
 struct TypeProperties {
     static constexpr auto rule = dsl::opt(dsl::round_bracketed(
-        dsl::opt(dsl::list(dsl::peek(identifier) >> dsl::p<TypePropertyArgItem>,
-                           dsl::sep(LEXY_LIT(","))))));
+        dsl::list(dsl::peek(identifier) >> dsl::p<TypePropertyArgItem>,
+                  dsl::trailing_sep(LEXY_LIT(",")))));
 };
 
 struct TypeMessageBlock {
@@ -176,7 +175,8 @@ struct MessageDecl {
     static constexpr auto rule =
         LEXY_LIT("message") >>
         dsl::opt(dsl::integer<unsigned int, dsl::decimal>) +
-            dsl::p<UnqualifiedSymbol> + dsl::p<MessageBlock>;
+            dsl::p<UnqualifiedSymbol> + dsl::p<MessageBlock> +
+            dsl::opt(LEXY_LIT(";"));
 };
 
 struct ImportDecl {
