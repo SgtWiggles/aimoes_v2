@@ -7,7 +7,8 @@ TEST_CASE("Parser passing message tests", "[parse]") {
     bool success;
 
     std::vector<std::string> passingCases = {
-        "message 42 name {}", "message 5215 name{\t}",
+        "message 42 name {}",
+        "message 5215 name{\t}",
         R"(message name 
 {    
     1          name string;
@@ -29,9 +30,12 @@ TEST_CASE("Parser passing message tests", "[parse]") {
         "int(bits=123)\t\r\n;}",
         "message object { 1 hello_world_value int(bits=123)\t\r\n;}message "
         "object { 1 hello_world_value int(bits=123)\t\r\n;}",
-        R"(message name 
+        R"(
+default @cpp(namespace="not_ao");
+message name 
 {    
-    1          name string(bits="12341", hello="world");
+    default @cpp(namespace="ao");
+    1          name string(bits="12341", hello="world") @cpp(namespace="ao");
     12         name bool(values=123.123e1232);
     123        name int(default=-972938748923.9802938402938029e+19820234982734);
     1234       name uint(default=+12039280923832.23482930483e+23234);
@@ -50,11 +54,14 @@ TEST_CASE("Parser passing message tests", "[parse]") {
         "package a.b.c;message 1423213 message {}",
         "package a.b.c;message 1423213 message {}package b.c.a.c;",
         // --- minimal / whitespace variants ---
-        "message X{}", "message   X   {   }", "message\tX{\n}\n",
+        "message X{}",
+        "message   X   {   }",
+        "message\tX{\n}\n",
         "message 7 X {}",
 
         // --- package + import combos ---
-        "package a; message X {}", "package a.b; import \"x\"; message X {}",
+        "package a; message X {}",
+        "package a.b; import \"x\"; message X {}",
         "import \"a\"; import \"b\"; message X {}",
 
         // --- import string escape coverage ---
@@ -63,7 +70,8 @@ TEST_CASE("Parser passing message tests", "[parse]") {
         "import \"slashes \\\\ and quote \\\"\"; message X {}",
 
         // --- multiple messages in one input ---
-        "message A {} message B {}", "package a.b.c; message A {} message B {}",
+        "message A {} message B {}",
+        "package a.b.c; message A {} message B {}",
         "import \"x\"; message A {} import \"y\"; message B {}",
 
         // --- simple fields (type + ';') ---
@@ -113,7 +121,8 @@ TEST_CASE("Parser passing message tests", "[parse]") {
 
         // --- “keyword-y” identifiers you already allow (you had `message
         // 1423213 message {}`) ---
-        "message message {}", "message 1423213 message {}",
+        "message message {}",
+        "message 1423213 message {}",
         "package a.b.c; message 1423213 message {}",
 
         // --- large numbers / long identifiers ---
@@ -183,8 +192,6 @@ TEST_CASE("Parser failing message tests", "[parse]") {
 
         // --- oneof structure (based on your passing oneof(...) { ... };) ---
         "message 1 A { 1 f oneof(bits=10) { 1 x int; }",    // missing closing
-                                                            // message + maybe
-                                                            // missing ';'
         "message 1 A { 1 f oneof(bits=10) { x int; }; }",   // missing entry
                                                             // number
         "message 1 A { 1 f oneof(bits=10) { 1 x int }; }",  // missing ';'
@@ -195,7 +202,54 @@ TEST_CASE("Parser failing message tests", "[parse]") {
         // --- illegal nesting / placement (pure grammar) ---
         "message 1 A { import \"x\"; 1 f int; }",  // import inside message
         "message 1 A { message 2 B {}; }",         // nested message
-        //clang-format on
+
+        // garbage at top-level
+        "x"
+
+        // missing semicolon for import/package
+        "import \"x\""
+        "package a.b.c"
+
+        // import requires a StringLiteral
+        "import x;"
+        "import 123;"
+
+        // package requires QualifiedSymbol (no leading/trailing dot, no empty
+        // segment)
+        "package a..b;"
+        "package .a.b;"
+        "package a.b.;"
+        "package ;"
+
+        // extra tokens after a valid file
+        "message A {} ???"
+
+        // top-level semicolon is not a FileDecl
+        ";"
+
+        // missing name
+        "message {}"
+
+        // message name must be unqualified (no dots)
+        "message a.b {}"
+
+        // id must be integer token if present
+        "message -1 A {}"
+        "message 1.2 A {}"
+
+        // missing block
+        "message A"
+        "message 1 A"
+
+        // stray tokens between name and block
+        "message A 123 {}"
+        "message A (x=1) {}"  // options are only on types, not message decl
+
+        // message allows optional trailing ';' but not required.
+        // This fails because ';' appears before the block:
+        "message A ; {}",
+
+        "default @cpp(namespace=\"not_ao\")message name {}"
     };
 
     for (auto const& fileContents : cases) {

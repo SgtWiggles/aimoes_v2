@@ -100,19 +100,20 @@ struct ValueLiteral {
 };
 
 struct DirectiveKeyValuePair {
-    static constexpr auto rule = LEXY_LIT("=") + dsl::p<ValueLiteral>;
+    static constexpr auto rule = identifier >>
+                                 LEXY_LIT("=") + dsl::p<ValueLiteral>;
 };
 
-struct DirectiveSet {
-    /*
+struct DirectiveProfile {
     static constexpr auto rule =
         LEXY_LIT("@") >>
         identifier +
-            dsl::round_bracketed(dsl::list(
-                identifier >> dsl::p<DirectiveKeyValuePair>,
-                dsl::trailing_sep(",")));
-                */
-    static constexpr auto rule = dsl::whitespace(dsl::ascii::space);
+            dsl::round_bracketed(dsl::list(dsl::p<DirectiveKeyValuePair>,
+                                           dsl::trailing_sep(LEXY_LIT(","))));
+};
+
+struct DirectiveSet {
+    static constexpr auto rule = dsl::opt(dsl::list(dsl::p<DirectiveProfile>));
 };
 struct UnqualifiedSymbol {
     static constexpr auto rule =
@@ -160,10 +161,15 @@ struct Type {
         dsl::p<TypeArgs> + dsl::p<TypeProperties> + dsl::p<TypeMessageBlock>;
 };
 
+struct DefaultDecl {
+    static constexpr auto rule = LEXY_LIT("default") >> dsl::p<DirectiveSet>;
+};
+
 struct FieldDef {
-    static constexpr auto rule = LEXY_LIT("default") >> dsl::p<DirectiveSet> |
-                                 dsl::integer<unsigned int, dsl::decimal> >>
-                                     dsl::p<UnqualifiedSymbol> + dsl::p<Type>;
+    static constexpr auto rule =
+        dsl::p<DefaultDecl> |
+        dsl::integer<unsigned int, dsl::decimal> >>
+            dsl::p<UnqualifiedSymbol> + dsl::p<Type> + dsl::p<DirectiveSet>;
 };
 
 struct MessageBlock {
@@ -190,8 +196,9 @@ struct PackageDecl {
 };
 
 struct FileDecl {
-    static constexpr auto rule =
-        dsl::p<MessageDecl> | dsl::p<ImportDecl> | dsl::p<PackageDecl>;
+    static constexpr auto rule = dsl::p<MessageDecl> | dsl::p<ImportDecl> |
+                                 dsl::p<PackageDecl> |
+                                 dsl::p<DefaultDecl> >> LEXY_LIT(";");
 };
 
 struct File {
