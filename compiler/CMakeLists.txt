@@ -10,7 +10,7 @@ add_library(compiler OBJECT
  "include/ao/schema/ResourceCache.h"
  "src/ComputeNormalizedTypeParameters.cpp" "include/ao/schema/Parser.h" "src/Parser.cpp")
 target_include_directories(compiler PUBLIC include)
-target_link_libraries(compiler PUBLIC Boost::container_hash lexy)
+target_link_libraries(compiler PUBLIC Boost::container_hash foonathan::lexy)
 
 add_executable(CompilerTests
  "tests/AstTests.cpp"
@@ -22,5 +22,5 @@ add_executable(CompilerTests
  "tests/ValidateIdTests.cpp"
  "tests/ComputeDirectiveTests.cpp"
  "tests/AstQueries.h"
- "tests/AstQueries.cpp")
+ "tests/AstQueries.cpp" "tests/ParserTests.cpp")
 target_link_libraries(CompilerTests PRIVATE compiler Catch2::Catch2WithMain)
