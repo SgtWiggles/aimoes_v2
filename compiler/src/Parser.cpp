@@ -174,7 +174,7 @@ struct MessageBlock {
 struct MessageDecl {
     static constexpr auto rule =
         LEXY_LIT("message") >>
-        dsl::opt(dsl::integer<unsigned int, dsl::decimal>) +
+        dsl::opt(dsl::integer<uint64_t, dsl::decimal>) +
             dsl::p<UnqualifiedSymbol> + dsl::p<MessageBlock> +
             dsl::opt(LEXY_LIT(";"));
 };
