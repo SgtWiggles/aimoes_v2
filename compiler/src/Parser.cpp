@@ -407,27 +407,43 @@ struct MessageBlock {
 };
 
 struct MessageDecl {
+    struct OptSemi {
+        static constexpr auto rule = dsl::opt(LEXY_LIT(";"));
+        static constexpr auto value = lexy::noop;
+    };
     static constexpr auto rule =
         LEXY_LIT("message") >>
         dsl::opt(dsl::integer<uint64_t>) + dsl::p<UnqualifiedSymbol> +
-            dsl::p<MessageBlock> + dsl::opt(LEXY_LIT(";"));
-    static constexpr auto value = lexy::callback_with_state<AstDecl>(
-        [](ParsingContext const& ctx,
-           std::optional<uint64_t> msgNumber,
-           std::string name,
-           AstMessageBlock block,
-           lexy::nullopt) { return AstDecl{}; },
-        [](ParsingContext const& ctx,
-           std::optional<uint64_t> msgNumber,
-           std::string name,
-           AstMessageBlock block) { return AstDecl{}; });
+            dsl::p<DirectiveSet> + dsl::p<MessageBlock> + dsl::p<OptSemi>;
+    static constexpr auto value =
+        lexy::callback_with_state<AstDecl>([](ParsingContext const& ctx,
+                                              std::optional<uint64_t> msgNumber,
+                                              std::string name,
+                                              bool directives,
+                                              AstMessageBlock block) {
+            return AstDecl{
+                .decl =
+                    AstMessage{
+                        .name = std::move(name),
+                        .messageId = std::move(msgNumber),
+                        .block = std::move(block),
+                        .directives = {},  // TODO directives
+                        .loc = {},         // TODO get loc
+                    },
+                .loc = {},  // TODO get loc
+            };
+        });
 };
 
 struct ImportDecl {
     static constexpr auto rule = LEXY_LIT("import") >>
                                  dsl::p<StringLiteral> + LEXY_LIT(";");
     static constexpr auto value = lexy::callback_with_state<AstDecl>(
-        [](ParsingContext const& ctx, std::string path) { return AstDecl{}; });
+        [](ParsingContext const& ctx, std::string path) {
+            return AstDecl{AstImport{
+                .path = std::move(path), .loc = {},  // TODO loc
+            }};
+        });
 };
 
 struct PackageDecl {
@@ -436,7 +452,9 @@ struct PackageDecl {
     static constexpr auto value = lexy::callback_with_state<AstDecl>(
         [](ParsingContext const& ctx, std::vector<std::string> name) {
             auto qualifiedName = AstQualifiedName{name};
-            return AstDecl{};
+            return AstDecl{AstPackageDecl{
+                .name = std::move(qualifiedName), .loc = {},  // TODO loc
+            }};
         });
 };
 
