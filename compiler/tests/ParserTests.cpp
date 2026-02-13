@@ -258,3 +258,6 @@ TEST_CASE("Parser failing message tests", "[parse]") {
         REQUIRE(!success);
     }
 }
+
+TEST_CASE("Parsing AST 1", "[parse]") {
+}
