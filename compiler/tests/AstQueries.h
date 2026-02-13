@@ -37,4 +37,9 @@ ao::schema::AstField* findFieldInModule(
     std::string const& messageName,
     std::string const& fieldName);
 
+bool hasPackageDecl(ao::schema::AstFile const& file,
+                    AstQualifiedName const& name);
+bool hasPackageDecl(ao::schema::AstFile const& file);
+
+
 }  // namespace ao::schema::query

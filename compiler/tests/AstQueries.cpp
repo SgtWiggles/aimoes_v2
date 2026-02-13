@@ -50,4 +50,27 @@ AstField* findFieldInModule(
     return findFieldByName(*msg, fieldName);
 }
 
+bool hasPackageDecl(ao::schema::AstFile const& file,
+                    AstQualifiedName const& name) {
+    for (auto const& decl : file.decls) {
+        auto* pkg = std::get_if<AstPackageDecl>(&decl.decl);
+        if (!pkg)
+            continue;
+        if (pkg->name.name == name.name)
+            return true;
+    }
+
+    return false;
+}
+bool hasPackageDecl(ao::schema::AstFile const& file) {
+    for (auto const& decl : file.decls) {
+        auto* pkg = std::get_if<AstPackageDecl>(&decl.decl);
+        if (!pkg)
+            continue;
+        return true;
+    }
+
+    return false;
+}
+
 }  // namespace ao::schema::query

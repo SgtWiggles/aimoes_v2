@@ -2,6 +2,10 @@
 
 #include "ao/schema/Parser.h"
 
+#include "AstQueries.h"
+
+using namespace ao::schema::query;
+
 TEST_CASE("Parser passing message tests", "[parse]") {
     std::string errors;
     bool success;
@@ -249,8 +253,7 @@ TEST_CASE("Parser failing message tests", "[parse]") {
         // This fails because ';' appears before the block:
         "message A ; {}",
 
-        "default @cpp(namespace=\"not_ao\")message name {}"
-    };
+        "default @cpp(namespace=\"not_ao\")message name {}"};
 
     for (auto const& fileContents : cases) {
         success = ao::schema::parseMatch(fileContents, &errors);
@@ -259,5 +262,115 @@ TEST_CASE("Parser failing message tests", "[parse]") {
     }
 }
 
-TEST_CASE("Parsing AST 1", "[parse]") {
+TEST_CASE("Parsing AST package decls", "[parse]") {
+    std::vector<std::pair<std::string, std::vector<std::string>>> packageDecls =
+        {
+            {"package a.b;", {"a", "b"}},
+            {"package a;", {"a"}},
+            {"package a.   b.    c;", {"a", "b", "c"}},
+            {"package a.   \tb\n.    c;", {"a", "b", "c"}},
+            {"\n\r\npackage\n\ra.   \tb\n.    c;", {"a", "b", "c"}},
+            {"message 53 A {}\n\r\npackage\n\ra.   \tb\n.    c;",
+             {"a", "b", "c"}},
+            {"message 53 A {};\n\r\npackage\n\ra.   \tb\n.    c;",
+             {"a", "b", "c"}},
+        };
+
+    for (auto const& pkg : packageDecls) {
+        std::string errs;
+        auto ast = ao::schema::parseToAst("file.aosl", pkg.first, &errs);
+        INFO(errs);
+        REQUIRE(ast != nullptr);
+        REQUIRE(ao::schema::query::hasPackageDecl(*ast, {pkg.second}));
+    }
+
+    std::vector<std::string> packageDeclsFailure = {
+        "message 53 A {}\n\r\n",
+        "message 53 A {};\n\r",
+    };
+    for (auto const& pkg : packageDeclsFailure) {
+        std::string errs;
+        auto ast = ao::schema::parseToAst("file.aosl", pkg, &errs);
+        REQUIRE(ast);
+        REQUIRE(!ao::schema::query::hasPackageDecl(*ast));
+    }
+}
+
+struct MessageDeclTestCase {
+    std::string file;
+    std::string messageName;
+    std::optional<uint64_t> messageNumber;
+};
+
+TEST_CASE("Parsing AST message decls", "[parse]") {
+    std::vector<MessageDeclTestCase> decls = {
+        {"message 53 A {}\n\r\npackage\n\ra.   \tb\n.    c;", "A", 53},
+        {"message 53 A {};\n\r\npackage\n\ra.   \tb\n.    c;", "A", 53},
+        {"message message {}", "message", {}},
+        {"message 1423213 message {}", "message", 1423213},
+        {"package a.b.c; message 1423213 message {}", "message", 1423213},
+    };
+    for (auto const& pkg : decls) {
+        std::string errs;
+        auto ast = ao::schema::parseToAst("file.aosl", pkg.file, &errs);
+        INFO(errs);
+        REQUIRE(ast != nullptr);
+        auto msg = findMessageByUnresolvedName(ast, pkg.messageName);
+        REQUIRE(msg != nullptr);
+        REQUIRE(msg->messageId == pkg.messageNumber);
+    }
+}
+
+TEST_CASE("Parsing AST message fields", "[parse]") {
+    std::string file = R"(
+message 53 A {
+    53 field1 uint;
+    54 field2 int;
+    55 field3 bool;
+    56 field4 bytes;
+    57 field5 string;
+    58 field6 array<int>;
+    59 field7 optional<int>;
+    60 field8 oneof {
+        1 branch1 int;
+        2 branch2 bytes;
+    };
+    61 field9 custom.a;
+}
+
+)";
+    std::string errs;
+    auto ast = ao::schema::parseToAst("file.aosl", file, &errs);
+    INFO(errs);
+    REQUIRE(ast != nullptr);
+    auto msg = findMessageByUnresolvedName(ast, "A");
+    REQUIRE(msg != nullptr);
+    REQUIRE(msg->messageId == 53);
+
+    using ao::schema::AstBaseType;
+    std::vector<std::tuple<std::string, uint64_t, ao::schema::AstBaseType>>
+        simpleCases = {
+            {"field1", 53, AstBaseType::UINT},
+            {"field2", 54, AstBaseType::INT},
+            {"field3", 55, AstBaseType::BOOL},
+            {"field4", 56, AstBaseType::BYTES},
+            {"field5", 57, AstBaseType::STRING},
+            {"field6", 58, AstBaseType::ARRAY},
+            {"field7", 59, AstBaseType::OPTIONAL},
+            {"field8", 60, AstBaseType::ONEOF},
+            {"field9", 61, AstBaseType::USER},
+        };
+
+    for (auto const& [fieldName, fieldNum, typeBase] : simpleCases) {
+        auto field = findFieldByName(*msg, fieldName);
+        REQUIRE(field != nullptr);
+        REQUIRE(field->fieldNumber == fieldNum);
+        REQUIRE(field->typeName.type == typeBase);
+    }
+
+    {
+        auto customField = findFieldByName(*msg, "field9");
+        REQUIRE(customField != nullptr);
+        REQUIRE((customField->typeName.name == ao::schema::AstQualifiedName{{"custom", "a"}}));
+    }
 }

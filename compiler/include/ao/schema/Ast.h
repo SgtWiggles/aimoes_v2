@@ -16,13 +16,13 @@ using ResolvedTypeId = uint64_t;
 
 enum class AstBaseType {
     BOOL,
-    INT,       // int k -> mirror C++ type
-    UINT,      // uint k -> mirror C++ type
-    F32,       // float
-    F64,       // double
+    INT,   // int k -> mirror C++ type
+    UINT,  // uint k -> mirror C++ type
+    F32,   // float
+    F64,   // double
 
-    STRING,    // strings
-    BYTES,     // byte array (still a string)
+    STRING,  // strings
+    BYTES,   // byte array (still a string)
 
     ARRAY,     // Generate to std::vector
     OPTIONAL,  // Generate to std::optional
@@ -59,6 +59,7 @@ struct AstQualifiedName {
         ss << v;
         return ss.str();
     }
+    bool operator==(AstQualifiedName const& other) const { return name == other.name; }
 };
 
 struct AstImport {
