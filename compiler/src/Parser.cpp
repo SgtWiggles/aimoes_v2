@@ -127,7 +127,7 @@ struct NumberLiteral : lexy::token_production {
            int64_t value,
            std::optional<uint64_t> frac,
            std::optional<int64_t> exp) {
-            if (!frac || !exp) {
+            if (!frac && !exp) {
                 return AstValueLiteral{
                     .type = ValueLiteralType::INT,
                     .contents = std::to_string(value),
@@ -187,6 +187,13 @@ struct DirectiveKeyValuePair {
         lexy::construct<std::pair<std::string, AstValueLiteral>>;
 };
 
+static std::unordered_map<std::string, AstFieldDirectiveType> const
+    directiveMapping = {
+        {"net", AstFieldDirectiveType::NET},
+        {"cpp", AstFieldDirectiveType::CPP},
+        {"field", AstFieldDirectiveType::FIELD},
+};
+
 struct DirectiveProfile {
     struct ValueList {
         static constexpr auto rule =
@@ -198,23 +205,37 @@ struct DirectiveProfile {
     static constexpr auto rule = LEXY_LIT("@") >>
                                  dsl::p<Identifier> +
                                      dsl::round_bracketed(dsl::p<ValueList>);
-    static constexpr auto value = lexy::callback_with_state<bool>(
+    static constexpr auto value = lexy::callback_with_state<AstDirective>(
         [](ParsingContext const& ctx,
            std::string identifier,
            std::vector<std::pair<std::string, AstValueLiteral>> directives) {
-            return false;
+            auto directiveTypeIter = directiveMapping.find(identifier);
+            auto ret = AstDirective{
+                .type = directiveTypeIter != directiveMapping.end()
+                            ? directiveTypeIter->second
+                            : AstFieldDirectiveType::CUSTOM,
+                .directiveName = std::move(identifier),
+                .properties = {},
+                .loc = {},
+            };
+            for (auto& [name, literal] : directives)
+                ret.properties[name] = std::move(literal);
+            return ret;
         });
 };
 
 struct DirectiveSet {
     struct ProfileList {
         static constexpr auto rule = dsl::list(dsl::p<DirectiveProfile>);
-        static constexpr auto value = lexy::as_list<std::vector<bool>>;
+        static constexpr auto value = lexy::as_list<std::vector<AstDirective>>;
     };
     static constexpr auto rule = dsl::opt(dsl::p<ProfileList>);
-    static constexpr auto value = lexy::callback_with_state<bool>(
-        [](ParsingContext const& ctx, std::optional<std::vector<bool>> values) {
-            return false;
+    static constexpr auto value = lexy::callback_with_state<AstDirectiveBlock>(
+        [](ParsingContext const& ctx,
+           std::optional<std::vector<AstDirective>> values) {
+            return AstDirectiveBlock{
+                .directives = values.value_or({}),
+            };
         });
 };
 struct UnqualifiedSymbol {
@@ -277,8 +298,7 @@ struct TypeName {
 
 struct TypeArgs {
     struct TypeArg {
-        static constexpr auto rule =
-            dsl::peek(dsl::p<TypeName>) >> dsl::recurse_branch<struct Type>;
+        static constexpr auto rule = dsl::recurse_branch<struct Type>;
         static constexpr auto value =
             lexy::callback_with_state<std::shared_ptr<AstType>>(
                 [](ParsingContext const& ctx, AstType type) {
@@ -353,22 +373,27 @@ struct Type {
            std::pair<AstBaseType, AstQualifiedName> typeName,
            std::vector<std::shared_ptr<AstType>> typeArgs,
            AstTypeProperties typeProps,
-           auto oneOfMessage) {
+           AstMessageBlock oneOfMessage) {
             return AstType{
                 .type = typeName.first,
                 .name = typeName.second,
                 .subtypes = std::move(typeArgs),
                 .properties = std::move(typeProps),
-                .block = {},  // TODO once we get the other block done do this
-                .loc = {},    // TODO figure this out later
+                .block = std::move(oneOfMessage),
+                .loc = {},  // TODO figure this out later
             };
         });
 };
 
 struct DefaultDecl {
     static constexpr auto rule = LEXY_LIT("default") >> dsl::p<DirectiveSet>;
-    static constexpr auto value = lexy::callback_with_state<AstDecl>(
-        [](ParsingContext const& ctx, auto directiveSet) { return AstDecl{}; });
+    static constexpr auto value = lexy::callback_with_state<AstDefault>(
+        [](ParsingContext const& ctx, auto directiveSet) {
+            return AstDefault{
+                .directives = std::move(directiveSet),
+                .loc = {},
+            };
+        });
 };
 
 struct FieldDef {
@@ -376,17 +401,47 @@ struct FieldDef {
         static constexpr auto rule =
             dsl::integer<uint64_t, dsl::decimal> >>
             dsl::p<UnqualifiedSymbol> + dsl::p<Type> + dsl::p<DirectiveSet>;
-        static constexpr auto value = lexy::callback_with_state<bool>(
+        static constexpr auto value = lexy::callback_with_state<AstField>(
             [](ParsingContext const& ctx,
-               auto fieldNum,
-               auto name,
-               auto type,
-               auto directiveSet) { return true; });
+               uint64_t fieldNum,
+               std::string name,
+               AstType type,
+               AstDirectiveBlock directiveSet) {
+                return AstField{
+                    .name = std::move(name),
+                    .fieldNumber = fieldNum,
+                    .typeName = std::move(type),
+                    .directives = std::move(directiveSet),
+                    .loc = {},
+                };
+            });
+    };
+
+    struct ReservedDecl {
+        static constexpr auto rule =
+            LEXY_LIT("reserved") >>
+            dsl::list(dsl::integer<uint64_t, dsl::decimal>,
+                      dsl::sep(LEXY_LIT(",")));
+        static constexpr auto value =
+            lexy::as_list<std::vector<uint64_t>> >>
+            lexy::callback_with_state<AstFieldReserved>(
+                [](ParsingContext const& ctx, std::vector<uint64_t> fields) {
+                    return AstFieldReserved{
+                        .fieldNumbers = std::move(fields),
+                        .loc = {},
+                    };
+                });
     };
     static constexpr auto rule =
-        dsl::p<DefaultDecl> >> LEXY_LIT(";") | dsl::p<Field> >> LEXY_LIT(";");
+        dsl::p<DefaultDecl> >> LEXY_LIT(";") |
+        dsl::p<ReservedDecl> >> LEXY_LIT(";") | dsl::p<Field> >> LEXY_LIT(";");
     static constexpr auto value = lexy::callback_with_state<AstFieldDecl>(
-        [](ParsingContext const& ctx, auto field) { return AstFieldDecl{}; });
+        [](ParsingContext const& ctx, auto field) {
+            return AstFieldDecl{
+                .field = std::move(field),
+                .loc = {},
+            };
+        });
 };
 
 struct MessageBlock {
@@ -419,7 +474,7 @@ struct MessageDecl {
         lexy::callback_with_state<AstDecl>([](ParsingContext const& ctx,
                                               std::optional<uint64_t> msgNumber,
                                               std::string name,
-                                              bool directives,
+                                              AstDirectiveBlock directives,
                                               AstMessageBlock block) {
             return AstDecl{
                 .decl =
@@ -427,8 +482,8 @@ struct MessageDecl {
                         .name = std::move(name),
                         .messageId = std::move(msgNumber),
                         .block = std::move(block),
-                        .directives = {},  // TODO directives
-                        .loc = {},         // TODO get loc
+                        .directives = std::move(directives),
+                        .loc = {},  // TODO get loc
                     },
                 .loc = {},  // TODO get loc
             };
@@ -462,7 +517,9 @@ struct FileDecl {
     static constexpr auto rule = dsl::p<MessageDecl> | dsl::p<ImportDecl> |
                                  dsl::p<PackageDecl> |
                                  dsl::p<DefaultDecl> >> LEXY_LIT(";");
-    static constexpr auto value = lexy::forward<AstDecl>;
+    static constexpr auto value = lexy::callback<AstDecl>(
+        [](AstDecl decl) { return std::move(decl); },
+        [](AstDefault decl) { return AstDecl{std::move(decl)}; });
 };
 
 struct FileDeclList {
