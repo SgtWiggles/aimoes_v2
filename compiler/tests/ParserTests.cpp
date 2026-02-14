@@ -369,8 +369,30 @@ message 53 A {
     }
 
     {
+        auto arrayField = findFieldByName(*msg, "field6");
+        REQUIRE(arrayField != nullptr);
+        REQUIRE(arrayField->typeName.subtypes.size() == 1);
+        auto subtype = arrayField->typeName.subtypes[0];
+        REQUIRE(subtype != nullptr);
+        REQUIRE(subtype->type == AstBaseType::INT);
+    }
+    {
+        auto optionalField = findFieldByName(*msg, "field7");
+        REQUIRE(optionalField != nullptr);
+        REQUIRE(optionalField->typeName.subtypes.size() == 1);
+        auto subtype = optionalField->typeName.subtypes[0];
+        REQUIRE(subtype != nullptr);
+        REQUIRE(subtype->type == AstBaseType::INT);
+    }
+    {
+        auto oneofField = findFieldByName(*msg, "field8");
+        REQUIRE(oneofField != nullptr);
+        REQUIRE(oneofField->typeName.block.fields.size() == 2);
+    }
+    {
         auto customField = findFieldByName(*msg, "field9");
         REQUIRE(customField != nullptr);
-        REQUIRE((customField->typeName.name == ao::schema::AstQualifiedName{{"custom", "a"}}));
+        REQUIRE((customField->typeName.name ==
+                 ao::schema::AstQualifiedName{{"custom", "a"}}));
     }
 }
