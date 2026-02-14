@@ -350,11 +350,15 @@ struct TypeProperties {
             lexy::as_list<std::vector<AstTypeProperty>>;
     };
     static constexpr auto rule =
-        dsl::opt(dsl::round_bracketed(dsl::p<ArgList>));
+        dsl::position(dsl::opt(dsl::round_bracketed(dsl::p<ArgList>)));
     static constexpr auto value = lexy::callback_with_state<AstTypeProperties>(
         [](ParsingContext const& ctx,
+           auto input,
            std::optional<std::vector<AstTypeProperty>> props) {
-            return AstTypeProperties{props.value_or({})};
+            return AstTypeProperties{
+                props.value_or({}),
+                ctx.getSourceLocation(input),
+            };
         });
 };
 

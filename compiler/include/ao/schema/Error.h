@@ -1,7 +1,7 @@
 #pragma once
 
-#include <vector>
 #include <format>
+#include <vector>
 
 namespace ao::schema {
 struct SourceLocation {
@@ -22,6 +22,7 @@ enum class ErrorCode {
     SYMBOL_AMBIGUOUS,
     MULTIPLY_DEFINED_MESSAGE_ID,
     MULTIPLY_DEFINED_FIELD_ID,
+    UNKNOWN_TYPE_PROPERTY,
     INVALID_VALUE_FOR_TYPE_PROPERTY,
     MULTIPLY_DEFINED_TYPE_PROPERTY,
     INTERNAL,
@@ -37,8 +38,10 @@ struct ErrorContext {
     void require(bool condition, Error err) {
         if (condition)
             return;
-        errors.push_back(err);
+        fail(std::move(err));
     }
+    void fail(Error err) { errors.push_back(err); }
+
     std::vector<Error> errors;
 };
 }  // namespace ao::schema
@@ -46,7 +49,8 @@ struct ErrorContext {
 template <>
 struct std::formatter<ao::schema::SourceLocation> {
     constexpr auto parse(std::format_parse_context& ctx) { return ctx.begin(); }
-    auto format(ao::schema::SourceLocation const& p, std::format_context& ctx) const {
+    auto format(ao::schema::SourceLocation const& p,
+                std::format_context& ctx) const {
         return std::format_to(ctx.out(), "{}:{}:{}", p.file, p.line, p.col);
     }
 };

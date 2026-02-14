@@ -10,8 +10,8 @@
 #include "ao/utils/Overloaded.h"
 
 #include "AstValidateIds.h"
+#include "AstValidateTypeProperties.h"
 #include "ComputeDirectives.h"
-#include "ComputeNormalizedTypeParameters.h"
 
 namespace ao::schema {
 std::expected<SymbolInfo, Error> SymbolTable::populateFromQualifiedId(
@@ -440,7 +440,7 @@ bool SemanticContext::validateIds() {
 
 bool SemanticContext::computeDirectives() {
     ::computeDirectives(m_errors, m_modules);
-    ::computeNormalizedTypeParameters(m_errors, m_modules);
+    validateAstTypeProperties(m_errors, m_modules);
     return m_errors.errors.size() == 0;
 }
 

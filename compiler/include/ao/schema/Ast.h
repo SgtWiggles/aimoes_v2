@@ -10,25 +10,11 @@
 #include <vector>
 
 #include "Error.h"
+#include "AstValueLiteral.h"
+#include "AstBaseType.h"
 
 namespace ao::schema {
 using ResolvedTypeId = uint64_t;
-
-enum class AstBaseType {
-    BOOL,
-    INT,   // int k -> mirror C++ type
-    UINT,  // uint k -> mirror C++ type
-    F32,   // float
-    F64,   // double
-
-    STRING,  // strings
-    BYTES,   // byte array (still a string)
-
-    ARRAY,     // Generate to std::vector
-    OPTIONAL,  // Generate to std::optional
-    ONEOF,     // Generate to std::variant
-    USER,      // Used for messages, oneof, etc
-};
 
 struct AstQualifiedName {
     std::vector<std::string> name;
@@ -59,7 +45,9 @@ struct AstQualifiedName {
         ss << v;
         return ss.str();
     }
-    bool operator==(AstQualifiedName const& other) const { return name == other.name; }
+    bool operator==(AstQualifiedName const& other) const {
+        return name == other.name;
+    }
 };
 
 struct AstImport {
@@ -72,32 +60,12 @@ struct AstPackageDecl {
     SourceLocation loc;
 };
 
-enum class ValueLiteralType {
-    BOOLEAN,
-    INT,
-    NUMBER,
-    STRING,
-};
-struct AstValueLiteral {
-    ValueLiteralType type;
-    std::string contents;
-    SourceLocation loc;
-};
 
 enum class AstFieldDirectiveType {
     NET,
     CPP,
     FIELD,
     CUSTOM,
-};
-struct AstTypeProperty {
-    std::string name;
-    AstValueLiteral value;
-    SourceLocation loc;
-};
-
-struct AstTypeProperties {
-    std::vector<AstTypeProperty> props;
 };
 
 struct AstFieldDecl;
@@ -109,16 +77,7 @@ struct AstMessageBlock {
 };
 
 struct NormalizedAstTypeProperties {
-    // int/uint properties
-    std::optional<int> bits;
-    std::optional<std::string> encoding;
-
-    // array properties
-    std::optional<int> minLength;
-    std::optional<int> maxLength;
-
-    // TODO fixed point parameters!!
-    // TODO better validation here, minLength < maxLength
+    AstNormalizedTypeProperties props;
 };
 
 struct AstType {
