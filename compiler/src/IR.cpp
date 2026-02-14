@@ -24,93 +24,163 @@ IdFor<DirectiveSet> generateIR(IRContext& ctx,
                                AstDirectiveBlock const& directives);
 
 IdFor<Type> generateIR(IRContext& ctx, AstType const& type) {
-    Type currentType;
+    Type currentType = Type{Scalar{Scalar::UINT}};
+    if (!type.normalizedProperties) {
+        ctx.errors.fail({
+            .code = ErrorCode::INTERNAL,
+            .message = "Normalized properties was not computed",
+            .loc = type.loc,
+        });
+        return ctx.types.getId(Type{Scalar{Scalar::UINT}});
+    }
     switch (type.type) {
         case AstBaseType::BOOL:
-            currentType = Type{Scalar{Scalar::BOOL}};
+            getPropertyFor<AstBaseType::BOOL>(
+                ctx.errors, type.normalizedProperties->props, type.loc,
+                [&](NormalizedTypeProperty<AstBaseType::BOOL> const& props) {
+                    currentType = Type{Scalar{Scalar::BOOL}};
+                });
             break;
         case AstBaseType::INT:
-            currentType = Type{Scalar{
-                Scalar::INT,
-                (uint64_t)type.normalizedProperties->bits.value_or(0),
-            }};
+            getPropertyFor<AstBaseType::INT>(
+                ctx.errors, type.normalizedProperties->props, type.loc,
+                [&](NormalizedTypeProperty<AstBaseType::INT> const& props) {
+                    currentType = Type{Scalar{
+                        .kind = Scalar::INT,
+                        .width = props.bits,
+                    }};
+                });
             break;
         case AstBaseType::UINT:
-            currentType = Type{Scalar{
-                Scalar::UINT,
-                (uint64_t)type.normalizedProperties->bits.value_or(0),
-            }};
+            getPropertyFor<AstBaseType::UINT>(
+                ctx.errors, type.normalizedProperties->props, type.loc,
+                [&](NormalizedTypeProperty<AstBaseType::UINT> const& props) {
+                    currentType = Type{Scalar{
+                        .kind = Scalar::UINT,
+                        .width = props.bits,
+                    }};
+                });
             break;
         case AstBaseType::F32:
-            currentType = Type{Scalar{Scalar::F32}};
+            getPropertyFor<AstBaseType::F32>(
+                ctx.errors, type.normalizedProperties->props, type.loc,
+                [&](NormalizedTypeProperty<AstBaseType::F32> const& props) {
+                    currentType = Type{Scalar{
+                        .kind = Scalar::F32,
+                    }};
+                });
             break;
         case AstBaseType::F64:
-            currentType = Type{Scalar{Scalar::F64}};
+            getPropertyFor<AstBaseType::F64>(
+                ctx.errors, type.normalizedProperties->props, type.loc,
+                [&](NormalizedTypeProperty<AstBaseType::F64> const& props) {
+                    currentType = Type{Scalar{
+                        .kind = Scalar::F64,
+                    }};
+                });
             break;
         case AstBaseType::STRING:
+            getPropertyFor<AstBaseType::STRING>(
+                ctx.errors, type.normalizedProperties->props, type.loc,
+                [&](NormalizedTypeProperty<AstBaseType::STRING> const& props) {
+                    currentType = Type{
+                        Array{
+                            .type = ctx.types.getId(Type{Scalar{
+                                .kind = Scalar::UINT,
+                                .width = 8,
+                            }}),
+                        },
+                    };
+                });
+            break;
         case AstBaseType::BYTES:
-            currentType = Type{Array{
-                .type = ctx.types.getId(Type{Scalar{
-                    .kind = Scalar::INT,
-                    .width = 8,
-                }}),
-                .minSize = type.normalizedProperties->minLength,
-                .maxSize = type.normalizedProperties->maxLength,
-            }};
+            getPropertyFor<AstBaseType::BYTES>(
+                ctx.errors, type.normalizedProperties->props, type.loc,
+                [&](NormalizedTypeProperty<AstBaseType::BYTES> const& props) {
+                    currentType = Type{
+                        Array{
+                            .type = ctx.types.getId(Type{Scalar{
+                                .kind = Scalar::UINT,
+                                .width = 8,
+                            }}),
+                        },
+                    };
+                });
             break;
 
         case AstBaseType::ARRAY:
-            currentType = Type{Array{
-                .type = generateIR(ctx, *type.subtypes[0]),
-                .minSize = type.normalizedProperties->minLength,
-                .maxSize = type.normalizedProperties->maxLength,
-            }};
+            getPropertyFor<AstBaseType::ARRAY>(
+                ctx.errors, type.normalizedProperties->props, type.loc,
+                [&](NormalizedTypeProperty<AstBaseType::ARRAY> const& props) {
+                    currentType = Type{Array{
+                        .type = generateIR(ctx, *type.subtypes[0]),
+                    }};
+                });
             break;
         case AstBaseType::OPTIONAL:
-            currentType = Type{Optional{
-                .type = generateIR(ctx, *type.subtypes[0]),
-            }};
+            getPropertyFor<AstBaseType::OPTIONAL>(
+                ctx.errors, type.normalizedProperties->props, type.loc,
+                [&](NormalizedTypeProperty<AstBaseType::OPTIONAL> const&
+                        props) {
+                    currentType = Type{Optional{
+                        .type = generateIR(ctx, *type.subtypes[0]),
+                    }};
+                });
             break;
         case AstBaseType::ONEOF: {
-            // TODO generate the type of the oneof
-            auto oneof = OneOf{};
-            std::vector<std::pair<uint64_t, IdFor<Field>>> arms;
-            for (auto const& [fieldNum, field] : type.block.fieldsByFieldId) {
-                std::visit(
-                    Overloaded{
-                        [&arms, &ctx, &field](AstField const& f) {
-                            auto fieldForInsert = Field{};
-                            fieldForInsert.name = ctx.strings.getId(f.name);
-                            fieldForInsert.fieldNumber = f.fieldNumber;
-                            fieldForInsert.type = generateIR(ctx, f.typeName);
-                            fieldForInsert.directives =
-                                generateIR(ctx, f.directives);
+            getPropertyFor<AstBaseType::ONEOF>(
+                ctx.errors, type.normalizedProperties->props, type.loc,
+                [&](NormalizedTypeProperty<AstBaseType::ONEOF> const& props) {
+                    auto oneof = OneOf{};
+                    std::vector<std::pair<uint64_t, IdFor<Field>>> arms;
+                    for (auto const& [fieldNum, field] :
+                         type.block.fieldsByFieldId) {
+                        std::visit(
+                            Overloaded{
+                                [&arms, &ctx, &field](AstField const& f) {
+                                    auto fieldForInsert = Field{};
+                                    fieldForInsert.name =
+                                        ctx.strings.getId(f.name);
+                                    fieldForInsert.fieldNumber = f.fieldNumber;
+                                    fieldForInsert.type =
+                                        generateIR(ctx, f.typeName);
+                                    fieldForInsert.directives =
+                                        generateIR(ctx, f.directives);
 
-                            arms.push_back({
-                                f.fieldNumber,
-                                ctx.fields.getId(fieldForInsert),
-                            });
-                        },
-                        [](AstFieldReserved const&) {},
-                        [](AstDefault const&) {},
+                                    arms.push_back({
+                                        f.fieldNumber,
+                                        ctx.fields.getId(fieldForInsert),
+                                    });
+                                },
+                                [](AstFieldReserved const&) {},
+                                [](AstDefault const&) {},
 
-                    },
-                    field->field);
-            }
+                            },
+                            field->field);
+                    }
 
-            std::sort(
-                arms.begin(), arms.end(),
-                [](auto const& l, auto const& r) { return l.first < r.first; });
+                    std::sort(arms.begin(), arms.end(),
+                              [](auto const& l, auto const& r) {
+                                  return l.first < r.first;
+                              });
 
-            for (auto const& arm : arms) {
-                oneof.arms.push_back(arm.second);
-            }
-            auto id = ctx.oneOfs.getId(oneof);
-            currentType = Type{id};
+                    for (auto const& arm : arms) {
+                        oneof.arms.push_back(arm.second);
+                    }
+                    auto id = ctx.oneOfs.getId(oneof);
+                    currentType = Type{id};
+                });
         } break;
         case AstBaseType::USER:
             if (type.resolvedDef) {
-                currentType = Type{ctx.messages.getId(*type.resolvedDef)};
+                getPropertyFor<AstBaseType::USER>(
+                    ctx.errors, type.normalizedProperties->props, type.loc,
+                    [&](NormalizedTypeProperty<AstBaseType::USER> const&
+                            props) {
+                        currentType = Type{
+                            ctx.messages.getId(*type.resolvedDef),
+                        };
+                    });
             } else {
                 ctx.errors.require(false,
                                    {

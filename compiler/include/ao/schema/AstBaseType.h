@@ -112,6 +112,26 @@ auto getPropertiesVariant(std::index_sequence<Idx...>) {
 
 using AstNormalizedTypeProperties = decltype(detail::getPropertiesVariant(
     std::make_index_sequence<(size_t)AstBaseType::TOTAL_AST_BASE_TYPES>()));
+template <AstBaseType Type>
+using NormalizedTypeProperty =
+    decltype(detail::getBaseTypeProperties<(size_t)Type>());
+template <AstBaseType Type, class Func>
+void getPropertyFor(ErrorContext& err,
+                    AstNormalizedTypeProperties const& props,
+                    SourceLocation loc,
+                    Func f) {
+    auto* prop = std::get_if<NormalizedTypeProperty<Type>>(&props);
+    if (!prop) {
+        err.fail({
+            .code = ErrorCode::INTERNAL,
+            .message = "Invalid normalized type property",
+            .loc = loc,
+        });
+        return;
+    }
+
+    f(*prop);
+}
 AstNormalizedTypeProperties parseTypeProperties(ErrorContext& errs,
                                                 AstBaseType baseType,
                                                 AstTypeProperties const& props);
