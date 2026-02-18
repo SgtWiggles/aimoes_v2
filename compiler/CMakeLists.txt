@@ -25,7 +25,7 @@ add_library(compiler OBJECT
  "include/ao/schema/Codec.h"
  "src/Codec.cpp"
  "include/ao/schema/JSONBackend.h"
- "src/JSONBackend.cpp" )
+ "src/JSONBackend.cpp"  "src/Error.cpp")
 target_include_directories(compiler PUBLIC include)
 target_link_libraries(compiler PUBLIC Boost::container_hash foonathan::lexy pack nlohmann_json)
 

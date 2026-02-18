@@ -188,5 +188,6 @@ struct IR {
 
 IR generateIR(
     std::unordered_map<std::string, ao::schema::SemanticContext::Module> const&
-        modules);
+        modules,
+    ErrorContext& errors);
 }  // namespace ao::schema::ir

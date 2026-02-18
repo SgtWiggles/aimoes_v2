@@ -7,6 +7,7 @@
 #include <nlohmann/json.hpp>
 
 #include "ao/pack/Error.h"
+#include "ao/schema/IR.h"
 
 namespace ao::schema::json {
 struct JsonField {
@@ -27,6 +28,11 @@ struct JsonTable {
 // Encodes to codec
 class JsonEncodeAdapter {
    public:
+    JsonEncodeAdapter(JsonTable const& table, nlohmann::json const& root)
+        : m_table(table), m_root(root) {
+        m_stack.push_back(&m_root);
+    }
+
     void msgBegin(uint32_t msgId);
     void msgEnd();
 
@@ -90,6 +96,10 @@ class JsonEncodeAdapter {
 
 // Decodes from codec
 class JsonDecodeAdapter {
+   public:
+    JsonDecodeAdapter(JsonTable const& table) : m_table(table) {
+        m_stack.push_back(&m_root);
+    }
     // Message navigation:
     void msgBegin(uint32_t msgId);
     void msgEnd();
@@ -129,8 +139,10 @@ class JsonDecodeAdapter {
     void writeF64(double v);
 
     // Status:
-    bool ok() const { return m_err == pack::Error::BadArg; }
+    bool ok() const { return m_err == pack::Error::Ok; }
     ao::pack::Error error() const { return m_err; }
+
+    nlohmann::json root() const { return m_root; }
 
    private:
     void fail(ao::pack::Error err) {
@@ -160,10 +172,12 @@ class JsonDecodeAdapter {
     }
 
     JsonTable const& m_table;
-    nlohmann::json m_root;
-    std::vector<nlohmann::json*> m_stack;
+    nlohmann::json m_root = {};
+    std::vector<nlohmann::json*> m_stack = {};
 
-    ao::pack::Error m_err;
+    ao::pack::Error m_err = {};
 };
+
+JsonTable generateJsonTable(ir::IR const& ir);
 
 }  // namespace ao::schema::json

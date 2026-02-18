@@ -1,5 +1,7 @@
 #include "Helpers.h"
 
+#include "ao/schema/Parser.h"
+
 using namespace ao::schema;
 
 AstQualifiedName qnameFromString(std::string const& s) {
@@ -99,9 +101,8 @@ AstFieldReserved makeReserved(std::vector<uint64_t> ids) {
     return r;
 }
 
-
 AstType makeUserType(std::string const& qualifiedName,
-                         std::vector<std::shared_ptr<AstType>> subtypes) {
+                     std::vector<std::shared_ptr<AstType>> subtypes) {
     AstType t;
     t.type = AstBaseType::USER;
     t.name = qnameFromString(qualifiedName);
@@ -111,7 +112,7 @@ AstType makeUserType(std::string const& qualifiedName,
 }
 
 AstType makeCtorType(AstBaseType base,
-                         std::vector<std::shared_ptr<AstType>> subtypes) {
+                     std::vector<std::shared_ptr<AstType>> subtypes) {
     AstType t;
     t.type = base;
     t.subtypes = std::move(subtypes);
@@ -158,6 +159,49 @@ AstDecl makeDefaultDeclWithDirectiveBlock(AstDirectiveBlock block) {
     decl.decl = def;
     decl.loc = {};
     return decl;
+}
+
+class TestTextFrontend : public CompilerFrontend {
+   public:
+    TestTextFrontend(std::unordered_map<std::string, std::string> files)
+        : m_files(std::move(files)) {}
+    std::expected<std::shared_ptr<AstFile>, std::string> loadFile(
+        std::string resolvedPath) override {
+        auto iter = m_files.find(resolvedPath);
+        if (iter == m_files.end())
+            return std::unexpected("Failed to find file");
+        std::string parseErrors;
+        auto ast = parseToAst(resolvedPath, iter->second, &parseErrors);
+        if (!ast)
+            return std::unexpected(parseErrors);
+        return ast;
+    }
+    std::expected<std::string, std::string> resolvePath(
+        std::string currentFile,
+        std::string path) override {
+        return path;
+    }
+
+   private:
+    std::unordered_map<std::string, std::string> m_files;
+};
+
+std::optional<ao::schema::ir::IR> buildToIR(std::string_view fileContents,
+                                            std::string& errs) {
+    TestTextFrontend fe{{{"file", std::string{fileContents}}}};
+    SemanticContext ctx{fe};
+    auto success = ctx.loadFile("file") && ctx.buildAll();
+    if (!success) {
+        errs = ctx.getErrorContext().toString();
+        return {};
+    }
+    auto ir =
+        ao::schema::ir::generateIR(ctx.getModules(), ctx.getErrorContext());
+    if (ctx.getErrorContext().errors.size() > 0) {
+        errs = ctx.getErrorContext().toString();
+        return {};
+    }
+    return ir;
 }
 
 // SimpleTestFrontend method implementations ----------------------------------

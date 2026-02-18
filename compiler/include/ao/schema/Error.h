@@ -1,6 +1,7 @@
 #pragma once
 
 #include <format>
+#include <sstream>
 #include <vector>
 
 namespace ao::schema {
@@ -41,6 +42,7 @@ struct ErrorContext {
         fail(std::move(err));
     }
     void fail(Error err) { errors.push_back(err); }
+    std::string toString() const;
 
     std::vector<Error> errors;
 };

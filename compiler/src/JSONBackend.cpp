@@ -149,11 +149,20 @@ uint64_t JsonEncodeAdapter::readU64() {
     auto top = currentMsg();
     if (!top)
         return 0;
-    if (!top->is_number_unsigned()) {
+    if (top->is_number_unsigned()) {
+        return top->get<uint64_t>();
+    } else if (top->is_number_integer()) {
+        auto val = top->get<int64_t>();
+        if (val < 0) {
+            fail(pack::Error::BadData);
+            return 0;
+        }
+
+        return static_cast<uint64_t>(val);
+    } else {
         fail(pack::Error::BadData);
         return 0;
     }
-    return top->get<uint64_t>();
 }
 int64_t JsonEncodeAdapter::readI64() {
     if (!ok())
@@ -319,5 +328,27 @@ void JsonDecodeAdapter::writeF64(double v) {
     if (!top)
         return;
     *top = v;
+}
+JsonTable generateJsonTable(ir::IR const& ir) {
+    auto ret = JsonTable{};
+    ret.strings = ir.strings;
+
+    ret.fields.reserve(ir.fields.size());
+    for (auto& field : ir.fields) {
+        ret.fields.emplace_back(JsonField{
+            .nameIdx = field.name.idx,
+            .fieldNumber = field.fieldNumber,
+            .flags = 0,  // TODO these fields later?
+        });
+    }
+
+    ret.oneofs.reserve(ir.oneOfs.size());
+    for (auto& oneof : ir.oneOfs) {
+        auto arms = JsonOneOf{};
+        for (auto const& arm : oneof.arms)
+            arms.fieldNumbers.push_back(ir.fields[arm.idx].fieldNumber);
+        ret.oneofs.emplace_back(std::move(arms));
+    }
+    return ret;
 }
 }  // namespace ao::schema::json

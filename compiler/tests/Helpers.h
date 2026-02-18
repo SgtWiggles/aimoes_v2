@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ao/schema/Ast.h"
+#include "ao/schema/IR.h"
 #include "ao/schema/SemanticContext.h"
 
 #include <expected>
@@ -8,6 +9,7 @@
 #include <optional>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -56,6 +58,9 @@ ao::schema::AstDirectiveBlock makeDirectiveBlock(
     std::vector<ao::schema::AstDirective> directives);
 ao::schema::AstDecl makeDefaultDeclWithDirectiveBlock(
     ao::schema::AstDirectiveBlock block);
+
+std::optional<ao::schema::ir::IR> buildToIR(std::string_view fileContents,
+                                            std::string& errs);
 
 // Minimal test frontend that resolves by identity and returns provided
 // AstFiles.
