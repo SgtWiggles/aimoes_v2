@@ -2,6 +2,7 @@
 
 #include <format>
 #include <vector>
+#include <sstream>
 
 namespace ao::schema {
 struct SourceLocation {
@@ -41,6 +42,13 @@ struct ErrorContext {
         fail(std::move(err));
     }
     void fail(Error err) { errors.push_back(err); }
+    std::string generateErrorText() const {
+        std::stringstream ss;
+        for (auto const& error : errors) {
+            ss << "\n" << std::format("{}: {}", error.loc, error.message);
+        }
+        return ss.str();
+    }
 
     std::vector<Error> errors;
 };

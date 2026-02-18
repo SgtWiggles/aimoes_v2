@@ -43,6 +43,13 @@ class SemanticContext {
     bool validateIds();
     bool computeDirectives();
 
+    bool validate() {
+        auto resolve = resolveSymbols();
+        auto ids = validateIds();
+        auto directives = computeDirectives();
+        return resolve && ids && directives;
+    }
+
     // AstImport must be resolved here
     struct Module {
         std::string resolvedPath;

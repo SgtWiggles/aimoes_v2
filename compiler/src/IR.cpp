@@ -8,7 +8,8 @@
 namespace ao::schema::ir {
 
 struct IRContext {
-    ErrorContext errors = {};
+    ErrorContext& errors;
+
     ResourceCache<std::string> strings = {};
     ResourceCache<DirectiveProperty> directiveProperties = {};
     ResourceCache<DirectiveProfile> directiveProfiles = {};
@@ -322,9 +323,10 @@ void generateIR(IRContext& ctx,
 }
 
 IR generateIR(
+    ErrorContext& errs,
     std::unordered_map<std::string, ao::schema::SemanticContext::Module> const&
         modules) {
-    IRContext ctx{};
+    IRContext ctx{errs};
     for (auto const& [path, module] : modules) {
         generateIR(ctx, module);
     }

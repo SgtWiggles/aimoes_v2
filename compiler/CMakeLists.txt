@@ -8,7 +8,7 @@ add_library(compiler OBJECT
  "src/IR.cpp"
  "include/ao/schema/IR.h"
  "include/ao/schema/ResourceCache.h"
-  "include/ao/schema/Parser.h" "src/Parser.cpp" "include/ao/schema/AstBaseType.h" "include/ao/schema/AstValueLiteral.h" "src/AstBaseType.cpp" "src/AstValidateTypeProperties.h" "src/AstValidateTypeProperties.cpp")
+  "include/ao/schema/Parser.h" "src/Parser.cpp" "include/ao/schema/AstBaseType.h" "include/ao/schema/AstValueLiteral.h" "src/AstBaseType.cpp" "src/AstValidateTypeProperties.h" "src/AstValidateTypeProperties.cpp" "src/Error.cpp")
 target_include_directories(compiler PUBLIC include)
 target_link_libraries(compiler PUBLIC Boost::container_hash foonathan::lexy)
 
@@ -22,5 +22,5 @@ add_executable(CompilerTests
  "tests/ValidateIdTests.cpp"
  "tests/ComputeDirectiveTests.cpp"
  "tests/AstQueries.h"
- "tests/AstQueries.cpp" "tests/ParserTests.cpp")
+ "tests/AstQueries.cpp" "tests/ParserTests.cpp" "tests/IRGenerateTests.cpp")
 target_link_libraries(CompilerTests PRIVATE compiler Catch2::Catch2WithMain)

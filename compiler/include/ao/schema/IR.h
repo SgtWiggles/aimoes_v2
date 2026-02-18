@@ -151,7 +151,6 @@ struct Array {
     std::optional<int> maxSize;
 
     auto operator<=>(Array const& other) const = default;
-    
 };
 inline size_t hash_value(Array const& scalar) {
     size_t ret = 0;
@@ -188,8 +187,7 @@ struct IR {
 };
 
 IR generateIR(
+    ErrorContext& errs,
     std::unordered_map<std::string, ao::schema::SemanticContext::Module> const&
         modules);
 }  // namespace ao::schema::ir
-
-
