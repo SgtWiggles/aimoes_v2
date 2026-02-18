@@ -1,6 +1,7 @@
 #pragma once
 
 #include <format>
+#include <sstream>
 #include <vector>
 #include <sstream>
 
@@ -42,13 +43,7 @@ struct ErrorContext {
         fail(std::move(err));
     }
     void fail(Error err) { errors.push_back(err); }
-    std::string generateErrorText() const {
-        std::stringstream ss;
-        for (auto const& error : errors) {
-            ss << "\n" << std::format("{}: {}", error.loc, error.message);
-        }
-        return ss.str();
-    }
+    std::string toString() const;
 
     std::vector<Error> errors;
 };

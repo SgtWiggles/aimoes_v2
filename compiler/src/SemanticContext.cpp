@@ -277,11 +277,15 @@ void resolveTypeName(ErrorContext& errors,
         case AstBaseType::STRING:
         case AstBaseType::BYTES:
         case AstBaseType::USER:
-            errors.require(arity == 0, {
-                                           ErrorCode::INVALID_TYPE_ARGS,
-                                           "Expected no type arguments",
-                                           msg.loc,
-                                       });
+            errors.require(
+                arity == 0,
+                {
+                    ErrorCode::INVALID_TYPE_ARGS,
+                    std::format(
+                        "Expected no type arguments for type '{}' but got {}",
+                        msg.name.toString(), arity),
+                    msg.loc,
+                });
             break;
 
         case AstBaseType::ARRAY:
@@ -289,16 +293,22 @@ void resolveTypeName(ErrorContext& errors,
             errors.require(arity == 1,
                            {
                                ErrorCode::INVALID_TYPE_ARGS,
-                               "Expected 1 type argument for type constructor",
+                               std::format("Expected 1 type argument for type "
+                                           "constructor '{}' but got {}",
+                                           msg.name.toString(), arity),
                                msg.loc,
                            });
             break;
         case AstBaseType::ONEOF:
-            errors.require(arity == 0, {
-                                           ErrorCode::INVALID_TYPE_ARGS,
-                                           "Expected no type arguments",
-                                           msg.loc,
-                                       });
+            errors.require(
+                arity == 0,
+                {
+                    ErrorCode::INVALID_TYPE_ARGS,
+                    std::format(
+                        "Expected no type arguments for type '{}' but got {}",
+                        msg.name.toString(), arity),
+                    msg.loc,
+                });
             resolveMessage(errors, ctx, msg.block);
             break;
 

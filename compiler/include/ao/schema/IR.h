@@ -132,10 +132,10 @@ struct Scalar {
         F32,
         F64,
     };
+    // TODO maybe change this to a variant? nothing directly consumes it other
+    // than the compiler itself
     ScalarKind kind;
     size_t width = 0;
-    // TODO varint encoding
-    // bool varintEncoded = false;
     auto operator<=>(Scalar const& other) const = default;
 };
 inline size_t hash_value(Scalar const& scalar) {
@@ -187,7 +187,7 @@ struct IR {
 };
 
 IR generateIR(
-    ErrorContext& errs,
     std::unordered_map<std::string, ao::schema::SemanticContext::Module> const&
-        modules);
+        modules,
+    ErrorContext& errors);
 }  // namespace ao::schema::ir

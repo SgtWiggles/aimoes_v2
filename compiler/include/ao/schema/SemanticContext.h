@@ -65,6 +65,7 @@ class SemanticContext {
     };
 
     ErrorContext const& getErrorContext() const { return m_errors; }
+    ErrorContext& getErrorContext() { return m_errors; }
     std::unordered_map<std::string, Module> const& getModules() const {
         return m_modules;
     }

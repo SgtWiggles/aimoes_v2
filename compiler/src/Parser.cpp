@@ -257,10 +257,14 @@ struct QualifiedSymbol {
 };
 
 struct TypeName {
-#define TYPE_CASE(NAME, STR)                                             \
-    struct NAME {                                                        \
-        static constexpr auto rule = LEXY_LIT(STR);                      \
-        static constexpr auto value = lexy::constant(AstBaseType::NAME); \
+#define TYPE_CASE(NAME, STR)                                                   \
+    struct NAME {                                                              \
+        static constexpr auto rule = LEXY_LIT(STR);                            \
+        static constexpr auto value =                                          \
+            lexy::callback<std::pair<std::string, AstBaseType>>([]() {         \
+                return std::pair<std::string, AstBaseType>{STR,                \
+                                                           AstBaseType::NAME}; \
+            });                                                                \
     }
     TYPE_CASE(BOOL, "bool");
     TYPE_CASE(INT, "int");
@@ -286,10 +290,13 @@ struct TypeName {
         dsl::p<ONEOF> | dsl::p<USER>;
     static constexpr auto value =
         lexy::callback_with_state<std::pair<AstBaseType, AstQualifiedName>>(
-            [](ParsingContext const& ctx, AstBaseType baseType) {
+            [](ParsingContext const& ctx,
+               std::pair<std::string, AstBaseType> baseType) {
                 return std::pair<AstBaseType, AstQualifiedName>{
-                    baseType,
-                    {},
+                    baseType.second,
+                    AstQualifiedName{
+                        .name = {baseType.first},
+                    },
                 };
             },
             [](ParsingContext const& ctx, std::vector<std::string> baseType) {

@@ -123,7 +123,7 @@ message name
         "message A { 1 f optional<int, oneof(values=1,){ 1 x int; 2 y string; "
         "}>; }",
 
-        // --- “keyword-y” identifiers you already allow (you had `message
+        // --- “keyword-yEidentifiers you already allow (you had `message
         // 1423213 message {}`) ---
         "message message {}",
         "message 1423213 message {}",

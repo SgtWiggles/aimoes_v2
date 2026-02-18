@@ -106,7 +106,7 @@ TEST_CASE("generateIR retains types, messages, fields and directives", "[ir]") {
 
     // Generate IR
     ErrorContext irErrors;
-    auto ir = ao::schema::ir::generateIR(irErrors, modules);
+    auto ir = ao::schema::ir::generateIR(modules, irErrors);
     REQUIRE(irErrors.errors.size() == 0);
 
     // Basic expectations
@@ -311,13 +311,13 @@ message B 43 {
     SemanticContext ctx{frontend};
     REQUIRE(ctx.loadFile("modA") == true);
     auto validated = ctx.validate();
-    INFO(ctx.getErrorContext().generateErrorText());
+    INFO(ctx.getErrorContext().toString());
     REQUIRE(validated == true);
 
     auto const& modules = ctx.getModules();
 
     ErrorContext irErrs;
-    auto ir = ao::schema::ir::generateIR(irErrs, modules);
+    auto ir = ao::schema::ir::generateIR(modules, irErrs);
     REQUIRE(irErrs.errors.empty());
 
     // find messages
@@ -462,13 +462,13 @@ message 101 Outer  {
     SemanticContext ctx{frontend};
     REQUIRE(ctx.loadFile("modB") == true);
     auto validated = ctx.validate();
-    INFO(ctx.getErrorContext().generateErrorText());
+    INFO(ctx.getErrorContext().toString());
     REQUIRE(validated == true);
 
     auto const& modules = ctx.getModules();
 
     ErrorContext irErrs;
-    auto ir = ao::schema::ir::generateIR(irErrs, modules);
+    auto ir = ao::schema::ir::generateIR(modules, irErrs);
     REQUIRE(irErrs.errors.empty());
 
     // find Outer
@@ -480,7 +480,7 @@ message 101 Outer  {
     REQUIRE(outer.has_value());
 
     // find field 'opt' and ensure it's an Optional whose inner is a OneOf
-    auto fopt = findFieldByName(ir, *outer, "opt");
+    auto fopt = findFieldByName(ir, outer.value(), "opt");
     REQUIRE(fopt.has_value());
     {
         auto const& topt = ir.types[fopt->type.idx];
@@ -521,7 +521,7 @@ message 101 Outer  {
             if ((int)prof.domain == DirectiveProfile::Disk) {
                 foundDisk = true;
                 REQUIRE(prof.properties.size() == 1);
-                auto prop = ir.directiveProperties[prof.properties[0].idx];
+                auto const& prop = ir.directiveProperties[prof.properties[0].idx];
                 CHECK(ir.strings[prop.name.idx] == "enabled");
                 // boolean literal expected
                 auto const& val = prop.value.value;

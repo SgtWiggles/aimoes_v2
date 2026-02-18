@@ -323,10 +323,10 @@ void generateIR(IRContext& ctx,
 }
 
 IR generateIR(
-    ErrorContext& errs,
     std::unordered_map<std::string, ao::schema::SemanticContext::Module> const&
-        modules) {
-    IRContext ctx{errs};
+        modules,
+    ErrorContext& errors) {
+    IRContext ctx{errors};
     for (auto const& [path, module] : modules) {
         generateIR(ctx, module);
     }
