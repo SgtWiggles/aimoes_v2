@@ -62,6 +62,7 @@ ao::schema::AstDecl makeDefaultDeclWithDirectiveBlock(
 std::optional<ao::schema::ir::IR> buildToIR(std::string_view fileContents,
                                             std::string& errs);
 
+
 // Minimal test frontend that resolves by identity and returns provided
 // AstFiles.
 class SimpleTestFrontend : public ao::schema::CompilerFrontend {

@@ -86,12 +86,12 @@ void JsonEncodeAdapter::arrayEnterElem(uint32_t i) {
         return fail(pack::Error::BadData);
     if (i >= top->size())
         return fail(pack::Error::BadData);
-    m_stack.push_back(&top[i]);
+    m_stack.emplace_back(&((*top)[i]));
 }
-void JsonEncodeAdapter::JsonEncodeAdapter::arrayExitElem(uint32_t i) {
+void JsonEncodeAdapter::JsonEncodeAdapter::arrayExitElem() {
     popStack();
 }
-uint32_t JsonEncodeAdapter::oneOfIndex(uint32_t oneofId) {
+uint32_t JsonEncodeAdapter::oneofIndex(uint32_t oneofId) {
     if (!ok())
         return 0;
     auto top = currentMsg();
@@ -118,7 +118,7 @@ uint32_t JsonEncodeAdapter::oneOfIndex(uint32_t oneofId) {
     fail(pack::Error::BadData);
     return 0;
 }
-void JsonEncodeAdapter::oneOfEnterArm(uint32_t armId) {
+void JsonEncodeAdapter::oneofEnterArm(uint32_t armId) {
     if (!ok())
         return;
     auto top = currentMsg();
@@ -128,7 +128,7 @@ void JsonEncodeAdapter::oneOfEnterArm(uint32_t armId) {
         return fail(pack::Error::BadData);
     m_stack.push_back(&top->at("value"));
 }
-void JsonEncodeAdapter::oneOfExitArm() {
+void JsonEncodeAdapter::oneofExitArm() {
     popStack();
 }
 bool JsonEncodeAdapter::readBool() {
@@ -273,14 +273,19 @@ void JsonDecodeAdapter::arrayExitElem() {
     popStack();
 }
 
-void JsonDecodeAdapter::oneofEnterArm(uint32_t arm) {
+void JsonDecodeAdapter::oneofEnterArm(uint32_t oneofId, uint32_t armId) {
     if (!ok())
         return;
     auto top = currentMsg();
     if (!top)
         return;
+    if (m_table.oneofs.size() <= oneofId)
+        return fail(pack::Error::BadArg);
+    if (m_table.oneofs[oneofId].fieldNumbers.size() <= armId)
+        return fail(pack::Error::BadArg);
+    auto fieldNum = m_table.oneofs[oneofId].fieldNumbers[armId];
     *top = nlohmann::json::object({
-        {"case", m_table.fields[arm].fieldNumber},
+        {"case", fieldNum},
         {"value", nlohmann::json{nullptr}},
     });
     m_stack.push_back(&(*top)["value"]);

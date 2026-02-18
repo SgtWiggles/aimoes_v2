@@ -45,11 +45,11 @@ class JsonEncodeAdapter {
 
     uint32_t arrayLen();
     void arrayEnterElem(uint32_t i);
-    void arrayExitElem(uint32_t i);
+    void arrayExitElem();
 
-    uint32_t oneOfIndex(uint32_t oneofId);  // chosen arm index (or -1)
-    void oneOfEnterArm(uint32_t arm);
-    void oneOfExitArm();
+    uint32_t oneofIndex(uint32_t oneofId);  // chosen arm index (or -1)
+    void oneofEnterArm(uint32_t arm);
+    void oneofExitArm();
 
     bool readBool();
     uint64_t readU64();
@@ -128,7 +128,7 @@ class JsonDecodeAdapter {
     // Oneof:
     // For decode, codec selects arm; object adapter must set discriminant and
     // prepare arm storage.
-    void oneofEnterArm(uint32_t arm);
+    void oneofEnterArm(uint32_t oneofId, uint32_t arm);
     void oneofExitArm();
 
     // Scalars (write into current storage):
