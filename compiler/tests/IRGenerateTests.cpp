@@ -290,19 +290,20 @@ TEST_CASE("generateIR from text: scalar widths, arrays and user refs",
 package pkg;
 default @prof(tag="global");
 
-message A 42 {
+message 42 A {
     1 a int(bits=16);
     2 b uint(bits=32);
     3 c string;
     4 d array<int>;
 }
 
-message B 43 {
+message 43 B {
     1 refA A @prof(tag="fieldVal");
 }
 )",
                                       &errs);
 
+    INFO(errs);
     REQUIRE(ast != nullptr);
 
     SimpleTestFrontend frontend;
@@ -444,7 +445,7 @@ message 100 Inner  {
 }
 
 message 101 Outer  {
-    1 opt optional<int, oneof {
+    1 opt optional<oneof {
         1 a int;
         2 b string;
     }>;
@@ -521,7 +522,8 @@ message 101 Outer  {
             if ((int)prof.domain == DirectiveProfile::Disk) {
                 foundDisk = true;
                 REQUIRE(prof.properties.size() == 1);
-                auto const& prop = ir.directiveProperties[prof.properties[0].idx];
+                auto const& prop =
+                    ir.directiveProperties[prof.properties[0].idx];
                 CHECK(ir.strings[prop.name.idx] == "enabled");
                 // boolean literal expected
                 auto const& val = prop.value.value;
