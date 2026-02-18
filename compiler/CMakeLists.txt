@@ -25,7 +25,7 @@ add_library(compiler OBJECT
  "include/ao/schema/Codec.h"
  "src/Codec.cpp"
  "include/ao/schema/JSONBackend.h"
- "src/JSONBackend.cpp" "tests/JSONBackendTests.cpp")
+ "src/JSONBackend.cpp" )
 target_include_directories(compiler PUBLIC include)
 target_link_libraries(compiler PUBLIC Boost::container_hash foonathan::lexy pack nlohmann_json)
 
@@ -39,5 +39,7 @@ add_executable(CompilerTests
  "tests/ValidateIdTests.cpp"
  "tests/ComputeDirectiveTests.cpp"
  "tests/AstQueries.h"
- "tests/AstQueries.cpp" "tests/ParserTests.cpp")
+ "tests/AstQueries.cpp"
+ "tests/ParserTests.cpp"
+ "tests/JSONBackendTests.cpp")
 target_link_libraries(CompilerTests PRIVATE compiler Catch2::Catch2WithMain)
