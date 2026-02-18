@@ -21,7 +21,6 @@ FetchContent_MakeAvailable(Catch2)
 set(BOOST_INCLUDE_LIBRARIES container_hash)
 set(BOOST_ENABLE_CMAKE ON)
 
-include(FetchContent)
 FetchContent_Declare(
   Boost
   GIT_REPOSITORY https://github.com/boostorg/boost.git
@@ -29,6 +28,9 @@ FetchContent_Declare(
   GIT_SHALLOW ON
 )
 FetchContent_MakeAvailable(Boost)
+
+FetchContent_Declare(nlohmann_json URL https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz)
+FetchContent_MakeAvailable(nlohmann_json)
 
 
 # Packing helpers

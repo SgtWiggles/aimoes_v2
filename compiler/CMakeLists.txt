@@ -17,9 +17,17 @@ add_library(compiler OBJECT
  "src/AstValidateTypeProperties.cpp"
  "include/ao/schema/CppBackend.h"
  "src/CppBackend.cpp"
-)
+ "include/ao/schema/Bytecode.h"
+ "src/Bytecode.cpp"
+ "include/ao/schema/VM.h"
+ "src/VM.cpp"
+ "include/ao/schema/Adapter.h"
+ "include/ao/schema/Codec.h"
+ "src/Codec.cpp"
+ "include/ao/schema/JSONBackend.h"
+ "src/JSONBackend.cpp" "tests/JSONBackendTests.cpp")
 target_include_directories(compiler PUBLIC include)
-target_link_libraries(compiler PUBLIC Boost::container_hash foonathan::lexy)
+target_link_libraries(compiler PUBLIC Boost::container_hash foonathan::lexy pack nlohmann_json)
 
 add_executable(CompilerTests
  "tests/AstTests.cpp"
