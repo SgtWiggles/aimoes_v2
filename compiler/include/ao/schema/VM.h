@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "ao/schema/Codec.h"
 #include "ao/schema/IR.h"
 
 namespace ao::schema::vm {
@@ -69,51 +70,51 @@ enum class Op : uint8_t {
     HALT = 0x00,
     // Stop execution.
 
-    JMP = 0x01,
+    JMP,
     // imm16: rel16
     // pc += rel16 (relative in instruction words)
 
-    JZ = 0x02,
+    JZ,
     // imm16: rel16
     // if (flag == 0) pc += rel16 else pc++
 
-    CALL = 0x03,
+    CALL,
     // imm16: rel16
     // push return pc; pc += rel16
 
-    RET = 0x04,
+    RET,
     // pop return pc
 
-    EXT32 = 0x05,
+    EXT32,
     // a: ExtKind
     // Next word is imm32 payload interpreted according to a.
 
-    MSG_BEGIN = 0x06,
+    MSG_BEGIN,
     // imm16: msgId
     // adapter.msg_begin(msgId)
 
-    MSG_END = 0x07,
+    MSG_END,
     // adapter.msg_end()
 
-    FIELD_BEGIN = 0x08,
+    FIELD_BEGIN,
     // imm16: fieldId
     // adapter.field_begin(fieldId)
 
-    FIELD_END = 0x09,
+    FIELD_END,
     // adapter.field_end()
 
-    FIELD_PRESENT = 0x0A,
+    FIELD_PRESENT,
     // flag = adapter.field_present()
 
-    OPT_BEGIN = 0x0B,
+    OPT_BEGIN,
     // a: BeginFlags
     // adapter.opt_begin(a)
     // push optional frame
 
-    OPT_PRESENT = 0x0C,
+    OPT_PRESENT,
     // flag = adapter.opt_present()
 
-    OPT_END = 0x0D,
+    OPT_END,
     // adapter.opt_end()
     // pop optional frame
 
@@ -122,37 +123,37 @@ enum class Op : uint8_t {
     // adapter.arr_begin(a)
     // push array frame (len set by ARR_LEN)
 
-    ARR_LEN = 0x0F,
+    ARR_LEN,
     // arr.len = adapter.arr_len()
     // arr.idx = 0
 
-    ARR_NEXT = 0x10,
+    ARR_NEXT,
     // arr.idx++
     // flag = (arr.idx < arr.len)
 
-    ARR_END = 0x11,
+    ARR_END,
     // adapter.arr_end()
     // pop array frame
 
-    ONEOF_BEGIN = 0x12,
+    ONEOF_BEGIN,
     // a: BeginFlags
     // adapter.oneof_begin(a)
     // push oneof frame
 
-    ONEOF_DISPATCH = 0x13,
+    ONEOF_DISPATCH,
     // a: JumpTableKind
     // imm16: jtId
     // Jump based on vm.oneofArm using jump table jtId.
 
-    ONEOF_END = 0x14,
+    ONEOF_END,
     // adapter.oneof_end()
     // pop oneof frame
 
-    CALL_TYPE = 0x15,
+    CALL_TYPE,
     // imm16: typeEntryId
     // Indirect call to type entrypoint pc.
 
-    SET_FLAG = 0x16,
+    SET_FLAG,
     // a: 0 or 1
     // flag = a (utility instruction)
 
@@ -169,29 +170,29 @@ enum class Op : uint8_t {
     // adapter.scalar_read(kind)
     // Adapter writes directly to destination storage for current field.
 
-    FIELD_SKIP = 0x21,
+    FIELD_SKIP,
     // adapter.field_skip()
     // Skip unknown/unhandled field (disk/net decode).
 
-    ARR_ELEM_ENTER_D = 0x22,
+    ARR_ELEM_ENTER_D,
     // adapter.arr_enter_elem_decode(arr.idx)
     // Enter element context for decode.
 
-    ARR_ELEM_EXIT_D = 0x23,
+    ARR_ELEM_EXIT_D,
     // adapter.arr_exit_elem_decode()
 
-    ONEOF_SELECT = 0x24,
+    ONEOF_SELECT,
     // vm.oneofArm = adapter.oneof_select()
     // Select arm from input representation.
 
-    SUBMSG_BEGIN_D = 0x25,
+    SUBMSG_BEGIN_D,
     // adapter.submsg_begin_decode()
 
-    SUBMSG_END_D = 0x26,
+    SUBMSG_END_D,
     // adapter.submsg_end_decode()
 
     // Optional decode superinstructions
-    FIELD_SCALAR_READ = 0x28,
+    FIELD_SCALAR_READ,
     // a: ScalarKind
     // imm16: fieldId
     // Fused:
@@ -200,7 +201,7 @@ enum class Op : uint8_t {
     //     scalar_read(kind)
     //   field_end()
 
-    ARR_ELEM_CALLTYPE_READ = 0x2A,
+    ARR_ELEM_CALLTYPE_READ,
     // imm16: typeEntryId
     // Fused:
     //   arr_enter_elem_decode(idx)
@@ -219,50 +220,50 @@ enum class Op : uint8_t {
     // Disk/net: write tag/descriptor.
     // JSON/Lua: establish key context or no-op.
 
-    SCALAR_GET = 0x41,
+    SCALAR_WRITE,
     // a: ScalarKind
-    // adapter.scalar_get(kind, vm.scalarRegU64)
-
-    SCALAR_WRITE = 0x42,
-    // a: ScalarKind
+    // imm: width
     // adapter.scalar_write(kind, vm.scalarRegU64)
 
-    OPT_VALUE = 0x43,
+    OPT_VALUE,
     // adapter.opt_enter_value()
     // Enter inner optional value context (encode).
 
-    ARR_WRITE_BEGIN = 0x44,
+    ARR_WRITE_BEGIN,
     // a: TagKind (pack kind)
     // adapter.arr_write_begin(a)
 
-    ARR_WRITE_END = 0x45,
+    ARR_WRITE_END,
     // adapter.arr_write_end(a)
 
-    ARR_ELEM_ENTER_E = 0x46,
+    ARR_ELEM_ENTER_E,
     // adapter.arr_enter_elem_encode(arr.idx)
 
-    ARR_ELEM_EXIT_E = 0x47,
+    ARR_ELEM_EXIT_E,
     // adapter.arr_exit_elem_encode()
 
-    ONEOF_INDEX = 0x48,
+    ONEOF_INDEX,
     // vm.oneofArm = adapter.oneof_index()
     // Select arm from source representation.
 
-    ONEOF_WRITE_TAG = 0x49,
+    ONEOF_WRITE_TAG,
+    // Used to generate presence bits, do we even need these?
     // a: TagKind
     // adapter.oneof_write_tag(a)
 
-    ONEOF_ARM_VALUE = 0x4A,
+    ONEOF_ARM_VALUE_ENTER_E,
     // adapter.oneof_enter_arm_value(vm.oneofArm)
 
-    SUBMSG_BEGIN_E = 0x4B,
+    ONEOF_ARM_VALUE_EXIT_E,
+
+    SUBMSG_BEGIN_E,
     // adapter.submsg_begin_encode()
 
-    SUBMSG_END_E = 0x4C,
+    SUBMSG_END_E,
     // adapter.submsg_end_encode()
 
     // Optional encode superinstructions
-    FIELD_SCALAR_WRITE = 0x50,
+    FIELD_SCALAR_WRITE,
     // a: ScalarKind
     // imm16: fieldId
     // Fused:
@@ -273,7 +274,7 @@ enum class Op : uint8_t {
     //     scalar_write(kind)
     //   field_end()
 
-    ARR_ELEM_CALLTYPE_WRITE = 0x52,
+    ARR_ELEM_CALLTYPE_WRITE,
     // imm16: typeEntryId
     // Fused:
     //   arr_enter_elem_encode(idx)
@@ -325,10 +326,16 @@ struct Program {
     std::vector<uint32_t> jumpTableDataWords;
 };
 
-template <class Mode, class Adapter>
+Program generateVMEncode(ao::schema::ir::IR const& irCode, ErrorContext& errs);
+Program generateVMDecode(ao::schema::ir::IR const& irCode, ErrorContext& errs);
+
+template <class ObjectAdapter, class CodecAdapter>
 struct VM {
+    static constexpr bool IsBitCodec =
+        std::is_same_v<typename CodecAdapter::ChunkSize, CodecBits>;
     Program const* prog = nullptr;
-    Adapter adapter;
+    ObjectAdapter object;
+    CodecAdapter codec;
 
     uint32_t pc = 0;
     uint8_t flag = 0;
@@ -356,5 +363,4 @@ struct VM {
     std::vector<OptionalFrame> m_optionalStack;
     std::vector<OneofFrame> m_oneofStack;
 };
-
 }  // namespace ao::schema::vm

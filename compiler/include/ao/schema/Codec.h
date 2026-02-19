@@ -21,8 +21,13 @@ struct NetTables {
     std::vector<NetFieldDesc> fields;
 };
 
+struct CodecBytes {};
+struct CodecBits {};
+
 template <class OutStream>
 struct NetEncodeCodec {
+    using ChunkSize = CodecBits;
+
     OutStream& out;
     NetTables const& net;
 
