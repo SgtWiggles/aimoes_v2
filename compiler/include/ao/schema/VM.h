@@ -37,8 +37,7 @@ enum class ExtKind : uint8_t {
     MSG_BEGIN32,       // imm32: msgId
     FIELD_BEGIN32,     // imm32: fieldId
     CALL_TYPE32,       // imm32: typeEntryId
-    ONEOF_DISPATCH32,  // imm32: rel32
-    FIELD_DISPATCH32,  // imm32: rel32
+    DISPATCH32,        // imm32: dispatch
     JT32,              // imm32: jtId
 };
 
@@ -63,28 +62,17 @@ enum BeginFlags : uint8_t {
 // ------------------------------------------------------------
 
 enum class Op : uint8_t {
-    // TODO let's change this so we have codec instructions and object instructions
-    // It's getting very confusing tracing things through at this point
+    HALT,
+    // Stop execution
 
-    // ============================================================
-    // Common opcodes (shared by DecodeProgram + EncodeProgram)
-    // Range: 0x00 - 0x1F
-    // ============================================================
-
-    HALT = 0x00,
-    // Stop execution.
-
-    JMP,
+    JMP,  
     // imm16: rel16
-    // pc += rel16 (relative in instruction words)
 
     JZ,
     // imm16: rel16
-    // if (flag == 0) pc += rel16 else pc++
 
     CALL,
     // imm16: rel16
-    // push return pc; pc += rel16
 
     RET,
     // pop return pc
@@ -93,210 +81,9 @@ enum class Op : uint8_t {
     // a: ExtKind
     // Next word is imm32 payload interpreted according to a.
 
-    MSG_BEGIN,
-    // imm16: msgId
-    // adapter.msg_begin(msgId)
-
-    MSG_END,
-    // adapter.msg_end()
-
-    FIELD_BEGIN,
-    // imm16: fieldId
-    // adapter.field_begin(fieldId)
-
-    FIELD_END,
-    // adapter.field_end()
-
-    FIELD_PRESENT,
-    // flag = adapter.field_present()
-
-    OPT_BEGIN,
-    // a: BeginFlags
-    // adapter.opt_begin(a)
-    // push optional frame
-
-    OPT_PRESENT,
-    // flag = adapter.opt_present()
-
-    OPT_END,
-    // adapter.opt_end()
-    // pop optional frame
-
-    ARR_BEGIN = 0x0E,
-    // a: BeginFlags
-    // adapter.arr_begin(a)
-    // push array frame (len set by ARR_LEN)
-
-    ARR_LEN,
-    // arr.len = adapter.arr_len()
-    // arr.idx = 0
-
-    ARR_NEXT,
-    // arr.idx++
-    // flag = (arr.idx < arr.len)
-
-    ARR_END,
-    // adapter.arr_end()
-    // pop array frame
-
-    ONEOF_BEGIN,
-    // a: BeginFlags
-    // adapter.oneof_begin(a)
-    // push oneof frame
-
-    ONEOF_DISPATCH,
-    // a: JumpTableKind
-    // imm16: jtId
-    // Jump based on vm.oneofArm using jump table jtId.
-
-    ONEOF_END,
-    // adapter.oneof_end()
-    // pop oneof frame
-
-    CALL_TYPE,
-    // imm16: typeEntryId
-    // Indirect call to type entrypoint pc.
-
-    SET_FLAG,
-    // a: 0 or 1
-    // flag = a (utility instruction)
-
-    // 0x18 - 0x1F reserved
-
-    // ============================================================
-    // Decode-only opcodes
-    // Range: 0x20 - 0x3F
-    // Only emitted in DecodeProgram.
-    // ============================================================
-
-    SCALAR_READ = 0x20,
-    // a: ScalarKind
-    // adapter.scalar_read(kind)
-    // Adapter writes directly to destination storage for current field.
-
-    FIELD_GET_CURRENT_TAG,
-    // flag = 1 if read successfully, 0 if done
-    // stack.field_tag = adapter.get_field_tag()
-
-    FIELD_SKIP,
-    // adapter.field_skip()
-    // Skip unknown/unhandled field (disk/net decode).
-
-    FIELD_DISPATCH,
-    // imm16 = dispatch count
-    // stack.field_tag
-
-    ARR_ELEM_ENTER_D,
-    // adapter.arr_enter_elem_decode(arr.idx)
-    // Enter element context for decode.
-
-    ARR_ELEM_EXIT_D,
-    // adapter.arr_exit_elem_decode()
-
-    ONEOF_SELECT,
-    // vm.oneofArm = codec.oneof_select()
-    // Select arm from input representation.
-    ONEOF_ARM_VALUE_ENTER_D,
-    // adapter.oneof_enter_arm(vm.oneofArm)
-
-    ONEOF_ARM_VALUE_EXIT_D,
-    // adapter.oneof_exit_arm(vm.oneOfArm)
-
-    SUBMSG_BEGIN_D,
-    // adapter.submsg_begin_decode()
-
-    SUBMSG_END_D,
-    // adapter.submsg_end_decode()
-
-    // Optional decode superinstructions
-    FIELD_SCALAR_READ,
-    // a: ScalarKind
-    // imm16: fieldId
-    // Fused:
-    //   field_begin(fieldId)
-    //   if field_present():
-    //     scalar_read(kind)
-    //   field_end()
-
-    ARR_ELEM_CALLTYPE_READ,
-    // imm16: typeEntryId
-    // Fused:
-    //   arr_enter_elem_decode(idx)
-    //   CALL_TYPE(typeEntryId)
-    //   arr_exit_elem_decode()
-
-    // ============================================================
-    // Encode-only opcodes
-    // Range: 0x40 - 0x5F
-    // Only emitted in EncodeProgram.
-    // ============================================================
-
-    FIELD_WRITE_TAG = 0x40,
-    // a: TagKind
-    // adapter.field_write_tag(kind)
-    // Disk/net: write tag/descriptor.
-    // JSON/Lua: establish key context or no-op.
-
-    SCALAR_WRITE,
-    // a: ScalarKind
-    // imm: width
-    // adapter.scalar_write(kind, vm.scalarRegU64)
-
-    OPT_VALUE,
-    // adapter.opt_enter_value()
-    // Enter inner optional value context (encode).
-
-    ARR_WRITE_BEGIN,
-    // a: TagKind (pack kind)
-    // adapter.arr_write_begin(a)
-
-    ARR_WRITE_END,
-    // adapter.arr_write_end(a)
-
-    ARR_ELEM_ENTER_E,
-    // adapter.arr_enter_elem_encode(arr.idx)
-
-    ARR_ELEM_EXIT_E,
-    // adapter.arr_exit_elem_encode()
-
-    ONEOF_INDEX,
-    // vm.oneofArm = adapter.oneof_index()
-    // Select arm from source representation.
-
-    ONEOF_WRITE_TAG,
-    // Used to generate presence bits, do we even need these?
-    // a: TagKind
-    // adapter.oneof_write_tag(a)
-
-    ONEOF_ARM_VALUE_ENTER_E,
-    // adapter.oneof_enter_arm_value(vm.oneofArm)
-
-    ONEOF_ARM_VALUE_EXIT_E,
-
-    SUBMSG_BEGIN_E,
-    // adapter.submsg_begin_encode()
-
-    SUBMSG_END_E,
-    // adapter.submsg_end_encode()
-
-    // Optional encode superinstructions
-    FIELD_SCALAR_WRITE,
-    // a: ScalarKind
-    // imm16: fieldId
-    // Fused:
-    //   field_begin(fieldId)
-    //   if field_present():
-    //     field_write_tag(Default)
-    //     scalar_get(kind)
-    //     scalar_write(kind)
-    //   field_end()
-
-    ARR_ELEM_CALLTYPE_WRITE,
-    // imm16: typeEntryId
-    // Fused:
-    //   arr_enter_elem_encode(idx)
-    //   CALL_TYPE(typeEntryId)
-    //   arr_exit_elem_encode()
+    DISPATCH,
+    // a: Register
+    // imm16: branch count
 };
 
 struct Instr {
