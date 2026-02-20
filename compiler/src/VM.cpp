@@ -17,13 +17,14 @@ struct FixUpInstr {
     Instr instr;
     uint64_t label;
 };
-struct FixUpOneOfDispatch {
+struct FixUpDispatch {
+    Op op;
     std::vector<uint64_t> label;
     uint64_t fail;
 };
 
 struct Entry {
-    std::variant<Instr, FixUpInstr, FixUpOneOfDispatch> instr;
+    std::variant<Instr, FixUpInstr, FixUpDispatch> instr;
     std::optional<uint64_t> label;  // label defined at this location
 };
 
@@ -45,11 +46,17 @@ struct Assembler {
         });
     }
 
-    void emitOneOfDispatch(std::vector<uint64_t> dispatchLabels,
-                           uint64_t failLabel,
-                           std::optional<uint64_t> label) {
+    void emitDispatch(Op op,
+                      std::vector<uint64_t> dispatchLabels,
+                      uint64_t failLabel,
+                      std::optional<uint64_t> label) {
         instructions.push_back(Entry{
-            .instr = FixUpOneOfDispatch{std::move(dispatchLabels), failLabel},
+            .instr =
+                FixUpDispatch{
+                    .op = op,
+                    .label = std::move(dispatchLabels),
+                    .fail = failLabel,
+                },
             .label = label,
         });
     }
@@ -108,9 +115,32 @@ struct VMGenerateContext {
     std::vector<Assembler> typePrograms;
 };
 
-void generateVMCode(VMGenerateContext& ctx,
-                    ao::schema::ir::IR const& irCode,
-                    bool const encodeMode) {
+void generateVMDiskDecode(Assembler& assembler,
+                          ao::schema::ir::IR const& irCode,
+                          IdFor<ir::Message> msgId) {
+    auto const& msg = irCode.messages[msgId.idx];
+    assembler.emitMsgBegin(msgId, {});
+    auto startLabel = assembler.useLabel();
+    auto endLabel = assembler.useLabel();
+
+    assembler.emit({Op::FIELD_GET_CURRENT_TAG, 0, 0}, {startLabel});
+    assembler.emitFixup({Op::JZ, 0, 0}, endLabel, {});
+
+    for (auto& f : msg.fields) {
+        assembler.emitFieldBegin(f, {});
+        auto fieldInfo = irCode.fields[f.idx];
+        assembler.emitTypeCall(fieldInfo.type, {});
+        assembler.emit({Op::FIELD_END, 0, 0}, {});
+    }
+
+    assembler.emit({Op::JMP, 0, 0}, startLabel);
+    assembler.emit({Op::MSG_END, 0, 0}, {endLabel});
+}
+
+void generateVMTypeCodes(VMGenerateContext& ctx,
+                         ao::schema::ir::IR const& irCode,
+                         bool const encodeMode,
+                         bool const isNetMode) {
     // Generate unique labels for each message type to start
     ctx.messageToTypeId.resize(irCode.messages.size());
 
@@ -189,12 +219,24 @@ void generateVMCode(VMGenerateContext& ctx,
                 [&](ir::Optional const& opt) {
                     auto end = assembler.useLabel();
                     assembler.emit({Op::OPT_BEGIN, 0, 0}, {});
-                    assembler.emit({Op::OPT_PRESENT, 0, 0}, {});
+                    if (encodeMode) {
+                        assembler.emit({Op::OPT_PRESENT, 0, 0}, {});
+                    } else {
+                        assembler.emit({Op::OPT_VALUE, 0, 0}, {});
+                    }
                     assembler.emitFixup({Op::JZ, 0, 0}, end, {});
                     assembler.emitTypeCall(opt.type, {});
                     assembler.emit({Op::OPT_END, 0, 0}, {end});
                 },
                 [&](IdFor<ir::OneOf> oneof) {
+                    // TODO clean this up and test, there's a lot of code which
+                    // doesn't really make sense here
+                    // This instruction set seems pretty verbose and we can
+                    // probably clean this up Remember 1 VM for everything is
+                    // the end goal, instructions shouldn't have different
+                    // semantics based on encode/decode mode
+                    // If an instruction isn't there then it should just error
+
                     std::vector<uint64_t> armLabels;
                     auto const& oneOfDesc = irCode.oneOfs[oneof.idx];
                     for (auto const& arm : oneOfDesc.arms) {
@@ -207,14 +249,18 @@ void generateVMCode(VMGenerateContext& ctx,
                     // Start current oneof
                     assembler.emit({Op::ONEOF_BEGIN, 0, 0}, {});
 
-                    // Load into the current frame
-                    assembler.emit({Op::ONEOF_INDEX, 0, 0}, {});
-
                     // Write current tag
-                    assembler.emit({Op::ONEOF_WRITE_TAG, 0, 0}, {});
-                    assembler.emit({Op::ONEOF_ARM_VALUE_ENTER_E, 0, 0}, {});
+                    if (encodeMode) {
+                        assembler.emit({Op::ONEOF_INDEX, 0, 0}, {});
+                        assembler.emit({Op::ONEOF_WRITE_TAG, 0, 0}, {});
+                        assembler.emit({Op::ONEOF_ARM_VALUE_ENTER_E, 0, 0}, {});
+                    } else {
+                        assembler.emit({Op::ONEOF_SELECT, 0, 0}, {});
+                        assembler.emit({Op::ONEOF_ARM_VALUE_ENTER_D, 0, 0}, {});
+                    }
 
-                    assembler.emitOneOfDispatch(armLabels, endLabel, {});
+                    assembler.emitDispatch(Op::ONEOF_DISPATCH, armLabels,
+                                           endLabel, {});
                     for (size_t idx = 0; idx < oneOfDesc.arms.size(); ++idx) {
                         auto const& arm = oneOfDesc.arms[idx];
                         auto const& field = irCode.fields[arm.idx];
@@ -223,19 +269,28 @@ void generateVMCode(VMGenerateContext& ctx,
                         assembler.emitFixup({Op::JMP, 0, 0}, endLabel, {});
                     }
 
-                    assembler.emit({Op::ONEOF_ARM_VALUE_EXIT_E, 0, 0}, {});
+                    if (encodeMode) {
+                        assembler.emit({Op::ONEOF_ARM_VALUE_EXIT_E, 0, 0}, {});
+                    } else {
+                        assembler.emit({Op::ONEOF_ARM_VALUE_EXIT_D, 0, 0}, {});
+                    }
                     assembler.emit({Op::ONEOF_END, 0, 0}, {endLabel});
                 },
                 [&](IdFor<ir::Message> msgId) {
-                    auto const& msg = irCode.messages[msgId.idx];
-                    assembler.emitMsgBegin(msgId, {});
-                    for (auto& f : msg.fields) {
-                        assembler.emitFieldBegin(f, {});
-                        auto fieldInfo = irCode.fields[f.idx];
-                        assembler.emitTypeCall(fieldInfo.type, {});
-                        assembler.emit({Op::FIELD_END, 0, 0}, {});
+                    if (encodeMode || isNetMode) {
+                        auto const& msg = irCode.messages[msgId.idx];
+                        assembler.emitMsgBegin(msgId, {});
+                        for (auto& f : msg.fields) {
+                            assembler.emitFieldBegin(f, {});
+                            auto fieldInfo = irCode.fields[f.idx];
+                            assembler.emitTypeCall(fieldInfo.type, {});
+                            assembler.emit({Op::FIELD_END, 0, 0}, {});
+                        }
+                        assembler.emit({Op::MSG_END, 0, 0}, {});
+                    } else {
+                        // Disk mode decode
+                        generateVMDiskDecode(assembler, irCode, msgId);
                     }
-                    assembler.emit({Op::MSG_END, 0, 0}, {});
                 },
             },
             type.payload);
@@ -245,15 +300,17 @@ void generateVMCode(VMGenerateContext& ctx,
 }
 
 // Encode goes from Object -> Net Format
-Program generateVMEncode(ao::schema::ir::IR const& irCode, ErrorContext& errs) {
+Program generateNetEncode(ao::schema::ir::IR const& irCode,
+                          ErrorContext& errs) {
     VMGenerateContext ctx{errs};
-    generateVMCode(ctx, irCode, true);
+    generateVMTypeCodes(ctx, irCode, true, true);
     return ctx.prog;
 }
 
-Program generateVMDecode(ao::schema::ir::IR const& irCode, ErrorContext& errs) {
+Program generateNetDecode(ao::schema::ir::IR const& irCode,
+                          ErrorContext& errs) {
     VMGenerateContext ctx{errs};
-    generateVMCode(ctx, irCode, false);
+    generateVMTypeCodes(ctx, irCode, false, true);
     return ctx.prog;
 }
 }  // namespace ao::schema::vm

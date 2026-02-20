@@ -32,12 +32,14 @@ namespace ao::schema::vm {
 using ScalarKind = ao::schema::ir::Scalar::ScalarKind;
 
 enum class ExtKind : uint8_t {
-    JMP32 = 0,          // imm32: rel32
-    CALL32 = 1,         // imm32: rel32
-    MSG_BEGIN32 = 2,    // imm32: msgId
-    FIELD_BEGIN32 = 3,  // imm32: fieldId
-    CALL_TYPE32 = 4,    // imm32: typeEntryId
-    JT32 = 5,           // imm32: jtId
+    JMP32,             // imm32: rel32
+    CALL32,            // imm32: rel32
+    MSG_BEGIN32,       // imm32: msgId
+    FIELD_BEGIN32,     // imm32: fieldId
+    CALL_TYPE32,       // imm32: typeEntryId
+    ONEOF_DISPATCH32,  // imm32: rel32
+    FIELD_DISPATCH32,  // imm32: rel32
+    JT32,              // imm32: jtId
 };
 
 enum class JumpTableKind : uint8_t {
@@ -61,6 +63,8 @@ enum BeginFlags : uint8_t {
 // ------------------------------------------------------------
 
 enum class Op : uint8_t {
+    // TODO let's change this so we have codec instructions and object instructions
+    // It's getting very confusing tracing things through at this point
 
     // ============================================================
     // Common opcodes (shared by DecodeProgram + EncodeProgram)
@@ -170,9 +174,17 @@ enum class Op : uint8_t {
     // adapter.scalar_read(kind)
     // Adapter writes directly to destination storage for current field.
 
+    FIELD_GET_CURRENT_TAG,
+    // flag = 1 if read successfully, 0 if done
+    // stack.field_tag = adapter.get_field_tag()
+
     FIELD_SKIP,
     // adapter.field_skip()
     // Skip unknown/unhandled field (disk/net decode).
+
+    FIELD_DISPATCH,
+    // imm16 = dispatch count
+    // stack.field_tag
 
     ARR_ELEM_ENTER_D,
     // adapter.arr_enter_elem_decode(arr.idx)
@@ -182,8 +194,13 @@ enum class Op : uint8_t {
     // adapter.arr_exit_elem_decode()
 
     ONEOF_SELECT,
-    // vm.oneofArm = adapter.oneof_select()
+    // vm.oneofArm = codec.oneof_select()
     // Select arm from input representation.
+    ONEOF_ARM_VALUE_ENTER_D,
+    // adapter.oneof_enter_arm(vm.oneofArm)
+
+    ONEOF_ARM_VALUE_EXIT_D,
+    // adapter.oneof_exit_arm(vm.oneOfArm)
 
     SUBMSG_BEGIN_D,
     // adapter.submsg_begin_decode()
@@ -326,8 +343,8 @@ struct Program {
     std::vector<uint32_t> jumpTableDataWords;
 };
 
-Program generateVMEncode(ao::schema::ir::IR const& irCode, ErrorContext& errs);
-Program generateVMDecode(ao::schema::ir::IR const& irCode, ErrorContext& errs);
+Program generateNetEncode(ao::schema::ir::IR const& irCode, ErrorContext& errs);
+Program generateNetDecode(ao::schema::ir::IR const& irCode, ErrorContext& errs);
 
 template <class ObjectAdapter, class CodecAdapter>
 struct VM {
