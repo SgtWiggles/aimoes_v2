@@ -115,26 +115,189 @@ struct VMGenerateContext {
     std::vector<Assembler> typePrograms;
 };
 
-void generateVMDiskDecode(Assembler& assembler,
-                          ao::schema::ir::IR const& irCode,
-                          IdFor<ir::Message> msgId) {
-    auto const& msg = irCode.messages[msgId.idx];
-    assembler.emitMsgBegin(msgId, {});
-    auto startLabel = assembler.useLabel();
-    auto endLabel = assembler.useLabel();
+// These generate the decode/encode functions.
+// We still need to define entry points for each type that the program can jump
+// into
+void generateTypeProgram(VMGenerateContext& ctx,
+                         ir::Type const& type,
+                         Assembler& assembler,
+                         ao::schema::ir::IR const& irCode,
+                         bool const encodeMode,
+                         bool const isNetMode) {
+    std::visit(
+        Overloaded{
+            [&](ir::Scalar const& scalar) {
+                if (encodeMode) {
+                    assembler.emit(
+                        {Op::A_READ_SCALAR, static_cast<uint8_t>(scalar.kind),
+                         static_cast<uint16_t>(scalar.width)},
+                        {});
+                    assembler.emit(
+                        {Op::C_WRITE_SCALAR, static_cast<uint8_t>(scalar.kind),
+                         static_cast<uint16_t>(scalar.width)},
+                        {});
+                } else {
+                    assembler.emit(
+                        {Op::C_READ_SCALAR, static_cast<uint8_t>(scalar.kind),
+                         static_cast<uint16_t>(scalar.width)},
+                        {});
+                    assembler.emit(
+                        {Op::A_WRITE_SCALAR, static_cast<uint8_t>(scalar.kind),
+                         static_cast<uint16_t>(scalar.width)},
+                        {});
+                }
 
-    assembler.emit({Op::FIELD_GET_CURRENT_TAG, 0, 0}, {startLabel});
-    assembler.emitFixup({Op::JZ, 0, 0}, endLabel, {});
+                switch (scalar.kind) {
+                    case ir::Scalar::BOOL:
+                        ctx.errs.require(scalar.width == 1,
+                                         {
+                                             .code = ErrorCode::INTERNAL,
+                                             .message = std::format(
+                                                 "Unknown scalar type: {}",
+                                                 (int)scalar.kind),
+                                             .loc = {},
+                                         });
+                        break;
+                    case ir::Scalar::INT:
+                        break;
+                    case ir::Scalar::UINT:
+                        break;
+                    case ir::Scalar::F32:
+                        ctx.errs.require(scalar.width == 32,
+                                         {
+                                             .code = ErrorCode::INTERNAL,
+                                             .message = std::format(
+                                                 "Unknown scalar type: {}",
+                                                 (int)scalar.kind),
+                                             .loc = {},
+                                         });
+                        break;
+                    case ir::Scalar::F64:
+                        ctx.errs.require(scalar.width == 64,
+                                         {
+                                             .code = ErrorCode::INTERNAL,
+                                             .message = std::format(
+                                                 "Unknown scalar type: {}",
+                                                 (int)scalar.kind),
+                                             .loc = {},
+                                         });
+                        break;
+                    default:
+                        ctx.errs.fail({
+                            .code = ErrorCode::INTERNAL,
+                            .message = std::format("Unknown scalar type: {}",
+                                                   (int)scalar.kind),
+                            .loc = {},
+                        });
+                        break;
+                }
+            },
+            [&](ir::Array const& arr) {
+                assembler.emit({Op::ARRAY_BEGIN, 0, 0}, {});
+                assembler.emit(
+                    {encodeMode ? Op::A_READ_ARRAY_LEN : Op::C_READ_ARRAY_LEN,
+                     0, 0},
+                    {});
+                assembler.emit(
+                    {encodeMode ? Op::C_WRITE_ARRAY_LEN : Op::A_WRITE_ARRAY_LEN,
+                     0, 0},
+                    {});
+                auto loopStart = assembler.useLabel();
+                auto loopEnd = assembler.useLabel();
+                assembler.emit({Op::ARRAY_NEXT, 0, 0}, {loopStart});
+                assembler.emitFixup({Op::JZ, 0, 0}, loopEnd, {});
+                assembler.emit({Op::ARRAY_ELEM_BEGIN, 0, 0}, {});
+                assembler.emitTypeCall(arr.type, {});
+                assembler.emit({Op::ARRAY_ELEM_END, 0, 0}, {});
+                assembler.emitFixup({Op::JMP, 0, 0}, loopStart, {});
+                assembler.emit({Op::ARRAY_END, 0, 0}, {loopEnd});
+            },
+            [&](ir::Optional const& opt) {
+                assembler.emit({Op::OPT_BEGIN, 0, 0}, {});
+                assembler.emit({encodeMode ? Op::A_READ_OPT_PRESENT
+                                           : Op::C_READ_OPT_PRESENT,
+                                0, 0},
+                               {});
+                assembler.emit({encodeMode ? Op::C_WRITE_OPT_PRESENT
+                                           : Op::A_WRITE_OPT_PRESENT,
+                                0, 0},
+                               {});
+                auto optEnd = assembler.useLabel();
+                assembler.emitFixup({Op::JZ, 0, 0}, optEnd, {});
 
-    for (auto& f : msg.fields) {
-        assembler.emitFieldBegin(f, {});
-        auto fieldInfo = irCode.fields[f.idx];
-        assembler.emitTypeCall(fieldInfo.type, {});
-        assembler.emit({Op::FIELD_END, 0, 0}, {});
-    }
+                assembler.emit({Op::OPT_BEGIN_VALUE, 0, 0}, {});
+                assembler.emitTypeCall(opt.type, {});
+                assembler.emit({Op::OPT_END_VALUE, 0, 0}, {});
 
-    assembler.emit({Op::JMP, 0, 0}, startLabel);
-    assembler.emit({Op::MSG_END, 0, 0}, {endLabel});
+                assembler.emit({Op::OPT_END, 0, 0}, {optEnd});
+            },
+            [&](IdFor<ir::OneOf> oneof) {
+                assembler.emit({Op::ONEOF_BEGIN, 0, 0}, {});
+                assembler.emit(
+                    {encodeMode ? Op::A_READ_ONEOF_ARM : Op::A_READ_ONEOF_ARM,
+                     0, 0},
+                    {});
+                assembler.emit(
+                    {encodeMode ? Op::C_WRITE_ONEOF_ARM : Op::A_WRITE_ONEOF_ARM,
+                     0, 0},
+                    {});
+
+                // TODO fix the case where we have more than 2^16 arms
+                auto const& desc = irCode.oneOfs[oneof.idx];
+                std::vector<uint64_t> labels;
+                uint64_t failLabel;
+                for (size_t idx = 0; idx < desc.arms.size(); ++idx) {
+                    labels.push_back(assembler.useLabel());
+                }
+
+                assembler.emitDispatch(Op::DISPATCH, labels, failLabel, {});
+                for (size_t idx = 0; idx < desc.arms.size(); ++idx) {
+                    auto const& arm = desc.arms[idx];
+                    auto const& fieldDesc = irCode.fields[arm.idx];
+                    assembler.emit({Op::ONEOF_ARM_BEGIN, 0, 0}, {labels[idx]});
+                    assembler.emitTypeCall(fieldDesc.type, {});
+                    assembler.emit({Op::ONEOF_ARM_END, 0, 0}, {});
+                }
+                assembler.emit({Op::ONEOF_END, 0, 0}, {failLabel});
+            },
+            [&](IdFor<ir::Message> msgId) {
+                auto const& desc = irCode.messages[msgId.idx];
+
+                assembler.emit({Op::MSG_BEGIN, 0, 0}, {});
+                for (auto fieldId : desc.fields) {
+                    auto const& fieldDesc = irCode.fields[fieldId.idx];
+                    auto endLabel = assembler.useLabel();
+                    assembler.emit({Op::FIELD_BEGIN, 0, 0}, {});
+                    if (encodeMode) {
+                        if (!isNetMode) {
+                            assembler.emit({Op::D_WRITE_FIELD_ID, 0,
+                                            (uint16_t)fieldId.idx},
+                                           {});
+                        }
+                        assembler.emitTypeCall(fieldDesc.type, {});
+                    } else if (isNetMode) {  // net mode decode
+                        assembler.emitTypeCall(fieldDesc.type, {});
+                    } else {  // disk mode decode
+                        auto skipLabel = assembler.useLabel();
+                        assembler.emit(
+                            {Op::D_MATCH_FIELD_ID, 0, (uint16_t)fieldId.idx},
+                            {});
+                        assembler.emitFixup({Op::JZ, 0, 0}, skipLabel, {});
+                        assembler.emitTypeCall(fieldDesc.type, {});
+                        assembler.emitFixup({Op::JMP, 0, 0}, endLabel, {});
+                        assembler.emit(
+                            {Op::D_SKIP_FIELD_ID, 0, (uint16_t)fieldId.idx},
+                            {});
+                    }
+
+                    assembler.emit({Op::FIELD_END, 0, 0}, endLabel);
+                }
+                assembler.emit({Op::MSG_END, 0, 0}, {});
+            },
+        },
+        type.payload);
+
+    assembler.emit(Instr{Op::RET, 0, 0}, {});
 }
 
 void generateVMTypeCodes(VMGenerateContext& ctx,
@@ -147,155 +310,8 @@ void generateVMTypeCodes(VMGenerateContext& ctx,
     for (size_t i = 0; i < irCode.types.size(); ++i) {
         auto const& type = irCode.types[i];
         auto& assembler = ctx.typePrograms.emplace_back();
-
-        std::visit(
-            Overloaded{
-                [&](ir::Scalar const& scalar) {
-                    auto scalarOp =
-                        encodeMode ? Op::SCALAR_WRITE : Op::SCALAR_READ;
-                    switch (scalar.kind) {
-                        case ir::Scalar::BOOL:
-                            assembler.emit(Instr{scalarOp, ir::Scalar::BOOL, 1},
-                                           {});
-                            break;
-                        case ir::Scalar::INT:
-                            assembler.emit(
-                                Instr{
-                                    scalarOp,
-                                    ir::Scalar::INT,
-                                    static_cast<uint16_t>(scalar.width),
-                                },
-                                {});
-                            break;
-                        case ir::Scalar::UINT:
-                            assembler.emit(
-                                Instr{
-                                    scalarOp,
-                                    ir::Scalar::UINT,
-                                    static_cast<uint16_t>(scalar.width),
-                                },
-                                {});
-                            break;
-                        case ir::Scalar::F32:
-                            assembler.emit(
-                                Instr{
-                                    scalarOp,
-                                    ir::Scalar::F32,
-                                    32,
-                                },
-                                {});
-                            break;
-                        case ir::Scalar::F64:
-                            assembler.emit(
-                                Instr{
-                                    scalarOp,
-                                    ir::Scalar::F64,
-                                    64,
-                                },
-                                {});
-                            break;
-                    }
-                },
-                [&](ir::Array const& arr) {
-                    auto startLoop = assembler.useLabel();
-                    auto endLoop = assembler.useLabel();
-                    assembler.emit(Instr{Op::ARR_BEGIN, 0, 0}, {});
-                    assembler.emit(Instr{Op::ARR_LEN, 0, 0}, {});
-                    assembler.emit(Instr{Op::ARR_WRITE_BEGIN, 0, 0}, {});
-
-                    assembler.emit(Instr{Op::ARR_ELEM_ENTER_E, 0, 0},
-                                   {startLoop});
-
-                    assembler.emitTypeCall(arr.type, {});
-
-                    assembler.emit(Instr{Op::ARR_ELEM_EXIT_E, 0, 0}, {});
-                    assembler.emit(Instr{Op::ARR_NEXT, 0, 0}, {});
-                    assembler.emitFixup(Instr{Op::JZ, 0, 0}, endLoop, {});
-                    assembler.emitFixup(Instr{Op::JMP, 0, 0}, startLoop, {});
-
-                    assembler.emit(Instr{Op::ARR_WRITE_END, 0, 0}, {});
-                    assembler.emit(Instr{Op::ARR_END, 0, 0}, {endLoop});
-                },
-                [&](ir::Optional const& opt) {
-                    auto end = assembler.useLabel();
-                    assembler.emit({Op::OPT_BEGIN, 0, 0}, {});
-                    if (encodeMode) {
-                        assembler.emit({Op::OPT_PRESENT, 0, 0}, {});
-                    } else {
-                        assembler.emit({Op::OPT_VALUE, 0, 0}, {});
-                    }
-                    assembler.emitFixup({Op::JZ, 0, 0}, end, {});
-                    assembler.emitTypeCall(opt.type, {});
-                    assembler.emit({Op::OPT_END, 0, 0}, {end});
-                },
-                [&](IdFor<ir::OneOf> oneof) {
-                    // TODO clean this up and test, there's a lot of code which
-                    // doesn't really make sense here
-                    // This instruction set seems pretty verbose and we can
-                    // probably clean this up Remember 1 VM for everything is
-                    // the end goal, instructions shouldn't have different
-                    // semantics based on encode/decode mode
-                    // If an instruction isn't there then it should just error
-
-                    std::vector<uint64_t> armLabels;
-                    auto const& oneOfDesc = irCode.oneOfs[oneof.idx];
-                    for (auto const& arm : oneOfDesc.arms) {
-                        auto const& field = irCode.fields[arm.idx];
-                        auto label = assembler.useLabel();
-                        armLabels.push_back(label);
-                    }
-                    auto endLabel = assembler.useLabel();
-
-                    // Start current oneof
-                    assembler.emit({Op::ONEOF_BEGIN, 0, 0}, {});
-
-                    // Write current tag
-                    if (encodeMode) {
-                        assembler.emit({Op::ONEOF_INDEX, 0, 0}, {});
-                        assembler.emit({Op::ONEOF_WRITE_TAG, 0, 0}, {});
-                        assembler.emit({Op::ONEOF_ARM_VALUE_ENTER_E, 0, 0}, {});
-                    } else {
-                        assembler.emit({Op::ONEOF_SELECT, 0, 0}, {});
-                        assembler.emit({Op::ONEOF_ARM_VALUE_ENTER_D, 0, 0}, {});
-                    }
-
-                    assembler.emitDispatch(Op::ONEOF_DISPATCH, armLabels,
-                                           endLabel, {});
-                    for (size_t idx = 0; idx < oneOfDesc.arms.size(); ++idx) {
-                        auto const& arm = oneOfDesc.arms[idx];
-                        auto const& field = irCode.fields[arm.idx];
-                        auto label = armLabels[idx];
-                        assembler.emitTypeCall(field.type, label);
-                        assembler.emitFixup({Op::JMP, 0, 0}, endLabel, {});
-                    }
-
-                    if (encodeMode) {
-                        assembler.emit({Op::ONEOF_ARM_VALUE_EXIT_E, 0, 0}, {});
-                    } else {
-                        assembler.emit({Op::ONEOF_ARM_VALUE_EXIT_D, 0, 0}, {});
-                    }
-                    assembler.emit({Op::ONEOF_END, 0, 0}, {endLabel});
-                },
-                [&](IdFor<ir::Message> msgId) {
-                    if (encodeMode || isNetMode) {
-                        auto const& msg = irCode.messages[msgId.idx];
-                        assembler.emitMsgBegin(msgId, {});
-                        for (auto& f : msg.fields) {
-                            assembler.emitFieldBegin(f, {});
-                            auto fieldInfo = irCode.fields[f.idx];
-                            assembler.emitTypeCall(fieldInfo.type, {});
-                            assembler.emit({Op::FIELD_END, 0, 0}, {});
-                        }
-                        assembler.emit({Op::MSG_END, 0, 0}, {});
-                    } else {
-                        // Disk mode decode
-                        generateVMDiskDecode(assembler, irCode, msgId);
-                    }
-                },
-            },
-            type.payload);
-
-        assembler.emit(Instr{Op::RET, 0, 0}, {});
+        generateTypeProgram(ctx, type, assembler, irCode, encodeMode,
+                            isNetMode);
     }
 }
 

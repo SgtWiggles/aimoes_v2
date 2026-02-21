@@ -32,13 +32,13 @@ namespace ao::schema::vm {
 using ScalarKind = ao::schema::ir::Scalar::ScalarKind;
 
 enum class ExtKind : uint8_t {
-    JMP32,             // imm32: rel32
-    CALL32,            // imm32: rel32
-    MSG_BEGIN32,       // imm32: msgId
-    FIELD_BEGIN32,     // imm32: fieldId
-    CALL_TYPE32,       // imm32: typeEntryId
-    DISPATCH32,        // imm32: dispatch
-    JT32,              // imm32: jtId
+    JMP32,          // imm32: rel32
+    CALL32,         // imm32: rel32
+    MSG_BEGIN32,    // imm32: msgId
+    FIELD_BEGIN32,  // imm32: fieldId
+    CALL_TYPE32,    // imm32: typeEntryId
+    DISPATCH32,     // imm32: dispatch
+    JT32,           // imm32: jtId
 };
 
 enum class JumpTableKind : uint8_t {
@@ -65,7 +65,7 @@ enum class Op : uint8_t {
     HALT,
     // Stop execution
 
-    JMP,  
+    JMP,
     // imm16: rel16
 
     JZ,
@@ -81,9 +81,123 @@ enum class Op : uint8_t {
     // a: ExtKind
     // Next word is imm32 payload interpreted according to a.
 
+    CALL_TYPE,
+    // imm16: type id
+
     DISPATCH,
-    // a: Register
+    // a: register
     // imm16: branch count
+    // 32 bit rel jumps for each dispatch
+
+    // Stack frame functions
+    MSG_BEGIN,
+    // stack.push(MsgFrame)
+    // adapter.msgBegin()
+    // codec.msgBegin()
+
+    MSG_END,
+    // stack.pop(MsgFrame)
+    // adapter.msgEnd()
+    // codec.msgEnd()
+
+    FIELD_BEGIN,
+    // imm16: field id
+    // adapter.fieldBegin(imm16)
+    // codec.fieldBegin(imm16)
+    FIELD_END,
+    // adapter.fieldEnd()
+    // codec.fieldEnd()
+
+    OPT_BEGIN,
+    OPT_END,
+    // adapter.optBegin()
+    // codec.optBegin()
+    OPT_BEGIN_VALUE,
+    OPT_END_VALUE,
+
+    ONEOF_BEGIN,
+    ONEOF_END,
+    // Run the entry functions for both
+
+    ONEOF_ARM_BEGIN,
+    ONEOF_ARM_END,
+
+    ARRAY_BEGIN,
+    ARRAY_END,
+    // Run the entry functions for both
+    // stack.push(array_frame)
+    // stack.array.index = -1
+
+    ARRAY_ELEM_BEGIN,
+    ARRAY_ELEM_END,
+    // Run the entry functions for both
+    // Passes in the index
+
+    ARRAY_NEXT,
+    // stack.array_index += 1
+    // a = 1 if index is in bounds
+
+
+    // Codec functions
+
+    // Top level message framing
+    // Disk format these are standard TLV using message numbers
+    // Net format just the message id
+    C_FRAME_BEGIN,
+    C_FRAME_END,
+
+    C_WRITE_SCALAR,
+    // Switch on scalar type and write it
+    C_READ_SCALAR,
+    // reg = Read bits from scalar type
+
+    C_WRITE_OPT_PRESENT,
+    // codec.writeOptPresent(flag)
+    C_READ_OPT_PRESENT,
+    // flag = opt is present
+
+    C_WRITE_ONEOF_ARM,
+    // codec.writeOneOfArm(reg)
+    C_READ_ONEOF_ARM,
+    // case = armid of the current case
+
+    C_WRITE_ARRAY_LEN,
+    // codec.writeArrayLen(reg)
+    C_READ_ARRAY_LEN,
+    // reg = len of array
+
+    // Disk codec functions
+    D_WRITE_FIELD_ID,
+    // adapter.writeFieldNumber(reg)
+    D_MATCH_FIELD_ID,
+    // imm16: expected field id
+    // flag = expected == current field id
+
+    D_SKIP_FIELD_ID,
+    // imm16: original expected field id
+    // flag = field was skipped
+    // codec.skip_field
+
+    // Adapter Functions
+    A_WRITE_SCALAR,
+    // Switch on scalar type and write it
+    A_READ_SCALAR,
+    // reg = Read bits from scalar type
+
+    A_WRITE_OPT_PRESENT,
+    // adapter.write_opt_present(flag)
+    A_READ_OPT_PRESENT,
+    // flag = opt is present
+
+    A_WRITE_ONEOF_ARM,
+    // adapter.oneofEnterArm(reg)
+    A_READ_ONEOF_ARM,
+    // reg = adapter.oneofChoose()
+
+    A_WRITE_ARRAY_LEN,
+    // adapter.arrLen(reg)
+    A_READ_ARRAY_LEN,
+    // reg = adapter.arrLen()
 };
 
 struct Instr {

@@ -80,6 +80,9 @@ struct NetEncodeCodec {
     void arrayEnd(uint32_t /*fieldId*/) {}
 
     // Oneof: if net needs arm id encoded, do it here.
+    // TODO change this to use oneofid and armid
+    // The oneofid should carry all of the arm information required for this to
+    // do it's work
     void oneofBegin(uint32_t fieldId, uint32_t armid) {
         auto width = net.fields[fieldId].bitWidth;
         out.bits(armid, width);
