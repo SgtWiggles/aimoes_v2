@@ -8,6 +8,10 @@
 
 #include "ao/pack/Error.h"
 #include "ao/schema/IR.h"
+#include "ao/schema/VM.h"
+
+#include "Codec.h"
+#include "ao/pack/BitStream.h"
 
 namespace ao::schema::json {
 struct JsonField {
@@ -179,5 +183,21 @@ class JsonDecodeAdapter {
 };
 
 JsonTable generateJsonTable(ir::IR const& ir);
+
+inline bool encodeJson(vm::Program const* prog,
+                JsonTable const& jsonTable,
+                vm::NetTables const& netTable,
+                nlohmann::json const& json,
+                std::vector<std::byte>& out) {
+    JsonEncodeAdapter object{jsonTable, json};
+    pack::bit::SizeWriteStream sizeStream{};
+    vm::NetEncodeCodec<pack::bit::SizeWriteStream> codec{
+        sizeStream,
+        netTable,
+    };
+    auto machine = vm::VM{prog, object, codec};
+
+    return vm::encode(machine, 0);
+}
 
 }  // namespace ao::schema::json

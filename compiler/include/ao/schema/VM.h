@@ -2,29 +2,12 @@
 #include <cstdint>
 #include <vector>
 
+#include <nlohmann/json.hpp>
+
 #include "ao/schema/Codec.h"
 #include "ao/schema/IR.h"
 
 namespace ao::schema::vm {
-
-/*
-  Instruction encoding:
-    32-bit word:
-      u8  opcode
-      u8  a
-      u16 imm16
-
-  EXT32 prefix:
-    EXT32(extKind)
-    <next 32-bit word is imm32 payload>
-
-  Key modification vs previous version:
-  - No C++ offsets in operands.
-  - No JSON/Lua key ids in operands.
-  - No tag offsets for oneof.
-  - Bytecode references only logical ids (msgId, fieldId, typeEntryId, jtId).
-  - All physical layout and naming live inside the generated adapter.
-*/
 
 // ------------------------------------------------------------
 // Small enums
@@ -60,7 +43,6 @@ enum BeginFlags : uint8_t {
 // ------------------------------------------------------------
 // Opcode map (v2)
 // ------------------------------------------------------------
-
 enum class Op : uint8_t {
     HALT,
     // Stop execution
@@ -136,7 +118,6 @@ enum class Op : uint8_t {
     ARRAY_NEXT,
     // stack.array_index += 1
     // a = 1 if index is in bounds
-
 
     // Codec functions
 
@@ -247,6 +228,30 @@ struct Program {
 Program generateNetEncode(ao::schema::ir::IR const& irCode, ErrorContext& errs);
 Program generateNetDecode(ao::schema::ir::IR const& irCode, ErrorContext& errs);
 
+enum class VMError {
+    None,
+    InvalidProgram,
+    RuntimeError,
+    InvalidType,
+    InvalidInstr,
+    StackUnderflow,
+    StackOverflow,
+};
+
+struct CallFrame {
+    uint32_t retPc;
+};
+struct ArrayFrame {
+    uint32_t len;
+    uint32_t idx;
+};
+struct OptionalFrame {
+    uint32_t _reserved = 0;
+};
+struct OneofFrame {
+    uint32_t _reserved = 0;
+};
+
 template <class ObjectAdapter, class CodecAdapter>
 struct VM {
     static constexpr bool IsBitCodec =
@@ -263,22 +268,190 @@ struct VM {
     uint8_t* dstBase = nullptr;
     uint8_t const* srcBase = nullptr;
 
-    struct CallFrame {
-        uint32_t retPc;
-    };
-    struct ArrayFrame {
-        uint32_t len;
-        uint32_t idx;
-    };
-    struct OptionalFrame {
-        uint32_t _reserved = 0;
-    };
-    struct OneofFrame {
-        uint32_t _reserved = 0;
-    };
-    std::vector<CallFrame> m_callStack;
-    std::vector<ArrayFrame> m_arrayStack;
-    std::vector<OptionalFrame> m_optionalStack;
-    std::vector<OneofFrame> m_oneofStack;
+    size_t stackDepth = 0;
+    std::vector<CallFrame> callStack;
+    std::vector<ArrayFrame> arrayStack;
+    std::vector<OptionalFrame> optionalStack;
+    std::vector<OneofFrame> oneofStack;
+
+    VMError error;
 };
+
+struct VMSettings {
+    size_t maxSteps = 10000;
+    size_t maxRecursionDepth = 64;
+    size_t maxArraySize = 1024;
+};
+
+namespace detail {
+template <class VM>
+void reset(VM& vm) {
+    vm.pc = 0;
+    vm.flag = 0;
+    vm.oneofArm = -1;
+    vm.scalarRegU64 = 0;
+    vm.dstBase = nullptr;
+    vm.srcBase = nullptr;
+    vm.stackDepth = 0;
+    vm.error = VMError::None;
+}
+
+template <bool EncodeMode, class VM>
+bool runInstr(VM& vm) {
+    if (vm.pc >= vm.prog->codeWords.size()) {
+        vm.error = VMError::RuntimeError;
+        return false;
+    }
+    auto instr = decodeInstr(vm.prog->codeWords[vm.pc]);
+
+    switch (instr.op) {
+        case Op::HALT:
+            // Break from the program
+            return false;
+        case Op::JMP:
+            vm.pc += static_cast<int16_t>(instr.imm);
+            break;
+        case Op::JZ:
+            if (vm.flag == 0)
+                vm.pc += static_cast<int16_t>(instr.imm);
+            break;
+
+        case Op::RET:
+            if (vm.callStack.empty()) {
+                vm.error = VMError::StackUnderflow;
+                return false;
+            }
+            vm.stackDepth -= 1;
+            vm.pc = vm.callStack.back().retPc;
+            // Pop call stack
+            break;
+        // case Op::EXT32:
+        //     // TODO ext32 ops
+        //     break;
+        case Op::CALL_TYPE: {
+            vm.stackDepth += 1;
+            vm.callStack.emplace_back(CallFrame{
+                .retPc = vm.pc + 1,
+            });
+            vm.pc = vm.prog->typeEntryPcWords[instr.imm];
+        } break;
+        case Op::DISPATCH:
+            break;
+        case Op::MSG_BEGIN:
+            break;
+        case Op::MSG_END:
+            break;
+        case Op::FIELD_BEGIN:
+            break;
+        case Op::FIELD_END:
+            break;
+        case Op::OPT_BEGIN:
+            break;
+        case Op::OPT_END:
+            break;
+        case Op::OPT_BEGIN_VALUE:
+            break;
+        case Op::OPT_END_VALUE:
+            break;
+        case Op::ONEOF_BEGIN:
+            break;
+        case Op::ONEOF_END:
+            break;
+        case Op::ONEOF_ARM_BEGIN:
+            break;
+        case Op::ONEOF_ARM_END:
+            break;
+        case Op::ARRAY_BEGIN:
+            break;
+        case Op::ARRAY_END:
+            break;
+        case Op::ARRAY_ELEM_BEGIN:
+            break;
+        case Op::ARRAY_ELEM_END:
+            break;
+        case Op::ARRAY_NEXT:
+            break;
+        case Op::C_FRAME_BEGIN:
+            break;
+        case Op::C_FRAME_END:
+            break;
+        case Op::C_WRITE_SCALAR:
+            break;
+        case Op::C_READ_SCALAR:
+            break;
+        case Op::C_WRITE_OPT_PRESENT:
+            break;
+        case Op::C_READ_OPT_PRESENT:
+            break;
+        case Op::C_WRITE_ONEOF_ARM:
+            break;
+        case Op::C_READ_ONEOF_ARM:
+            break;
+        case Op::C_WRITE_ARRAY_LEN:
+            break;
+        case Op::C_READ_ARRAY_LEN:
+            break;
+        case Op::D_WRITE_FIELD_ID:
+            break;
+        case Op::D_MATCH_FIELD_ID:
+            break;
+        case Op::D_SKIP_FIELD_ID:
+            break;
+        case Op::A_WRITE_SCALAR:
+            break;
+        case Op::A_READ_SCALAR:
+            break;
+        case Op::A_WRITE_OPT_PRESENT:
+            break;
+        case Op::A_READ_OPT_PRESENT:
+            break;
+        case Op::A_WRITE_ONEOF_ARM:
+            break;
+        case Op::A_READ_ONEOF_ARM:
+            break;
+        case Op::A_WRITE_ARRAY_LEN:
+            break;
+        case Op::A_READ_ARRAY_LEN:
+            break;
+
+        default:
+            vm.error = VMError::InvalidInstr;
+            return false;
+    }
+
+    return true;
+}
+
+template <bool EncodeMode, class VM>
+bool runVM(VM& vm, uint64_t typeId) {
+    size_t stepCount = 0;
+    reset(vm);
+    if (vm.prog == nullptr) {
+        vm.error = VMError::InvalidProgram;
+        return false;
+    }
+
+    if (typeId >= vm.prog->typeEntryPcWords.size()) {
+        vm.error = VMError::InvalidType;
+        return false;
+    }
+
+    vm.pc = vm.prog->typeEntryPcWords[typeId];
+    while (runInstr<EncodeMode>(vm)) {
+    }
+
+    // Exit successfully if there are no errors
+    return vm.error == VMError::None;
+}
+}  // namespace detail
+
+template <class ObjectAdapter, class CodecAdapter>
+bool encode(VM<ObjectAdapter, CodecAdapter>& vm, uint64_t typeId) {
+    return detail::runVM<true>(vm, typeId);
+}
+template <class ObjectAdapter, class CodecAdapter>
+bool decode(VM<ObjectAdapter, CodecAdapter>& vm, uint64_t typeId) {
+    return detail::runVM<false>(vm, typeId);
+}
+
 }  // namespace ao::schema::vm
