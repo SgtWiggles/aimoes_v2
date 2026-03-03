@@ -129,7 +129,7 @@ void generateTypeProgram(VMGenerateContext& ctx,
             [&](ir::Scalar const& scalar) {
                 if (encodeMode) {
                     assembler.emit(
-                        {Op::A_READ_SCALAR, static_cast<uint8_t>(scalar.kind),
+                        {Op::O_READ_SCALAR, static_cast<uint8_t>(scalar.kind),
                          static_cast<uint16_t>(scalar.width)},
                         {});
                     assembler.emit(
@@ -142,7 +142,7 @@ void generateTypeProgram(VMGenerateContext& ctx,
                          static_cast<uint16_t>(scalar.width)},
                         {});
                     assembler.emit(
-                        {Op::A_WRITE_SCALAR, static_cast<uint8_t>(scalar.kind),
+                        {Op::O_WRITE_SCALAR, static_cast<uint8_t>(scalar.kind),
                          static_cast<uint16_t>(scalar.width)},
                         {});
                 }
@@ -195,11 +195,11 @@ void generateTypeProgram(VMGenerateContext& ctx,
             [&](ir::Array const& arr) {
                 assembler.emit({Op::ARRAY_BEGIN, 0, 0}, {});
                 assembler.emit(
-                    {encodeMode ? Op::A_READ_ARRAY_LEN : Op::C_READ_ARRAY_LEN,
+                    {encodeMode ? Op::O_READ_ARRAY_LEN : Op::C_READ_ARRAY_LEN,
                      0, 0},
                     {});
                 assembler.emit(
-                    {encodeMode ? Op::C_WRITE_ARRAY_LEN : Op::A_WRITE_ARRAY_LEN,
+                    {encodeMode ? Op::C_WRITE_ARRAY_LEN : Op::O_WRITE_ARRAY_LEN,
                      0, 0},
                     {});
                 auto loopStart = assembler.useLabel();
@@ -214,12 +214,12 @@ void generateTypeProgram(VMGenerateContext& ctx,
             },
             [&](ir::Optional const& opt) {
                 assembler.emit({Op::OPT_BEGIN, 0, 0}, {});
-                assembler.emit({encodeMode ? Op::A_READ_OPT_PRESENT
+                assembler.emit({encodeMode ? Op::O_READ_OPT_PRESENT
                                            : Op::C_READ_OPT_PRESENT,
                                 0, 0},
                                {});
                 assembler.emit({encodeMode ? Op::C_WRITE_OPT_PRESENT
-                                           : Op::A_WRITE_OPT_PRESENT,
+                                           : Op::O_WRITE_OPT_PRESENT,
                                 0, 0},
                                {});
                 auto optEnd = assembler.useLabel();
@@ -234,22 +234,22 @@ void generateTypeProgram(VMGenerateContext& ctx,
             [&](IdFor<ir::OneOf> oneof) {
                 assembler.emit({Op::ONEOF_BEGIN, 0, 0}, {});
                 assembler.emit(
-                    {encodeMode ? Op::A_READ_ONEOF_ARM : Op::A_READ_ONEOF_ARM,
+                    {encodeMode ? Op::O_READ_ONEOF_ARM : Op::O_READ_ONEOF_ARM,
                      0, 0},
                     {});
                 assembler.emit(
-                    {encodeMode ? Op::C_WRITE_ONEOF_ARM : Op::A_WRITE_ONEOF_ARM,
+                    {encodeMode ? Op::C_WRITE_ONEOF_ARM : Op::O_WRITE_ONEOF_ARM,
                      0, 0},
                     {});
 
                 // TODO fix the case where we have more than 2^16 arms
                 auto const& desc = irCode.oneOfs[oneof.idx];
                 std::vector<uint64_t> labels;
-                uint64_t failLabel;
                 for (size_t idx = 0; idx < desc.arms.size(); ++idx) {
                     labels.push_back(assembler.useLabel());
                 }
 
+                uint64_t failLabel = assembler.useLabel();
                 assembler.emitDispatch(Op::DISPATCH, labels, failLabel, {});
                 for (size_t idx = 0; idx < desc.arms.size(); ++idx) {
                     auto const& arm = desc.arms[idx];

@@ -124,8 +124,8 @@ enum class Op : uint8_t {
     // Top level message framing
     // Disk format these are standard TLV using message numbers
     // Net format just the message id
-    C_FRAME_BEGIN,
-    C_FRAME_END,
+    C_ENVELOPE_BEGIN,
+    C_ENVELOPE_END,
 
     C_WRITE_SCALAR,
     // Switch on scalar type and write it
@@ -159,25 +159,25 @@ enum class Op : uint8_t {
     // flag = field was skipped
     // codec.skip_field
 
-    // Adapter Functions
-    A_WRITE_SCALAR,
+    // Object Functions
+    O_WRITE_SCALAR,
     // Switch on scalar type and write it
-    A_READ_SCALAR,
+    O_READ_SCALAR,
     // reg = Read bits from scalar type
 
-    A_WRITE_OPT_PRESENT,
+    O_WRITE_OPT_PRESENT,
     // adapter.write_opt_present(flag)
-    A_READ_OPT_PRESENT,
+    O_READ_OPT_PRESENT,
     // flag = opt is present
 
-    A_WRITE_ONEOF_ARM,
+    O_WRITE_ONEOF_ARM,
     // adapter.oneofEnterArm(reg)
-    A_READ_ONEOF_ARM,
+    O_READ_ONEOF_ARM,
     // reg = adapter.oneofChoose()
 
-    A_WRITE_ARRAY_LEN,
+    O_WRITE_ARRAY_LEN,
     // adapter.arrLen(reg)
-    A_READ_ARRAY_LEN,
+    O_READ_ARRAY_LEN,
     // reg = adapter.arrLen()
 };
 
@@ -249,7 +249,7 @@ struct OptionalFrame {
     uint32_t _reserved = 0;
 };
 struct OneofFrame {
-    uint32_t _reserved = 0;
+    uint32_t oneofId = 0;
 };
 
 template <class ObjectAdapter, class CodecAdapter>
@@ -263,7 +263,7 @@ struct VM {
     uint32_t pc = 0;
     uint8_t flag = 0;
     int32_t oneofArm = -1;
-    uint64_t scalarRegU64 = 0;
+    uint64_t reg = 0;
 
     uint8_t* dstBase = nullptr;
     uint8_t const* srcBase = nullptr;
@@ -289,11 +289,61 @@ void reset(VM& vm) {
     vm.pc = 0;
     vm.flag = 0;
     vm.oneofArm = -1;
-    vm.scalarRegU64 = 0;
+    vm.reg = 0;
     vm.dstBase = nullptr;
     vm.srcBase = nullptr;
     vm.stackDepth = 0;
     vm.error = VMError::None;
+}
+
+template <class VM, class Object>
+bool writeScalar(Instr instr, VM& vm, Object& o) {
+    switch (instr.mode) {
+        case ScalarKind::BOOL:
+            o.boolean(vm.reg != 0);
+            break;
+        case ScalarKind::UINT:
+            o.u64(instr.imm, vm.reg);
+            break;
+        case ScalarKind::INT:
+            o.i64(instr.imm, vm.reg);
+            break;
+        case ScalarKind::F32: {
+            auto tmp = (uint32_t)vm.reg;
+            o.f32(std::bit_cast<float>(tmp));
+        } break;
+        case ScalarKind::F64:
+            o.f64(std::bit_cast<double>(vm.reg));
+            break;
+        default:
+            vm.error = VMError::InvalidInstr;
+            return false;
+    }
+    return true;
+}
+template <class VM, class Object>
+bool readScalar(Instr instr, VM& vm, Object& o) {
+    switch (instr.mode) {
+        case ScalarKind::BOOL:
+            vm.reg = o.boolean();
+            break;
+        case ScalarKind::UINT:
+            vm.reg = o.u64(instr.imm);
+            break;
+        case ScalarKind::INT:
+            vm.reg = std::bit_cast<uint64_t>(o.i64(instr.imm));
+            break;
+        case ScalarKind::F32:
+            vm.reg = std::bit_cast<uint32_t>(o.f32());
+            break;
+        case ScalarKind::F64:
+            vm.reg = std::bit_cast<uint64_t>(o.f64());
+            break;
+        default:
+            vm.error = VMError::InvalidInstr;
+            return false;
+    }
+    return true;
 }
 
 template <bool EncodeMode, class VM>
@@ -303,17 +353,18 @@ bool runInstr(VM& vm) {
         return false;
     }
     auto instr = decodeInstr(vm.prog->codeWords[vm.pc]);
+    auto nextPc = vm.pc + 1;
 
     switch (instr.op) {
         case Op::HALT:
             // Break from the program
             return false;
         case Op::JMP:
-            vm.pc += static_cast<int16_t>(instr.imm);
+            nextPc += static_cast<int16_t>(instr.imm);
             break;
         case Op::JZ:
             if (vm.flag == 0)
-                vm.pc += static_cast<int16_t>(instr.imm);
+                nextPc += static_cast<int16_t>(instr.imm);
             break;
 
         case Op::RET:
@@ -322,7 +373,7 @@ bool runInstr(VM& vm) {
                 return false;
             }
             vm.stackDepth -= 1;
-            vm.pc = vm.callStack.back().retPc;
+            nextPc = vm.callStack.back().retPc;
             // Pop call stack
             break;
         // case Op::EXT32:
@@ -331,94 +382,208 @@ bool runInstr(VM& vm) {
         case Op::CALL_TYPE: {
             vm.stackDepth += 1;
             vm.callStack.emplace_back(CallFrame{
-                .retPc = vm.pc + 1,
+                .retPc = nextPc,
             });
-            vm.pc = vm.prog->typeEntryPcWords[instr.imm];
+            nextPc = vm.prog->typeEntryPcWords[instr.imm];
         } break;
-        case Op::DISPATCH:
-            break;
-        case Op::MSG_BEGIN:
-            break;
+        case Op::DISPATCH: {
+            auto pc = vm.pc;
+            pc += std::min(vm.reg + 1, static_cast<uint64_t>(instr.imm));
+            if (pc >= vm.prog->codeWords.size())
+                return (vm.error = VMError::RuntimeError, false);
+            pc += vm.prog->codeWords[pc];
+            nextPc = pc;
+        } break;
+        case Op::MSG_BEGIN: {
+            vm.object.msgBegin(instr.imm);
+            vm.codec.msgBegin(instr.imm);
+        } break;
         case Op::MSG_END:
+            vm.object.msgEnd();
+            vm.codec.msgEnd();
             break;
         case Op::FIELD_BEGIN:
+            vm.object.fieldBegin(instr.imm);
+            vm.codec.fieldBegin(instr.imm);
             break;
         case Op::FIELD_END:
+            vm.object.fieldEnd();
+            vm.codec.fieldEnd();
             break;
-        case Op::OPT_BEGIN:
+        case Op::OPT_BEGIN: {
+            // Maybe this is a no op?
+            vm.optionalStack.emplace_back(OptionalFrame{});
+        } break;
+        case Op::OPT_END: {
+            // Maybe this is a no op?
+            vm.optionalStack.pop_back();
+        } break;
+        case Op::OPT_BEGIN_VALUE: {
+            vm.object.optEnterValue();
+        } break;
+        case Op::OPT_END_VALUE: {
+            vm.object.optExitValue();
+        } break;
+        case Op::ONEOF_BEGIN: {
+            // These might also be a nullopt
+            vm.oneofStack.emplace_back(OneofFrame{(uint32_t)instr.imm});
+        } break;
+        case Op::ONEOF_END: {
+            vm.oneofStack.pop_back();
+        } break;
+        case Op::ONEOF_ARM_BEGIN: {
+            vm.object.oneofEnterArm(vm.oneofStack.back().oneofId,
+                                    (uint32_t)instr.imm);
+            vm.codec.oneofBegin(vm.oneofStack.back().oneofId, instr.imm);
+        } break;
+        case Op::ONEOF_ARM_END: {
+            vm.object.oneofExitArm();
+            vm.codec.oneofEnd(vm.oneofStack.back().oneofId);
+        } break;
+        case Op::ARRAY_BEGIN: {
+            vm.arrayStack.emplace_back(ArrayFrame{
+                .len = 0,
+                .idx = 0,
+            });
+            vm.codec.arrayBegin();
+        } break;
+        case Op::ARRAY_END: {
+            vm.arrayStack.pop_back();
+            vm.codec.arrayEnd();
+        } break;
+        case Op::ARRAY_ELEM_BEGIN: {
+            auto cidx = vm.arrayStack.back().idx;
+            vm.object.arrayEnterElem(cidx);
+        } break;
+        case Op::ARRAY_ELEM_END: {
+            vm.object.arrayExitElem();
+        } break;
+        case Op::ARRAY_NEXT: {
+            vm.arrayStack.back().idx += 1;
+            vm.flag = vm.arrayStack.back().idx < vm.arrayStack.back().len;
+        } break;
+        case Op::C_ENVELOPE_BEGIN:
+            // TODO, we need a way to start the VM with envelope
             break;
-        case Op::OPT_END:
+        case Op::C_ENVELOPE_END:
+            // TODO, we need a way to start the VM with envelope
             break;
-        case Op::OPT_BEGIN_VALUE:
-            break;
-        case Op::OPT_END_VALUE:
-            break;
-        case Op::ONEOF_BEGIN:
-            break;
-        case Op::ONEOF_END:
-            break;
-        case Op::ONEOF_ARM_BEGIN:
-            break;
-        case Op::ONEOF_ARM_END:
-            break;
-        case Op::ARRAY_BEGIN:
-            break;
-        case Op::ARRAY_END:
-            break;
-        case Op::ARRAY_ELEM_BEGIN:
-            break;
-        case Op::ARRAY_ELEM_END:
-            break;
-        case Op::ARRAY_NEXT:
-            break;
-        case Op::C_FRAME_BEGIN:
-            break;
-        case Op::C_FRAME_END:
-            break;
-        case Op::C_WRITE_SCALAR:
-            break;
-        case Op::C_READ_SCALAR:
-            break;
-        case Op::C_WRITE_OPT_PRESENT:
-            break;
-        case Op::C_READ_OPT_PRESENT:
-            break;
+        case Op::C_WRITE_SCALAR: {
+            if constexpr (EncodeMode) {
+                if (!writeScalar(instr, vm, vm.codec))
+                    return false;
+            } else {
+                vm.error = VMError::InvalidInstr;
+                return false;
+            }
+        } break;
+        case Op::C_READ_SCALAR: {
+            if constexpr (!EncodeMode) {
+                if (!readScalar(instr, vm, vm.codec))
+                    return false;
+            } else {
+                vm.error = VMError::InvalidInstr;
+                return false;
+            }
+        } break;
+        case Op::C_WRITE_OPT_PRESENT: {
+            if constexpr (EncodeMode) {
+                vm.codec.present(vm.flag == 1);
+            } else {
+                vm.error = VMError::InvalidInstr;
+                return false;
+            }
+        } break;
+        case Op::C_READ_OPT_PRESENT: {
+            if constexpr (!EncodeMode) {
+                vm.flag = vm.codec.present();
+            } else {
+                vm.error = VMError::InvalidInstr;
+                return false;
+            }
+        } break;
         case Op::C_WRITE_ONEOF_ARM:
+            if constexpr (EncodeMode) {
+                vm.codec.oneofArm(instr.imm, vm.reg);
+            }
             break;
         case Op::C_READ_ONEOF_ARM:
+            if constexpr (!EncodeMode) {
+                vm.reg = vm.codec.oneofArm(instr.imm);
+            }
             break;
         case Op::C_WRITE_ARRAY_LEN:
+            if constexpr (EncodeMode) {
+                vm.codec.arrayLen(instr.imm, vm.arrayStack.back().len);
+            }
             break;
         case Op::C_READ_ARRAY_LEN:
+            if constexpr (!EncodeMode) {
+                vm.reg = vm.codec.arrayLen(instr.imm);
+                vm.arrayStack.back().len = vm.reg;
+            }
             break;
-        case Op::D_WRITE_FIELD_ID:
-            break;
-        case Op::D_MATCH_FIELD_ID:
-            break;
-        case Op::D_SKIP_FIELD_ID:
-            break;
-        case Op::A_WRITE_SCALAR:
-            break;
-        case Op::A_READ_SCALAR:
-            break;
-        case Op::A_WRITE_OPT_PRESENT:
-            break;
-        case Op::A_READ_OPT_PRESENT:
-            break;
-        case Op::A_WRITE_ONEOF_ARM:
-            break;
-        case Op::A_READ_ONEOF_ARM:
-            break;
-        case Op::A_WRITE_ARRAY_LEN:
-            break;
-        case Op::A_READ_ARRAY_LEN:
-            break;
-
+        case Op::D_WRITE_FIELD_ID: {
+            if constexpr (EncodeMode) {
+                vm.codec.fieldId(instr.imm);
+            }
+        } break;
+        case Op::D_MATCH_FIELD_ID: {
+            if constexpr (!EncodeMode) {
+                vm.flag = vm.codec.fieldId(instr.imm);
+            }
+        } break;
+        case Op::D_SKIP_FIELD_ID: {
+            if constexpr (!EncodeMode) {
+                vm.flag = vm.codec.skip();
+            }
+        } break;
+        case Op::O_WRITE_SCALAR: {
+            if constexpr (EncodeMode) {
+                if (!writeScalar(instr, vm, vm.object))
+                    return false;
+            }
+        } break;
+        case Op::O_READ_SCALAR: {
+            if constexpr (!EncodeMode) {
+                if (!readScalar(instr, vm, vm.object))
+                    return false;
+            }
+        } break;
+        case Op::O_WRITE_OPT_PRESENT: {
+            vm.error = VMError::InvalidInstr;
+            return false;
+        } break;
+        case Op::O_READ_OPT_PRESENT: {
+            if constexpr (EncodeMode) {
+                vm.flag = vm.object.optPresent();
+            }
+        } break;
+        case Op::O_WRITE_ONEOF_ARM: {
+            vm.error = VMError::InvalidInstr;
+            return false;
+        } break;
+        case Op::O_READ_ONEOF_ARM: {
+            if constexpr (EncodeMode) {
+                vm.reg = vm.object.oneofIndex(instr.imm);
+            }
+        } break;
+        case Op::O_WRITE_ARRAY_LEN: {
+            vm.error = VMError::InvalidInstr;
+            return false;
+        } break;
+        case Op::O_READ_ARRAY_LEN: {
+            if constexpr (EncodeMode) {
+                vm.reg = vm.object.arrayLen();
+                vm.arrayStack.back().len = vm.reg;
+            }
+        } break;
         default:
             vm.error = VMError::InvalidInstr;
             return false;
     }
 
+    vm.pc = nextPc;
     return true;
 }
 

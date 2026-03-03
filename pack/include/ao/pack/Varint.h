@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <array>
 #include <bit>
 #include <cstddef>
@@ -67,13 +68,18 @@ inline std::tuple<uint8_t, uint8_t, uint8_t> encodePrefixIntHeader(uint64_t v) {
     }
 
     header |= (v & headerCapacity);
-    return {header, headerBits, extraBytes};
+    assert(headerBits <= std::numeric_limits<uint8_t>::max());
+    return {
+        header,
+        static_cast<uint8_t>(headerBits),
+        extraBytes,
+    };
 }
 inline std::tuple<uint8_t, uint8_t, uint64_t> decodePrefixIntHeader(
     uint8_t header) {
     auto extraBytes = std::countl_one(header);
     auto const headerBitCnt = (uint64_t)std::min(extraBytes + 1, 8);
-    auto const headerNumberBits = (8 - headerBitCnt);
+    auto const headerNumberBits = (uint8_t)(8 - headerBitCnt);
     auto mask = ~(~0ull << headerNumberBits);
     uint64_t v = header & mask;
     return {extraBytes, headerNumberBits, v};

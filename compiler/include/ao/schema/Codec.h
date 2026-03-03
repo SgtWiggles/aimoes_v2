@@ -35,49 +35,44 @@ struct NetEncodeCodec {
     void msgBegin(uint32_t msgId) {
         (void)msgId; /* e.g. align, reset presence accumulator */
     }
-    void msgEnd(uint32_t msgId) {
-        (void)msgId; /* flush presence bitmap if deferred */
+    void msgEnd() {
+        // (void)msgId; /* flush presence bitmap if deferred */
     }
 
-    void fieldBegin(uint32_t fieldId) { (void)fieldId; }
-    void fieldEnd(uint32_t fieldId) { (void)fieldId; }
+    void fieldBegin(uint32_t fieldId) {}
+    void fieldEnd() {}
+    void fieldId(uint32_t fieldId) { (void)fieldId; }
 
-    void writePresenceBit(bool present) { out.bits(present ? 1u : 0u, 1); }
+    void present(bool present) { out.bits(present ? 1u : 0u, 1); }
     void align() { out.align(); }
 
-    void writeBool(bool v) { out.bits(v ? 1u : 0u, 1); }
-
-    void writeU64(uint32_t fieldId, uint64_t v) {
-        auto bw = net.field[fieldId].bitWidth;
+    void boolean(bool v) { out.bits(v ? 1u : 0u, 1); }
+    void u64(uint32_t bw, uint64_t v) {
         out.bits(v, bw);
     }
-
-    void writeI64(uint32_t fieldId, int64_t v) {
-        auto bw = net.field[fieldId].bitWidth;
+    void i64(uint32_t bw, int64_t v) {
         // Common choice: two's complement in bw bits.
         out.bits(static_cast<uint64_t>(v), bw);
     }
-
-    void writeF32(float f) {
+    void f32(float f) {
         uint32_t bits = std::bit_cast<uint32_t>(f);
         out.bits(bits, 32);
     }
-
-    void writeF64(double d) {
+    void f64(double d) {
         uint64_t bits = std::bit_cast<uint64_t>(d);
         out.bits(bits, 64);
     }
 
     // Arrays: if net needs length prefix, write it here; otherwise no-op.
-    void arrayBegin(uint32_t fieldId, uint32_t len, uint8_t flags) {
-        auto width = net.fields[fieldId].bitWidth;
+    void arrayBegin() {}
+    void arrayEnd() {}
+    void arrayLen(uint32_t width, uint32_t len) {
         if (width == 0) {
             ao::pack::encodeVarint(out, len);
         } else {
-            out.bits(out, width);
+            out.bits(len, width);
         }
     }
-    void arrayEnd(uint32_t /*fieldId*/) {}
 
     // Oneof: if net needs arm id encoded, do it here.
     // TODO change this to use oneofid and armid
@@ -88,6 +83,9 @@ struct NetEncodeCodec {
         out.bits(armid, width);
     }
     void oneofEnd(uint32_t /*oneofId*/) {}
+    void oneofArm(uint32_t typeId, uint64_t armid) {
+        // TODO we need to somehow move the encoded info into here
+    }
 
     bool ok() const { return out.ok(); }
     ao::pack::Error error() const { return out.error(); }
@@ -103,11 +101,10 @@ struct NetDecodeCodec {
     }
     void msgEnd(uint32_t msgId) { (void)msgId; }
 
-    void fieldBegin(uint32_t fieldId) { (void)fieldId; }
-    void fieldEnd(uint32_t fieldId) { (void)fieldId; }
+    bool fieldId(uint32_t fieldId) { return true; }
 
     // If presence is inline:
-    bool readPresenceBits() {
+    bool present() {
         uint64_t b = 0;
         in.bits(b, 1);
         return (b & 1u) != 0;
@@ -115,21 +112,20 @@ struct NetDecodeCodec {
 
     void align() { in.align(); }
 
-    bool readBool() {
+    bool boolean() {
         uint64_t b = 0;
         in.bits(b, 1);
         return (b & 1u) != 0;
     }
 
-    uint64_t readU64(uint32_t fieldId) {
+    uint64_t u64(uint32_t width) {
         uint64_t v = 0;
-        in.bits(v, net.field[fieldId].bitWidth);
+        in.bits(v, width);
         return v;
     }
 
-    int64_t readI64(uint32_t fieldId) {
+    int64_t i64(uint32_t bw) {
         uint64_t u = 0;
-        auto bw = net.field[fieldId].bitWidth;
         in.bits(u, bw);
         // Sign-extend from bw bits.
         if (bw > 0 && bw < 64) {
@@ -142,13 +138,13 @@ struct NetDecodeCodec {
         return static_cast<int64_t>(u);
     }
 
-    float readF32() {
+    float f32() {
         uint64_t u = 0;
         in.bits(u, 32);
         return std::bit_cast<float>(static_cast<uint32_t>(u));
     }
 
-    double readF64() {
+    double f64() {
         uint64_t bits = 0;
         in.bits(bits, 64);
         return std::bit_cast<double>(bits);

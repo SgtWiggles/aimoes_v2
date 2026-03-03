@@ -52,14 +52,14 @@ class JsonEncodeAdapter {
     void arrayExitElem();
 
     uint32_t oneofIndex(uint32_t oneofId);  // chosen arm index (or -1)
-    void oneofEnterArm(uint32_t arm);
+    void oneofEnterArm(uint32_t oneofId, uint32_t armId);
     void oneofExitArm();
 
-    bool readBool();
-    uint64_t readU64();
-    int64_t readI64();
-    float readF32();
-    double readF64();
+    bool boolean();
+    uint64_t u64();
+    int64_t i64();
+    float f32();
+    double f64();
 
     bool ok() const { return m_err != ao::pack::Error::Ok; }
     ao::pack::Error error() const { return m_err; }
@@ -185,10 +185,10 @@ class JsonDecodeAdapter {
 JsonTable generateJsonTable(ir::IR const& ir);
 
 inline bool encodeJson(vm::Program const* prog,
-                JsonTable const& jsonTable,
-                vm::NetTables const& netTable,
-                nlohmann::json const& json,
-                std::vector<std::byte>& out) {
+                       JsonTable const& jsonTable,
+                       vm::NetTables const& netTable,
+                       nlohmann::json const& json,
+                       std::vector<std::byte>& out) {
     JsonEncodeAdapter object{jsonTable, json};
     pack::bit::SizeWriteStream sizeStream{};
     vm::NetEncodeCodec<pack::bit::SizeWriteStream> codec{
@@ -196,7 +196,6 @@ inline bool encodeJson(vm::Program const* prog,
         netTable,
     };
     auto machine = vm::VM{prog, object, codec};
-
     return vm::encode(machine, 0);
 }
 

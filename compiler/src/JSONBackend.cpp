@@ -118,7 +118,7 @@ uint32_t JsonEncodeAdapter::oneofIndex(uint32_t oneofId) {
     fail(pack::Error::BadData);
     return 0;
 }
-void JsonEncodeAdapter::oneofEnterArm(uint32_t armId) {
+void JsonEncodeAdapter::oneofEnterArm(uint32_t oneofId, uint32_t armId) {
     if (!ok())
         return;
     auto top = currentMsg();
@@ -131,7 +131,7 @@ void JsonEncodeAdapter::oneofEnterArm(uint32_t armId) {
 void JsonEncodeAdapter::oneofExitArm() {
     popStack();
 }
-bool JsonEncodeAdapter::readBool() {
+bool JsonEncodeAdapter::boolean() {
     if (!ok())
         return false;
     auto top = currentMsg();
@@ -143,7 +143,7 @@ bool JsonEncodeAdapter::readBool() {
     }
     return top->get<bool>();
 }
-uint64_t JsonEncodeAdapter::readU64() {
+uint64_t JsonEncodeAdapter::u64() {
     if (!ok())
         return 0;
     auto top = currentMsg();
@@ -164,7 +164,7 @@ uint64_t JsonEncodeAdapter::readU64() {
         return 0;
     }
 }
-int64_t JsonEncodeAdapter::readI64() {
+int64_t JsonEncodeAdapter::i64() {
     if (!ok())
         return 0;
     auto top = currentMsg();
@@ -176,7 +176,7 @@ int64_t JsonEncodeAdapter::readI64() {
     }
     return top->get<int64_t>();
 }
-float JsonEncodeAdapter::readF32() {
+float JsonEncodeAdapter::f32() {
     if (!ok())
         return 0;
     auto top = currentMsg();
@@ -188,7 +188,7 @@ float JsonEncodeAdapter::readF32() {
     }
     return top->get<float>();
 }
-double JsonEncodeAdapter::readF64() {
+double JsonEncodeAdapter::f64() {
     if (!ok())
         return 0;
     auto top = currentMsg();
