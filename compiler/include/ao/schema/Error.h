@@ -3,7 +3,6 @@
 #include <format>
 #include <sstream>
 #include <vector>
-#include <sstream>
 
 namespace ao::schema {
 struct SourceLocation {
@@ -43,7 +42,9 @@ struct ErrorContext {
         fail(std::move(err));
     }
     void fail(Error err) { errors.push_back(err); }
+
     std::string toString() const;
+    bool ok() const { return errors.empty(); }
 
     std::vector<Error> errors;
 };

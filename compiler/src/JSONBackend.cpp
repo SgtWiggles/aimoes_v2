@@ -143,7 +143,7 @@ bool JsonEncodeAdapter::boolean() {
     }
     return top->get<bool>();
 }
-uint64_t JsonEncodeAdapter::u64() {
+uint64_t JsonEncodeAdapter::u64(uint16_t /* width */) {
     if (!ok())
         return 0;
     auto top = currentMsg();
@@ -164,7 +164,7 @@ uint64_t JsonEncodeAdapter::u64() {
         return 0;
     }
 }
-int64_t JsonEncodeAdapter::i64() {
+int64_t JsonEncodeAdapter::i64(uint16_t /* width */) {
     if (!ok())
         return 0;
     auto top = currentMsg();

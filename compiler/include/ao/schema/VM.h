@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <vector>
+#include <compare>
 
 #include <nlohmann/json.hpp>
 
@@ -15,13 +16,14 @@ namespace ao::schema::vm {
 using ScalarKind = ao::schema::ir::Scalar::ScalarKind;
 
 enum class ExtKind : uint8_t {
+    // Jumps relative to EXT32 instruction
     JMP32,          // imm32: rel32
+    JZ32,             // imm32: rel32
     CALL32,         // imm32: rel32
     MSG_BEGIN32,    // imm32: msgId
     FIELD_BEGIN32,  // imm32: fieldId
     CALL_TYPE32,    // imm32: typeEntryId
     DISPATCH32,     // imm32: dispatch
-    JT32,           // imm32: jtId
 };
 
 enum class JumpTableKind : uint8_t {
@@ -69,7 +71,9 @@ enum class Op : uint8_t {
     DISPATCH,
     // a: register
     // imm16: branch count
-    // 32 bit rel jumps for each dispatch
+    // imm32: 32 bit rel jumps for each dispatch
+    // imm32: 32 bit rel jump for out of bounds case
+    // All jumps are relative to the root dispatch call
 
     // Stack frame functions
     MSG_BEGIN,
@@ -196,6 +200,8 @@ struct Instr {
                 (static_cast<uint32_t>(imm) << 16),
         };
     }
+
+    auto operator<=>(Instr const& other) const = default;
 };
 inline Instr decodeInstr(uint32_t instr) {
     return {
@@ -220,9 +226,8 @@ struct JumpTableMeta {
 };
 struct Program {
     std::vector<uint32_t> codeWords;
-    std::vector<uint32_t> typeEntryPcWords;
-    std::vector<JumpTableMeta> jumpTables;
-    std::vector<uint32_t> jumpTableDataWords;
+    std::vector<uint32_t> typeEntryPc;
+    std::vector<uint32_t> msgEntryPc;
 };
 
 Program generateNetEncode(ao::schema::ir::IR const& irCode, ErrorContext& errs);
@@ -384,15 +389,14 @@ bool runInstr(VM& vm) {
             vm.callStack.emplace_back(CallFrame{
                 .retPc = nextPc,
             });
-            nextPc = vm.prog->typeEntryPcWords[instr.imm];
+            nextPc = vm.prog->typeEntryPc[instr.imm];
         } break;
         case Op::DISPATCH: {
             auto pc = vm.pc;
             pc += std::min(vm.reg + 1, static_cast<uint64_t>(instr.imm));
             if (pc >= vm.prog->codeWords.size())
                 return (vm.error = VMError::RuntimeError, false);
-            pc += vm.prog->codeWords[pc];
-            nextPc = pc;
+            nextPc = vm.pc + vm.prog->codeWords[pc];
         } break;
         case Op::MSG_BEGIN: {
             vm.object.msgBegin(instr.imm);
@@ -412,10 +416,12 @@ bool runInstr(VM& vm) {
             break;
         case Op::OPT_BEGIN: {
             // Maybe this is a no op?
+            vm.object.optEnter();
             vm.optionalStack.emplace_back(OptionalFrame{});
         } break;
         case Op::OPT_END: {
             // Maybe this is a no op?
+            vm.object.optExit();
             vm.optionalStack.pop_back();
         } break;
         case Op::OPT_BEGIN_VALUE: {
@@ -539,13 +545,13 @@ bool runInstr(VM& vm) {
             }
         } break;
         case Op::O_WRITE_SCALAR: {
-            if constexpr (EncodeMode) {
+            if constexpr (!EncodeMode) {
                 if (!writeScalar(instr, vm, vm.object))
                     return false;
             }
         } break;
         case Op::O_READ_SCALAR: {
-            if constexpr (!EncodeMode) {
+            if constexpr (EncodeMode) {
                 if (!readScalar(instr, vm, vm.object))
                     return false;
             }
@@ -560,8 +566,9 @@ bool runInstr(VM& vm) {
             }
         } break;
         case Op::O_WRITE_ONEOF_ARM: {
-            vm.error = VMError::InvalidInstr;
-            return false;
+            if constexpr (!EncodeMode) {
+                vm.object.oneofIndex(instr.imm, vm.reg);
+            }
         } break;
         case Op::O_READ_ONEOF_ARM: {
             if constexpr (EncodeMode) {
@@ -596,12 +603,12 @@ bool runVM(VM& vm, uint64_t typeId) {
         return false;
     }
 
-    if (typeId >= vm.prog->typeEntryPcWords.size()) {
+    if (typeId >= vm.prog->typeEntryPc.size()) {
         vm.error = VMError::InvalidType;
         return false;
     }
 
-    vm.pc = vm.prog->typeEntryPcWords[typeId];
+    vm.pc = vm.prog->typeEntryPc[typeId];
     while (runInstr<EncodeMode>(vm)) {
     }
 

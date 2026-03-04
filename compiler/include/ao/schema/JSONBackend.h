@@ -44,6 +44,8 @@ class JsonEncodeAdapter {
     void fieldEnd();
 
     bool optPresent();
+    void optEnter() {}
+    void optExit() {}
     void optEnterValue();
     void optExitValue();
 
@@ -56,8 +58,8 @@ class JsonEncodeAdapter {
     void oneofExitArm();
 
     bool boolean();
-    uint64_t u64();
-    int64_t i64();
+    uint64_t u64(uint16_t width);
+    int64_t i64(uint16_t width);
     float f32();
     double f64();
 

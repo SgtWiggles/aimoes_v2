@@ -50,7 +50,7 @@ message 42 test{
     encoder.fieldBegin(0);
     REQUIRE(encoder.ok());
 
-    REQUIRE(encoder.i64() == 13);
+    REQUIRE(encoder.i64(0) == 13);
     REQUIRE(encoder.ok());
 
     encoder.fieldEnd();
@@ -59,7 +59,7 @@ message 42 test{
     encoder.fieldBegin(1);
     REQUIRE(encoder.ok());
 
-    auto readVal = encoder.u64();
+    auto readVal = encoder.u64(0);
     REQUIRE(readVal == 14);
     REQUIRE(encoder.ok());
 
@@ -173,7 +173,7 @@ message 42 test{
     REQUIRE(encoder.oneofIndex(0) == 2);
     encoder.oneofEnterArm(0, 2);
     REQUIRE(encoder.ok());
-    REQUIRE(encoder.u64() == 102);
+    REQUIRE(encoder.u64(0) == 102);
     encoder.oneofExitArm();
     REQUIRE(encoder.ok());
     encoder.fieldEnd();
@@ -183,17 +183,17 @@ message 42 test{
     REQUIRE(encoder.arrayLen() == 3);
     encoder.arrayEnterElem(0);
     REQUIRE(encoder.ok());
-    REQUIRE(encoder.u64() == 10);
+    REQUIRE(encoder.u64(0) == 10);
     encoder.arrayExitElem();
     REQUIRE(encoder.ok());
     encoder.arrayEnterElem(1);
     REQUIRE(encoder.ok());
-    REQUIRE(encoder.u64() == 11);
+    REQUIRE(encoder.u64(0) == 11);
     encoder.arrayExitElem();
     REQUIRE(encoder.ok());
     encoder.arrayEnterElem(2);
     REQUIRE(encoder.ok());
-    REQUIRE(encoder.u64() == 12);
+    REQUIRE(encoder.u64(0) == 12);
     encoder.arrayExitElem();
     REQUIRE(encoder.ok());
     encoder.fieldEnd();
