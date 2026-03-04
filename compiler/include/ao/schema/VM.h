@@ -1,7 +1,7 @@
 #pragma once
+#include <compare>
 #include <cstdint>
 #include <vector>
-#include <compare>
 
 #include <nlohmann/json.hpp>
 
@@ -18,7 +18,7 @@ using ScalarKind = ao::schema::ir::Scalar::ScalarKind;
 enum class ExtKind : uint8_t {
     // Jumps relative to EXT32 instruction
     JMP32,          // imm32: rel32
-    JZ32,             // imm32: rel32
+    JZ32,           // imm32: rel32
     CALL32,         // imm32: rel32
     MSG_BEGIN32,    // imm32: msgId
     FIELD_BEGIN32,  // imm32: fieldId
@@ -67,6 +67,10 @@ enum class Op : uint8_t {
 
     CALL_TYPE,
     // imm16: type id
+
+    CALL_TYPE_INDIRECT,
+    // vm.reg: type id
+    // Jumps to the type id stored in vm.reg
 
     DISPATCH,
     // a: register
@@ -123,13 +127,14 @@ enum class Op : uint8_t {
     // stack.array_index += 1
     // a = 1 if index is in bounds
 
+    ENVELOPE_BEGIN,
+    ENVELOPE_END,
+
     // Codec functions
 
     // Top level message framing
     // Disk format these are standard TLV using message numbers
     // Net format just the message id
-    C_ENVELOPE_BEGIN,
-    C_ENVELOPE_END,
 
     C_WRITE_SCALAR,
     // Switch on scalar type and write it
@@ -391,6 +396,17 @@ bool runInstr(VM& vm) {
             });
             nextPc = vm.prog->typeEntryPc[instr.imm];
         } break;
+        case Op::CALL_TYPE_INDIRECT: {
+            vm.stackDepth += 1;
+            vm.callStack.emplace_back(CallFrame{
+                .retPc = nextPc,
+            });
+            if (vm.reg >= vm.prog->typeEntryPc.size()) {
+                vm.error = VMError::RuntimeError;
+                return false;
+            }
+            nextPc = vm.prog->typeEntryPc[vm.reg];
+        } break;
         case Op::DISPATCH: {
             auto pc = vm.pc;
             pc += std::min(vm.reg + 1, static_cast<uint64_t>(instr.imm));
@@ -468,10 +484,11 @@ bool runInstr(VM& vm) {
             vm.arrayStack.back().idx += 1;
             vm.flag = vm.arrayStack.back().idx < vm.arrayStack.back().len;
         } break;
-        case Op::C_ENVELOPE_BEGIN:
+        case Op::ENVELOPE_BEGIN:
+            // TODO add this to main
             // TODO, we need a way to start the VM with envelope
             break;
-        case Op::C_ENVELOPE_END:
+        case Op::ENVELOPE_END:
             // TODO, we need a way to start the VM with envelope
             break;
         case Op::C_WRITE_SCALAR: {
@@ -598,17 +615,13 @@ template <bool EncodeMode, class VM>
 bool runVM(VM& vm, uint64_t typeId) {
     size_t stepCount = 0;
     reset(vm);
+
     if (vm.prog == nullptr) {
         vm.error = VMError::InvalidProgram;
         return false;
     }
 
-    if (typeId >= vm.prog->typeEntryPc.size()) {
-        vm.error = VMError::InvalidType;
-        return false;
-    }
-
-    vm.pc = vm.prog->typeEntryPc[typeId];
+    vm.reg = typeId;
     while (runInstr<EncodeMode>(vm)) {
     }
 

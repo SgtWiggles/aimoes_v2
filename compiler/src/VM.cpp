@@ -13,6 +13,7 @@ struct VMGenerateContext {
 
     // TODO share string tables and stuff
     std::vector<Assembler> typePrograms;
+    Assembler mainProgram;
 };
 
 // These generate the decode/encode functions.
@@ -218,6 +219,11 @@ void generateVMTypeCodes(VMGenerateContext& ctx,
     }
 }
 
+void generateVMMain(VMGenerateContext& ctx, ao::schema::ir::IR const& irCode) {
+    auto& assembler = ctx.mainProgram;
+    assembler.emit(Instr{Op::CALL_TYPE_INDIRECT, 0, 0}, {});
+}
+
 void linkTypeCodes(VMGenerateContext& ctx, ao::schema::ir::IR const& irCode) {
     ctx.errs.require(ctx.typePrograms.size() == irCode.types.size(),
                      {
@@ -226,8 +232,8 @@ void linkTypeCodes(VMGenerateContext& ctx, ao::schema::ir::IR const& irCode) {
                              "Mismatch between type programs and types size"),
                          .loc = {},
                      });
-    auto linked = std::vector<uint32_t>{};
-    linked.clear();
+
+    auto linked = ctx.mainProgram.assemble(ctx.errs);
 
     std::vector<uint32_t> typePcOffsets;
     typePcOffsets.reserve(ctx.typePrograms.size());
@@ -240,6 +246,7 @@ void linkTypeCodes(VMGenerateContext& ctx, ao::schema::ir::IR const& irCode) {
 
     ctx.prog.codeWords = std::move(linked);
     ctx.prog.typeEntryPc = std::move(typePcOffsets);
+    
 
     // Build mapping between messages and types
     ctx.prog.msgEntryPc.resize(irCode.messages.size());
@@ -257,6 +264,7 @@ Program generateProgram(ao::schema::ir::IR const& irCode,
                         bool encode,
                         bool net) {
     VMGenerateContext ctx{errs};
+    generateVMMain(ctx, irCode);
     generateVMTypeCodes(ctx, irCode, encode, net);
     linkTypeCodes(ctx, irCode);
     return ctx.prog;
