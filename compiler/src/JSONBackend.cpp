@@ -118,6 +118,10 @@ uint32_t JsonEncodeAdapter::oneofIndex(uint32_t oneofId) {
     fail(pack::Error::BadData);
     return 0;
 }
+
+void JsonEncodeAdapter::oneofBegin(uint32_t) {}
+void JsonEncodeAdapter::oneofEnd() {}
+
 void JsonEncodeAdapter::oneofEnterArm(uint32_t oneofId, uint32_t armId) {
     if (!ok())
         return;

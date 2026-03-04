@@ -54,6 +54,8 @@ class JsonEncodeAdapter {
     void arrayExitElem();
 
     uint32_t oneofIndex(uint32_t oneofId);  // chosen arm index (or -1)
+    void oneofBegin(uint32_t oneofId);
+    void oneofEnd();
     void oneofEnterArm(uint32_t oneofId, uint32_t armId);
     void oneofExitArm();
 
@@ -188,7 +190,7 @@ JsonTable generateJsonTable(ir::IR const& ir);
 
 inline bool encodeJson(vm::Program const* prog,
                        JsonTable const& jsonTable,
-                       vm::NetTables const& netTable,
+                       vm::CodecTable const& netTable,
                        nlohmann::json const& json,
                        std::vector<std::byte>& out) {
     JsonEncodeAdapter object{jsonTable, json};

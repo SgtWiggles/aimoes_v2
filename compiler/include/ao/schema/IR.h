@@ -147,8 +147,8 @@ inline size_t hash_value(Scalar const& scalar) {
 
 struct Array {
     IdFor<Type> type;
-    std::optional<int> minSize;
-    std::optional<int> maxSize;
+    std::optional<uint64_t> minSize;
+    std::optional<uint64_t> maxSize;
 
     auto operator<=>(Array const& other) const = default;
 };

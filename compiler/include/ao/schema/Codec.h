@@ -9,16 +9,35 @@
 #include "ao/pack/VarInt.h"
 #include "ao/pack/ZigZag.h"
 
+#include "ao/schema/IR.h"
+
 namespace ao::schema::vm {
 // TODO generate to this, basically just a map of the bit widths of the
 // individual fields OR variable width
-struct NetFieldDesc {
+struct CodecField {
+    uint32_t fieldNumber;
+    uint32_t typeId;
+};
+struct CodecType {
     uint8_t bitWidth;
     uint8_t flags;
 };
+struct CodecMessage {
+    uint32_t fieldStart;
+    uint32_t fieldCount;
+};
+struct CodecOneof {
+    uint32_t fieldStart;
+    uint32_t fieldCount;
 
-struct NetTables {
-    std::vector<NetFieldDesc> fields;
+};
+
+struct CodecTable {
+    std::vector<CodecType> types;
+    std::vector<CodecMessage> messages;
+    std::vector<CodecOneof> oneofs;
+
+    std::vector<CodecField> fields;
 };
 
 struct CodecBytes {};
@@ -29,7 +48,7 @@ struct NetEncodeCodec {
     using ChunkSize = CodecBits;
 
     OutStream& out;
-    NetTables const& net;
+    CodecTable const& net;
 
     // Message boundaries (presence bitmaps/alignment are codec concerns).
     void msgBegin(uint32_t msgId) {
@@ -39,7 +58,7 @@ struct NetEncodeCodec {
         // (void)msgId; /* flush presence bitmap if deferred */
     }
 
-    void fieldBegin(uint32_t fieldId) {}
+    void fieldBegin(uint32_t fieldId) { (void)fieldId; }
     void fieldEnd() {}
     void fieldId(uint32_t fieldId) { (void)fieldId; }
 
@@ -47,9 +66,7 @@ struct NetEncodeCodec {
     void align() { out.align(); }
 
     void boolean(bool v) { out.bits(v ? 1u : 0u, 1); }
-    void u64(uint32_t bw, uint64_t v) {
-        out.bits(v, bw);
-    }
+    void u64(uint32_t bw, uint64_t v) { out.bits(v, bw); }
     void i64(uint32_t bw, int64_t v) {
         // Common choice: two's complement in bw bits.
         out.bits(static_cast<uint64_t>(v), bw);
@@ -78,14 +95,11 @@ struct NetEncodeCodec {
     // TODO change this to use oneofid and armid
     // The oneofid should carry all of the arm information required for this to
     // do it's work
-    void oneofBegin(uint32_t fieldId, uint32_t armid) {
-        auto width = net.fields[fieldId].bitWidth;
-        out.bits(armid, width);
-    }
-    void oneofEnd(uint32_t /*oneofId*/) {}
-    void oneofArm(uint32_t typeId, uint64_t armid) {
-        // TODO we need to somehow move the encoded info into here
-    }
+    void oneofBegin(uint32_t typeId) {}
+    void oneofEnd() {}
+    
+    // Net format uses the compressed armid
+    void oneofArm(uint32_t width, uint64_t armid) { out.bits(armid, width); }
 
     bool ok() const { return out.ok(); }
     ao::pack::Error error() const { return out.error(); }
@@ -94,7 +108,7 @@ struct NetEncodeCodec {
 template <class InStream>
 struct NetDecodeCodec {
     InStream& in;
-    NetTables const& net;
+    CodecTable const& net;
 
     void msgBegin(uint32_t msgId) {
         (void)msgId; /* align, read presence bitmap if applicable */
@@ -171,6 +185,7 @@ struct NetDecodeCodec {
     bool ok() const { return in.ok(); }
     ao::pack::Error error() const { return in.error(); }
 };
+CodecTable buildCodecTable(ir::IR const& ir);
 
 // TODO generate to this, basically just a list of fieldNumbers
 // struct DiskField {

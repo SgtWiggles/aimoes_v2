@@ -449,18 +449,20 @@ bool runInstr(VM& vm) {
         case Op::ONEOF_BEGIN: {
             // These might also be a nullopt
             vm.oneofStack.emplace_back(OneofFrame{(uint32_t)instr.imm});
+            vm.object.oneofBegin(vm.oneofStack.back().oneofId);
+            vm.codec.oneofBegin(vm.oneofStack.back().oneofId);
         } break;
         case Op::ONEOF_END: {
             vm.oneofStack.pop_back();
+            vm.object.oneofEnd();
+            vm.codec.oneofEnd();
         } break;
         case Op::ONEOF_ARM_BEGIN: {
             vm.object.oneofEnterArm(vm.oneofStack.back().oneofId,
                                     (uint32_t)instr.imm);
-            vm.codec.oneofBegin(vm.oneofStack.back().oneofId, instr.imm);
         } break;
         case Op::ONEOF_ARM_END: {
             vm.object.oneofExitArm();
-            vm.codec.oneofEnd(vm.oneofStack.back().oneofId);
         } break;
         case Op::ARRAY_BEGIN: {
             vm.arrayStack.emplace_back(ArrayFrame{
@@ -489,6 +491,7 @@ bool runInstr(VM& vm) {
             // TODO, we need a way to start the VM with envelope
             break;
         case Op::ENVELOPE_END:
+            // TODO add this to main
             // TODO, we need a way to start the VM with envelope
             break;
         case Op::C_WRITE_SCALAR: {

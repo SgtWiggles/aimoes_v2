@@ -140,6 +140,7 @@ void generateTypeProgram(VMGenerateContext& ctx,
                 auto const& desc = irCode.oneOfs[oneof.idx];
                 uint16_t armBits =
                     std::min(std::max(std::bit_width(desc.arms.size()), 1), 64);
+                // TODO ext32
                 assembler.emit({Op::ONEOF_BEGIN, 0, 0}, {});
                 assembler.emit(
                     {encodeMode ? Op::O_READ_ONEOF_ARM : Op::C_READ_ONEOF_ARM,
