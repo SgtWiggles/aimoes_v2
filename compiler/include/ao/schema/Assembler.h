@@ -23,6 +23,9 @@ struct FixUpInstr {
 };
 struct FixUp32 {
     uint64_t label;
+    // extra offset to add to the final jump
+    // used when this instruction might not be the base of the jump
+    // JMP32, JZ32 and DISPATCH use it
     int64_t offset = 0;
 };
 
