@@ -185,7 +185,7 @@ struct NetDecodeCodec {
     bool ok() const { return in.ok(); }
     ao::pack::Error error() const { return in.error(); }
 };
-CodecTable buildCodecTable(ir::IR const& ir);
+CodecTable generateCodecTable(ir::IR const& ir);
 
 // TODO generate to this, basically just a list of fieldNumbers
 // struct DiskField {

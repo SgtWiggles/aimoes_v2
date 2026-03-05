@@ -5,7 +5,7 @@
 #include "ao/utils/Overloaded.h"
 
 namespace ao::schema::vm {
-CodecTable buildCodecTable(ir::IR const& ir) {
+CodecTable generateCodecTable(ir::IR const& ir) {
     CodecTable ret;
     for (auto& type : ir.types) {
         auto entry = std::visit(

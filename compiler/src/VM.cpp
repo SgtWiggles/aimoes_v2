@@ -3,6 +3,8 @@
 #include "ao/schema/Assembler.h"
 #include "ao/utils/Overloaded.h"
 
+#include <variant>
+
 namespace ao::schema::vm {
 
 struct VMGenerateContext {
@@ -247,7 +249,6 @@ void linkTypeCodes(VMGenerateContext& ctx, ao::schema::ir::IR const& irCode) {
 
     ctx.prog.codeWords = std::move(linked);
     ctx.prog.typeEntryPc = std::move(typePcOffsets);
-    
 
     // Build mapping between messages and types
     ctx.prog.msgEntryPc.resize(irCode.messages.size());
@@ -260,6 +261,21 @@ void linkTypeCodes(VMGenerateContext& ctx, ao::schema::ir::IR const& irCode) {
     }
 }
 
+void generateMessageLookups(VMGenerateContext& ctx,
+                            ao::schema::ir::IR const& irCode) {
+    int64_t idx = -1;
+    for (auto const& type : irCode.types) {
+        ++idx;
+        auto msgId = std::get_if<IdFor<ir::Message>>(&type.payload);
+        if (!msgId)
+            continue;
+        auto const& msg = irCode.messages[msgId->idx];
+        if (msg.messageNumber)
+            ctx.prog.messageNumberToId[*msg.messageNumber] = idx;
+        ctx.prog.messageNameToId[irCode.strings[msg.name.idx]] = idx;
+    }
+}
+
 Program generateProgram(ao::schema::ir::IR const& irCode,
                         ErrorContext& errs,
                         bool encode,
@@ -268,6 +284,8 @@ Program generateProgram(ao::schema::ir::IR const& irCode,
     generateVMMain(ctx, irCode);
     generateVMTypeCodes(ctx, irCode, encode, net);
     linkTypeCodes(ctx, irCode);
+    generateMessageLookups(ctx, irCode);
+
     return ctx.prog;
 }
 

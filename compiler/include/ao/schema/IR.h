@@ -105,7 +105,7 @@ inline size_t hash_value(OneOf const& field) {
 }
 
 struct Message {
-    // Qualified name for debugging purposes
+    // Qualified name
     IdFor<std::string> name;
 
     // Idempotency key for this symbol, already used everywhere!

@@ -233,6 +233,20 @@ struct Program {
     std::vector<uint32_t> codeWords;
     std::vector<uint32_t> typeEntryPc;
     std::vector<uint32_t> msgEntryPc;
+
+    std::unordered_map<std::string, uint64_t> messageNameToId;
+    std::unordered_map<size_t, uint64_t> messageNumberToId;
+
+    std::optional<uint64_t> messageId(std::string const& qualifiedName) const {
+        if (!messageNameToId.contains(qualifiedName))
+            return false;
+        return messageNameToId.at(qualifiedName);
+    }
+    std::optional<uint64_t> messageId(size_t messageNumber) const {
+        if (!messageNumberToId.contains(messageNumber))
+            return false;
+        return messageNumberToId.at(messageNumber);
+    }
 };
 
 Program generateNetEncode(ao::schema::ir::IR const& irCode, ErrorContext& errs);

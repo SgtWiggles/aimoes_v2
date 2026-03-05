@@ -197,7 +197,7 @@ std::optional<ao::schema::ir::IR> buildToIR(std::string_view fileContents,
     }
     auto ir =
         ao::schema::ir::generateIR(ctx.getModules(), ctx.getErrorContext());
-    if (ctx.getErrorContext().errors.size() > 0) {
+    if (!ctx.getErrorContext().ok()) {
         errs = ctx.getErrorContext().toString();
         return {};
     }

@@ -188,19 +188,25 @@ class JsonDecodeAdapter {
 
 JsonTable generateJsonTable(ir::IR const& ir);
 
-inline bool encodeJson(vm::Program const* prog,
-                       JsonTable const& jsonTable,
-                       vm::CodecTable const& netTable,
+struct JsonEncodeState {
+    vm::Program prog;
+    vm::CodecTable codec;
+    JsonTable json;
+};
+
+JsonEncodeState generateJsonEncodeState(ir::IR const& ir, ErrorContext& errs);
+
+inline bool encodeJson(JsonEncodeState const& state,
                        nlohmann::json const& json,
-                       std::vector<std::byte>& out) {
-    JsonEncodeAdapter object{jsonTable, json};
-    pack::bit::SizeWriteStream sizeStream{};
-    vm::NetEncodeCodec<pack::bit::SizeWriteStream> codec{
-        sizeStream,
-        netTable,
+                       pack::bit::WriteStream& stream,
+                       uint64_t messageId) {
+    JsonEncodeAdapter object{state.json, json};
+    vm::NetEncodeCodec<pack::bit::WriteStream> codec{
+        stream,
+        state.codec,
     };
-    auto machine = vm::VM{prog, object, codec};
-    return vm::encode(machine, 0);
+    auto machine = vm::VM{&state.prog, object, codec};
+    return vm::encode(machine, messageId);
 }
 
 }  // namespace ao::schema::json

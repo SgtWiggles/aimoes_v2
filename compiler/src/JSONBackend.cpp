@@ -1,5 +1,7 @@
 #include "ao/schema/JSONBackend.h"
 
+#include "ao/schema/Codec.h"
+
 namespace ao::schema::json {
 void JsonEncodeAdapter::msgBegin(uint32_t msgId) {
     if (!ok())
@@ -359,5 +361,15 @@ JsonTable generateJsonTable(ir::IR const& ir) {
         ret.oneofs.emplace_back(std::move(arms));
     }
     return ret;
+}
+JsonEncodeState generateJsonEncodeState(ir::IR const& ir, ErrorContext& errs) {
+    auto prog = vm::generateNetEncode(ir, errs);
+    auto json = generateJsonTable(ir);
+    auto codec = vm::generateCodecTable(ir);
+    return {
+        std::move(prog),
+        std::move(codec),
+        std::move(json),
+    };
 }
 }  // namespace ao::schema::json

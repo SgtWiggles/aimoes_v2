@@ -32,7 +32,12 @@ add_library(compiler OBJECT
  "src/Assembler.cpp"
 )
 target_include_directories(compiler PUBLIC include)
-target_link_libraries(compiler PUBLIC Boost::container_hash foonathan::lexy pack nlohmann_json)
+target_link_libraries(compiler PUBLIC
+	Boost::container_hash
+	foonathan::lexy
+	pack
+	$<TARGET_OBJECTS:pack>
+	nlohmann_json)
 
 add_executable(CompilerTests
  "tests/AstTests.cpp"
