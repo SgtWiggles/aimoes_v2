@@ -38,5 +38,6 @@ message 100 Test {
                               ws, *msgNumber);
 
     REQUIRE(ws.bitSize() == 20);
+    REQUIRE(ws.byteSize() == 3);
     REQUIRE(encoded);
 }
