@@ -239,12 +239,12 @@ struct Program {
 
     std::optional<uint64_t> messageId(std::string const& qualifiedName) const {
         if (!messageNameToId.contains(qualifiedName))
-            return false;
+            return {};
         return messageNameToId.at(qualifiedName);
     }
     std::optional<uint64_t> messageId(size_t messageNumber) const {
         if (!messageNumberToId.contains(messageNumber))
-            return false;
+            return {};
         return messageNumberToId.at(messageNumber);
     }
 };
@@ -398,6 +398,7 @@ bool runInstr(VM& vm) {
             }
             vm.stackDepth -= 1;
             nextPc = vm.callStack.back().retPc;
+            vm.callStack.pop_back();
             // Pop call stack
             break;
         // case Op::EXT32:

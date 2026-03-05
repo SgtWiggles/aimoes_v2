@@ -304,7 +304,10 @@ IdFor<Message> generateIR(IRContext& ctx,
         msg.fields.push_back(*fieldId);
     }
 
-    return ctx.messages.getId(info.id, msg);
+    auto ret = ctx.messages.getId(info.id, msg);
+    auto type = Type{.payload = ret};
+    ctx.types.getId(type);  // Add message to type list
+    return ret;
 }
 
 void generateIR(IRContext& ctx,

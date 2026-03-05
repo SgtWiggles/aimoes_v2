@@ -16,7 +16,8 @@ package pkg;
 message 100 Test {
     10 hello int(bits=10);
     12 world uint(bits=10);
-})", buildErrors);
+})",
+                        buildErrors);
     INFO(buildErrors);
     REQUIRE(ir.has_value());
 
@@ -34,8 +35,8 @@ message 100 Test {
     "hello": 10,
     "world": -10
 })"),
-               ws, *msgNumber);
+                              ws, *msgNumber);
 
+    REQUIRE(ws.bitSize() == 20);
     REQUIRE(encoded);
-    
 }

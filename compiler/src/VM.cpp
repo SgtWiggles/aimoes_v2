@@ -225,6 +225,7 @@ void generateVMTypeCodes(VMGenerateContext& ctx,
 void generateVMMain(VMGenerateContext& ctx, ao::schema::ir::IR const& irCode) {
     auto& assembler = ctx.mainProgram;
     assembler.emit(Instr{Op::CALL_TYPE_INDIRECT, 0, 0}, {});
+    assembler.emit(Instr{Op::HALT, 0, 0}, {});
 }
 
 void linkTypeCodes(VMGenerateContext& ctx, ao::schema::ir::IR const& irCode) {

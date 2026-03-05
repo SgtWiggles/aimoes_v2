@@ -506,9 +506,9 @@ struct MessageDecl {
                         .messageId = std::move(msgNumber),
                         .block = std::move(block),
                         .directives = std::move(directives),
-                        .loc = loc,  // TODO get loc
+                        .loc = loc,
                     },
-                .loc = loc,  // TODO get loc
+                .loc = loc,
             };
         });
 };
