@@ -260,6 +260,8 @@ enum class VMError {
     InvalidInstr,
     StackUnderflow,
     StackOverflow,
+    ObjectError,
+    CodecError,
 };
 
 struct CallFrame {
@@ -623,6 +625,15 @@ bool runInstr(VM& vm) {
         default:
             vm.error = VMError::InvalidInstr;
             return false;
+    }
+
+    if (!vm.object.ok()) {
+        vm.error = VMError::ObjectError;
+        return false;
+    }
+    if (!vm.codec.ok()) {
+        vm.error = VMError::CodecError;
+        return false;
     }
 
     vm.pc = nextPc;

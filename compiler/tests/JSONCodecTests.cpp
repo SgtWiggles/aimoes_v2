@@ -32,12 +32,22 @@ message 100 Test {
     auto msgNumber = encodeState.prog.messageId(100);
     REQUIRE(msgNumber);
     auto encoded = encodeJson(encodeState, nlohmann::json::parse(R"({
-    "hello": 10,
-    "world": -10
+    "hello": -129,
+    "world": 129
 })"),
                               ws, *msgNumber);
+    REQUIRE(encoded);
 
     REQUIRE(ws.bitSize() == 20);
     REQUIRE(ws.byteSize() == 3);
-    REQUIRE(encoded);
+
+    ao::pack::bit::ReadStream rs{{data.data(), ws.byteSize()}};
+    uint64_t read = 0;
+    rs.bits(read, 10);
+    REQUIRE(rs.ok());
+    REQUIRE(read == (-129 & 0x03FF));
+
+    rs.bits(read, 10);
+    REQUIRE(rs.ok());
+    REQUIRE(read == (129 & 0x03FF));
 }

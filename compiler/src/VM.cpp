@@ -177,7 +177,7 @@ void generateTypeProgram(VMGenerateContext& ctx,
                 for (auto fieldId : desc.fields) {
                     auto const& fieldDesc = irCode.fields[fieldId.idx];
                     auto endLabel = assembler.useLabel();
-                    assembler.emit({Op::FIELD_BEGIN, 0, 0}, {});
+                    assembler.emitFieldBegin(fieldId, {});
                     if (encodeMode) {
                         if (!isNetMode) {
                             assembler.emit({Op::D_WRITE_FIELD_ID, 0,
