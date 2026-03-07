@@ -29,7 +29,7 @@ message 100 Test {
     std::vector<std::byte> data;
     data.resize(1024);
     ao::pack::bit::WriteStream ws{data};
-    auto msgNumber = encodeState.prog.messageId(100);
+    auto msgNumber = encodeState.format.msgs.getId(100);
     REQUIRE(msgNumber);
     auto encoded = encodeJson(encodeState, nlohmann::json::parse(R"({
     "hello": -129,
@@ -50,4 +50,6 @@ message 100 Test {
     rs.bits(read, 10);
     REQUIRE(rs.ok());
     REQUIRE(read == (129 & 0x03FF));
+
+
 }

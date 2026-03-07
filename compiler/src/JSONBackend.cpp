@@ -363,7 +363,7 @@ JsonTable generateJsonTable(ir::IR const& ir) {
     return ret;
 }
 JsonEncodeState generateJsonEncodeState(ir::IR const& ir, ErrorContext& errs) {
-    auto prog = vm::generateNetEncode(ir, errs);
+    auto prog = vm::generateProgram(ir, errs);
     auto json = generateJsonTable(ir);
     auto codec = vm::generateCodecTable(ir);
     return {

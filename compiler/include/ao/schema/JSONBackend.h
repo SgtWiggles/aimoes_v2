@@ -151,7 +151,6 @@ class JsonDecodeAdapter {
     ao::pack::Error error() const { return m_err; }
 
     nlohmann::json root() const { return m_root; }
-
    private:
     void fail(ao::pack::Error err) {
         if (ok())
@@ -189,7 +188,7 @@ class JsonDecodeAdapter {
 JsonTable generateJsonTable(ir::IR const& ir);
 
 struct JsonEncodeState {
-    vm::Program prog;
+    vm::Format format;
     vm::CodecTable codec;
     JsonTable json;
 };
@@ -205,8 +204,24 @@ inline bool encodeJson(JsonEncodeState const& state,
         stream,
         state.codec,
     };
-    auto machine = vm::VM{&state.prog, object, codec};
+    auto machine = vm::VM{&state.format.encode, object, codec};
     return vm::encode(machine, messageId);
+}
+inline bool decodeJson(JsonEncodeState const& state,
+                       pack::bit::ReadStream& stream,
+                       nlohmann::json& json,
+                       uint64_t messageId) {
+    JsonDecodeAdapter object{state.json};
+    vm::NetDecodeCodec<pack::bit::ReadStream> codec{
+        stream,
+        state.codec,
+    };
+    auto machine = vm::VM{&state.format.decode, object, codec};
+    auto success = vm::decode(machine, messageId);
+    if (success) {
+        json = object.root();
+    }
+    return success;
 }
 
 }  // namespace ao::schema::json

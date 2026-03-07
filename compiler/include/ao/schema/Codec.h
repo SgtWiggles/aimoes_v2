@@ -107,6 +107,8 @@ struct NetEncodeCodec {
 
 template <class InStream>
 struct NetDecodeCodec {
+    using ChunkSize = CodecBits;
+
     InStream& in;
     CodecTable const& net;
 
@@ -116,6 +118,7 @@ struct NetDecodeCodec {
     void msgEnd(uint32_t msgId) { (void)msgId; }
 
     bool fieldId(uint32_t fieldId) { return true; }
+    bool skipFieldId(uint32_t fieldId) { return false; }
 
     // If presence is inline:
     bool present() {

@@ -25,8 +25,7 @@ void generateTypeProgram(VMGenerateContext& ctx,
                          ir::Type const& type,
                          Assembler& assembler,
                          ao::schema::ir::IR const& irCode,
-                         bool const encodeMode,
-                         bool const isNetMode) {
+                         bool const encodeMode) {
     std::visit(
         Overloaded{
             [&](ir::Scalar const& scalar) {
@@ -179,24 +178,20 @@ void generateTypeProgram(VMGenerateContext& ctx,
                     auto endLabel = assembler.useLabel();
                     assembler.emitFieldBegin(fieldId, {});
                     if (encodeMode) {
-                        if (!isNetMode) {
-                            assembler.emit({Op::D_WRITE_FIELD_ID, 0,
-                                            (uint16_t)fieldId.idx},
-                                           {});
-                        }
-                        assembler.emitTypeCall(fieldDesc.type, {});
-                    } else if (isNetMode) {  // net mode decode
+                        assembler.emit(
+                            {Op::C_WRITE_FIELD_ID, 0, (uint16_t)fieldId.idx},
+                            {});
                         assembler.emitTypeCall(fieldDesc.type, {});
                     } else {  // disk mode decode
                         auto skipLabel = assembler.useLabel();
                         assembler.emit(
-                            {Op::D_MATCH_FIELD_ID, 0, (uint16_t)fieldId.idx},
+                            {Op::C_MATCH_FIELD_ID, 0, (uint16_t)fieldId.idx},
                             {});
                         assembler.jz(skipLabel, {});
                         assembler.emitTypeCall(fieldDesc.type, {});
                         assembler.jmp(endLabel, {});
                         assembler.emit(
-                            {Op::D_SKIP_FIELD_ID, 0, (uint16_t)fieldId.idx},
+                            {Op::C_SKIP_FIELD_ID, 0, (uint16_t)fieldId.idx},
                             {});
                     }
 
@@ -212,13 +207,11 @@ void generateTypeProgram(VMGenerateContext& ctx,
 
 void generateVMTypeCodes(VMGenerateContext& ctx,
                          ao::schema::ir::IR const& irCode,
-                         bool const encodeMode,
-                         bool const isNetMode) {
+                         bool const encodeMode) {
     for (size_t i = 0; i < irCode.types.size(); ++i) {
         auto const& type = irCode.types[i];
         auto& assembler = ctx.typePrograms.emplace_back();
-        generateTypeProgram(ctx, type, assembler, irCode, encodeMode,
-                            isNetMode);
+        generateTypeProgram(ctx, type, assembler, irCode, encodeMode);
     }
 }
 
@@ -262,8 +255,8 @@ void linkTypeCodes(VMGenerateContext& ctx, ao::schema::ir::IR const& irCode) {
     }
 }
 
-void generateMessageLookups(VMGenerateContext& ctx,
-                            ao::schema::ir::IR const& irCode) {
+MessageIndex generateMessageLookups(ao::schema::ir::IR const& irCode) {
+    MessageIndex ret = {};
     int64_t idx = -1;
     for (auto const& type : irCode.types) {
         ++idx;
@@ -272,32 +265,31 @@ void generateMessageLookups(VMGenerateContext& ctx,
             continue;
         auto const& msg = irCode.messages[msgId->idx];
         if (msg.messageNumber)
-            ctx.prog.messageNumberToId[*msg.messageNumber] = idx;
-        ctx.prog.messageNameToId[irCode.strings[msg.name.idx]] = idx;
+            ret.messageNumberToId[*msg.messageNumber] = idx;
+        ret.messageNameToId[irCode.strings[msg.name.idx]] = idx;
     }
+    return ret;
 }
 
 Program generateProgram(ao::schema::ir::IR const& irCode,
                         ErrorContext& errs,
-                        bool encode,
-                        bool net) {
+                        bool encode) {
     VMGenerateContext ctx{errs};
     generateVMMain(ctx, irCode);
-    generateVMTypeCodes(ctx, irCode, encode, net);
+    generateVMTypeCodes(ctx, irCode, encode);
     linkTypeCodes(ctx, irCode);
-    generateMessageLookups(ctx, irCode);
-
     return ctx.prog;
 }
 
-// Encode goes from Object -> Net Format
-Program generateNetEncode(ao::schema::ir::IR const& irCode,
-                          ErrorContext& errs) {
-    return generateProgram(irCode, errs, true, true);
-}
-
-Program generateNetDecode(ao::schema::ir::IR const& irCode,
-                          ErrorContext& errs) {
-    return generateProgram(irCode, errs, false, true);
+Format generateProgram(ao::schema::ir::IR const& irCode,
+                              ErrorContext& errs) {
+    auto encode = generateProgram(irCode, errs, true);
+    auto decode = generateProgram(irCode, errs, false);
+    auto index = generateMessageLookups(irCode);
+    return {
+        .encode = encode,
+        .decode = decode,
+        .msgs = index,
+    };
 }
 }  // namespace ao::schema::vm

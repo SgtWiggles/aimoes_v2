@@ -136,6 +136,21 @@ enum class Op : uint8_t {
     // Disk format these are standard TLV using message numbers
     // Net format just the message id
 
+    C_WRITE_FIELD_ID,
+    // Write the current field id, idempotent for net format
+    // adapter.writeFieldNumber(reg)
+
+    C_MATCH_FIELD_ID,
+    // net always returns true, disk does matching
+    // imm16: expected field id
+    // flag = expected == current field id
+
+    C_SKIP_FIELD_ID,
+    // always returns false for net format
+    // imm16: original expected field id
+    // flag = field was skipped
+    // codec.skip_field
+
     C_WRITE_SCALAR,
     // Switch on scalar type and write it
     C_READ_SCALAR,
@@ -157,16 +172,6 @@ enum class Op : uint8_t {
     // reg = len of array
 
     // Disk codec functions
-    D_WRITE_FIELD_ID,
-    // adapter.writeFieldNumber(reg)
-    D_MATCH_FIELD_ID,
-    // imm16: expected field id
-    // flag = expected == current field id
-
-    D_SKIP_FIELD_ID,
-    // imm16: original expected field id
-    // flag = field was skipped
-    // codec.skip_field
 
     // Object Functions
     O_WRITE_SCALAR,
@@ -229,28 +234,36 @@ struct JumpTableMeta {
     uint16_t armCount;
     uint32_t tableOffsetWords;
 };
-struct Program {
-    std::vector<uint32_t> codeWords;
-    std::vector<uint32_t> typeEntryPc;
-    std::vector<uint32_t> msgEntryPc;
 
+struct MessageIndex {
     std::unordered_map<std::string, uint64_t> messageNameToId;
     std::unordered_map<size_t, uint64_t> messageNumberToId;
 
-    std::optional<uint64_t> messageId(std::string const& qualifiedName) const {
+    std::optional<uint64_t> getId(std::string const& qualifiedName) const {
         if (!messageNameToId.contains(qualifiedName))
             return {};
         return messageNameToId.at(qualifiedName);
     }
-    std::optional<uint64_t> messageId(size_t messageNumber) const {
+    std::optional<uint64_t> getId(size_t messageNumber) const {
         if (!messageNumberToId.contains(messageNumber))
             return {};
         return messageNumberToId.at(messageNumber);
     }
 };
 
-Program generateNetEncode(ao::schema::ir::IR const& irCode, ErrorContext& errs);
-Program generateNetDecode(ao::schema::ir::IR const& irCode, ErrorContext& errs);
+struct Program {
+    std::vector<uint32_t> codeWords;
+    std::vector<uint32_t> typeEntryPc;
+    std::vector<uint32_t> msgEntryPc;
+};
+
+struct Format {
+    Program encode;
+    Program decode;
+    MessageIndex msgs;
+};
+
+Format generateProgram(ao::schema::ir::IR const& irCode, ErrorContext& errs);
 
 enum class VMError {
     None,
@@ -566,17 +579,17 @@ bool runInstr(VM& vm) {
                 vm.arrayStack.back().len = vm.reg;
             }
             break;
-        case Op::D_WRITE_FIELD_ID: {
+        case Op::C_WRITE_FIELD_ID: {
             if constexpr (EncodeMode) {
                 vm.codec.fieldId(instr.imm);
             }
         } break;
-        case Op::D_MATCH_FIELD_ID: {
+        case Op::C_MATCH_FIELD_ID: {
             if constexpr (!EncodeMode) {
                 vm.flag = vm.codec.fieldId(instr.imm);
             }
         } break;
-        case Op::D_SKIP_FIELD_ID: {
+        case Op::C_SKIP_FIELD_ID: {
             if constexpr (!EncodeMode) {
                 vm.flag = vm.codec.skip();
             }
