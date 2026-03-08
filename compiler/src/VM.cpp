@@ -192,7 +192,7 @@ void generateTypeProgram(VMGenerateContext& ctx,
                         assembler.jmp(endLabel, {});
                         assembler.emit(
                             {Op::C_SKIP_FIELD_ID, 0, (uint16_t)fieldId.idx},
-                            {});
+                            skipLabel);
                     }
 
                     assembler.emit({Op::FIELD_END, 0, 0}, endLabel);

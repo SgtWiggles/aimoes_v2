@@ -29,7 +29,6 @@ struct CodecMessage {
 struct CodecOneof {
     uint32_t fieldStart;
     uint32_t fieldCount;
-
 };
 
 struct CodecTable {
@@ -95,9 +94,9 @@ struct NetEncodeCodec {
     // TODO change this to use oneofid and armid
     // The oneofid should carry all of the arm information required for this to
     // do it's work
-    void oneofBegin(uint32_t typeId) {}
-    void oneofEnd() {}
-    
+    void oneofEnter(uint32_t typeId) {}
+    void oneofExit() {}
+
     // Net format uses the compressed armid
     void oneofArm(uint32_t width, uint64_t armid) { out.bits(armid, width); }
 
@@ -115,8 +114,10 @@ struct NetDecodeCodec {
     void msgBegin(uint32_t msgId) {
         (void)msgId; /* align, read presence bitmap if applicable */
     }
-    void msgEnd(uint32_t msgId) { (void)msgId; }
+    void msgEnd() {}
 
+    void fieldBegin(uint32_t fieldId) {}
+    void fieldEnd() {}
     bool fieldId(uint32_t fieldId) { return true; }
     bool skipFieldId(uint32_t fieldId) { return false; }
 
@@ -167,9 +168,10 @@ struct NetDecodeCodec {
         return std::bit_cast<double>(bits);
     }
 
-    uint32_t arrayLen(uint32_t fieldId) {
+    void arrayBegin() {}
+    void arrayEnd() {}
+    uint32_t arrayLen(uint32_t width) {
         uint64_t u = 0;
-        auto width = net.fields[fieldId].bitWidth;
         if (width != 0) {
             in.bits(u, width);
         } else {
@@ -178,15 +180,18 @@ struct NetDecodeCodec {
         return static_cast<uint32_t>(u);
     }
 
-    uint32_t oneofArm(uint32_t fieldId) {
+    void oneofEnter(uint32_t typeId) {}
+    void oneofExit() {}
+    uint32_t oneofArm(uint32_t oneofId, uint32_t width) {
         uint64_t u = 0;
-        auto width = net.fields[fieldId].bitWidth;
         in.bits(u, width);
         return static_cast<uint32_t>(u);
     }
 
     bool ok() const { return in.ok(); }
     ao::pack::Error error() const { return in.error(); }
+
+    bool skip() { return false; }
 };
 CodecTable generateCodecTable(ir::IR const& ir);
 

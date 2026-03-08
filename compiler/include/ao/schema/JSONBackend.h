@@ -54,8 +54,9 @@ class JsonEncodeAdapter {
     void arrayExitElem();
 
     uint32_t oneofIndex(uint32_t oneofId);  // chosen arm index (or -1)
-    void oneofBegin(uint32_t oneofId);
-    void oneofEnd();
+
+    void oneofEnter(uint32_t oneofId);
+    void oneofExit();
     void oneofEnterArm(uint32_t oneofId, uint32_t armId);
     void oneofExitArm();
 
@@ -121,14 +122,20 @@ class JsonDecodeAdapter {
     // object adapter must allocate/set the optional storage before decoding
     // inner value.
     // prepare optional storage (e.g., emplace or reset)
+    void optEnter() {}
+    void optExit() {}
+
     void optSetPresent(bool present);
     // enter optional's value storage (must be present)
+
     void optEnterValue();
     void optExitValue();
 
     // Array:
     // For decode, codec provides length; object adapter must resize/prepare
     // container.
+    void arrayBegin() {}
+    void arrayEnd() {}
     void arrayPrepare(uint32_t len);
     void arrayEnterElem(uint32_t i);
     void arrayExitElem();
@@ -136,21 +143,26 @@ class JsonDecodeAdapter {
     // Oneof:
     // For decode, codec selects arm; object adapter must set discriminant and
     // prepare arm storage.
-    void oneofEnterArm(uint32_t oneofId, uint32_t arm);
+    void oneofEnter(uint32_t oneofId);
+    void oneofExit();
+    void oneofIndex(uint32_t oneofId, uint32_t armId);
+
+    void oneofEnterArm(uint32_t oneofId, uint32_t armId);
     void oneofExitArm();
 
     // Scalars (write into current storage):
-    void writeBool(bool v);
-    void writeU64(uint64_t v);
-    void writeI64(int64_t v);
-    void writeF32(float v);
-    void writeF64(double v);
+    void boolean(bool v);
+    void u64(uint16_t width, uint64_t v);
+    void i64(uint16_t width, int64_t v);
+    void f32(float v);
+    void f64(double v);
 
     // Status:
     bool ok() const { return m_err == pack::Error::Ok; }
     ao::pack::Error error() const { return m_err; }
 
     nlohmann::json root() const { return m_root; }
+
    private:
     void fail(ao::pack::Error err) {
         if (ok())

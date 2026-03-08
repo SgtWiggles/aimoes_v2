@@ -121,8 +121,8 @@ uint32_t JsonEncodeAdapter::oneofIndex(uint32_t oneofId) {
     return 0;
 }
 
-void JsonEncodeAdapter::oneofBegin(uint32_t) {}
-void JsonEncodeAdapter::oneofEnd() {}
+void JsonEncodeAdapter::oneofEnter(uint32_t) {}
+void JsonEncodeAdapter::oneofExit() {}
 
 void JsonEncodeAdapter::oneofEnterArm(uint32_t oneofId, uint32_t armId) {
     if (!ok())
@@ -263,7 +263,7 @@ void JsonDecodeAdapter::arrayPrepare(uint32_t len) {
         return;
     auto top = currentMsg();
     if (!top)
-        return;
+        return fail(ao::pack::Error::BadData);
     *top = nlohmann::json::array();
     top->get_ptr<nlohmann::json::array_t*>()->resize(len);
 }
@@ -272,11 +272,29 @@ void JsonDecodeAdapter::arrayEnterElem(uint32_t i) {
         return;
     auto top = currentMsg();
     if (!top)
-        return;
+        return fail(ao::pack::Error::BadData);
     m_stack.push_back(&(*top)[i]);
 }
 void JsonDecodeAdapter::arrayExitElem() {
     popStack();
+}
+
+void JsonDecodeAdapter::oneofEnter(uint32_t oneofId) {
+    if (!ok())
+        return;
+    auto top = currentMsg();
+    if (!top)
+        return fail(ao::pack::Error::BadData);
+    *top = nlohmann::json::object({});
+}
+void JsonDecodeAdapter::oneofExit() {}
+void JsonDecodeAdapter::oneofIndex(uint32_t oneofId, uint32_t armId) {
+    if (!ok())
+        return;
+    auto top = currentMsg();
+    if (!top)
+        return;
+    (*top)["case"] = m_table.oneofs[oneofId].fieldNumbers[armId];
 }
 
 void JsonDecodeAdapter::oneofEnterArm(uint32_t oneofId, uint32_t armId) {
@@ -285,22 +303,14 @@ void JsonDecodeAdapter::oneofEnterArm(uint32_t oneofId, uint32_t armId) {
     auto top = currentMsg();
     if (!top)
         return;
-    if (m_table.oneofs.size() <= oneofId)
-        return fail(pack::Error::BadArg);
-    if (m_table.oneofs[oneofId].fieldNumbers.size() <= armId)
-        return fail(pack::Error::BadArg);
-    auto fieldNum = m_table.oneofs[oneofId].fieldNumbers[armId];
-    *top = nlohmann::json::object({
-        {"case", fieldNum},
-        {"value", nlohmann::json{nullptr}},
-    });
-    m_stack.push_back(&(*top)["value"]);
+    (*top)["value"] = nlohmann::json{nullptr};
+    m_stack.push_back(&((*top)["value"]));
 }
 void JsonDecodeAdapter::oneofExitArm() {
     popStack();
 }
 
-void JsonDecodeAdapter::writeBool(bool v) {
+void JsonDecodeAdapter::boolean(bool v) {
     if (!ok())
         return;
     auto top = currentMsg();
@@ -308,7 +318,7 @@ void JsonDecodeAdapter::writeBool(bool v) {
         return;
     *top = v;
 }
-void JsonDecodeAdapter::writeU64(uint64_t v) {
+void JsonDecodeAdapter::u64(uint16_t width, uint64_t v) {
     if (!ok())
         return;
     auto top = currentMsg();
@@ -316,7 +326,7 @@ void JsonDecodeAdapter::writeU64(uint64_t v) {
         return;
     *top = v;
 }
-void JsonDecodeAdapter::writeI64(int64_t v) {
+void JsonDecodeAdapter::i64(uint16_t width, int64_t v) {
     if (!ok())
         return;
     auto top = currentMsg();
@@ -324,7 +334,7 @@ void JsonDecodeAdapter::writeI64(int64_t v) {
         return;
     *top = v;
 }
-void JsonDecodeAdapter::writeF32(float v) {
+void JsonDecodeAdapter::f32(float v) {
     if (!ok())
         return;
     auto top = currentMsg();
@@ -332,7 +342,7 @@ void JsonDecodeAdapter::writeF32(float v) {
         return;
     *top = v;
 }
-void JsonDecodeAdapter::writeF64(double v) {
+void JsonDecodeAdapter::f64(double v) {
     if (!ok())
         return;
     auto top = currentMsg();

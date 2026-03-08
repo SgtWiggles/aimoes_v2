@@ -144,6 +144,7 @@ std::vector<uint32_t> computeJumpLabels(Assembler const& assembler,
                                 .loc = {},
                             });
                             errored = true;
+                            return;
                         }
                         auto dest = iter->second;
                         int64_t jumpDist = dest - (int64_t)nextEntries.size();

@@ -479,13 +479,13 @@ bool runInstr(VM& vm) {
         case Op::ONEOF_BEGIN: {
             // These might also be a nullopt
             vm.oneofStack.emplace_back(OneofFrame{(uint32_t)instr.imm});
-            vm.object.oneofBegin(vm.oneofStack.back().oneofId);
-            vm.codec.oneofBegin(vm.oneofStack.back().oneofId);
+            vm.object.oneofEnter(vm.oneofStack.back().oneofId);
+            vm.codec.oneofEnter(vm.oneofStack.back().oneofId);
         } break;
         case Op::ONEOF_END: {
             vm.oneofStack.pop_back();
-            vm.object.oneofEnd();
-            vm.codec.oneofEnd();
+            vm.object.oneofExit();
+            vm.codec.oneofExit();
         } break;
         case Op::ONEOF_ARM_BEGIN: {
             vm.object.oneofEnterArm(vm.oneofStack.back().oneofId,
@@ -565,7 +565,8 @@ bool runInstr(VM& vm) {
             break;
         case Op::C_READ_ONEOF_ARM:
             if constexpr (!EncodeMode) {
-                vm.reg = vm.codec.oneofArm(instr.imm);
+                vm.reg =
+                    vm.codec.oneofArm(vm.oneofStack.back().oneofId, instr.imm);
             }
             break;
         case Op::C_WRITE_ARRAY_LEN:
@@ -617,7 +618,7 @@ bool runInstr(VM& vm) {
         } break;
         case Op::O_WRITE_ONEOF_ARM: {
             if constexpr (!EncodeMode) {
-                vm.object.oneofIndex(instr.imm, vm.reg);
+                vm.object.oneofIndex(vm.oneofStack.back().oneofId, vm.reg);
             }
         } break;
         case Op::O_READ_ONEOF_ARM: {

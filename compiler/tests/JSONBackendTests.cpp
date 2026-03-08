@@ -74,14 +74,14 @@ message 42 test{
 
     decoder.fieldBegin(0);
     REQUIRE(decoder.ok());
-    decoder.writeI64(13);
+    decoder.i64(0, 13);
     REQUIRE(decoder.ok());
     decoder.fieldEnd();
     REQUIRE(decoder.ok());
 
     decoder.fieldBegin(1);
     REQUIRE(decoder.ok());
-    decoder.writeU64(14);
+    decoder.i64(0, 14);
     REQUIRE(decoder.ok());
     decoder.fieldEnd();
     REQUIRE(decoder.ok());
@@ -128,20 +128,23 @@ message 42 test{
 
     decoder.msgBegin(0);
     decoder.fieldBegin(*hello);
+    decoder.oneofEnter(0);
+    decoder.oneofIndex(0, 2);
     decoder.oneofEnterArm(0, 2);
-    decoder.writeU64(102);
+    decoder.u64(0, 102);
     decoder.oneofExitArm();
+    decoder.oneofExit();
     decoder.fieldEnd();
     decoder.fieldBegin(*hello2);
     decoder.arrayPrepare(3);
     decoder.arrayEnterElem(0);
-    decoder.writeU64(10);
+    decoder.u64(0, 10);
     decoder.arrayExitElem();
     decoder.arrayEnterElem(1);
-    decoder.writeU64(11);
+    decoder.u64(0, 11);
     decoder.arrayExitElem();
     decoder.arrayEnterElem(2);
-    decoder.writeU64(12);
+    decoder.u64(0, 12);
     decoder.arrayExitElem();
     decoder.fieldEnd();
     decoder.msgEnd();
