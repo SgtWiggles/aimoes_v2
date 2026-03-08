@@ -235,7 +235,9 @@ void linkTypeCodes(VMGenerateContext& ctx, ao::schema::ir::IR const& irCode) {
     std::vector<uint32_t> typePcOffsets;
     typePcOffsets.reserve(ctx.typePrograms.size());
     for (auto const& assembler : ctx.typePrograms) {
-        typePcOffsets.emplace_back(linked.size());
+        // TODO add check if the generated program > 2^32
+        // This should really never happen but alas
+        typePcOffsets.emplace_back(static_cast<uint32_t>(linked.size()));
 
         auto code = assembler.assemble(ctx.errs);
         linked.insert(linked.end(), code.begin(), code.end());
