@@ -39,7 +39,10 @@ IdFor<Type> generateIR(IRContext& ctx, AstType const& type) {
             getPropertyFor<AstBaseType::BOOL>(
                 ctx.errors, type.normalizedProperties->props, type.loc,
                 [&](NormalizedTypeProperty<AstBaseType::BOOL> const& props) {
-                    currentType = Type{Scalar{Scalar::BOOL}};
+                    currentType = Type{Scalar{
+                        .kind = Scalar::BOOL,
+                        .width = 1,
+                    }};
                 });
             break;
         case AstBaseType::INT:
@@ -68,6 +71,7 @@ IdFor<Type> generateIR(IRContext& ctx, AstType const& type) {
                 [&](NormalizedTypeProperty<AstBaseType::F32> const& props) {
                     currentType = Type{Scalar{
                         .kind = Scalar::F32,
+                        .width = 32,
                     }};
                 });
             break;
@@ -77,6 +81,7 @@ IdFor<Type> generateIR(IRContext& ctx, AstType const& type) {
                 [&](NormalizedTypeProperty<AstBaseType::F64> const& props) {
                     currentType = Type{Scalar{
                         .kind = Scalar::F64,
+                        .width = 64,
                     }};
                 });
             break;
@@ -226,7 +231,7 @@ IdFor<DirectiveSet> generateIR(IRContext& ctx,
                 .name = ctx.strings.getId(propertyName),
             };
             switch (propertyValue.type) {
-                case ValueLiteralType ::BOOLEAN:
+                case ValueLiteralType::BOOLEAN:
                     prop.value.value = propertyValue.contents == "true";
                     break;
                 case ValueLiteralType::INT:

@@ -53,7 +53,8 @@ class JsonEncodeAdapter {
     void arrayEnterElem(uint32_t i);
     void arrayExitElem();
 
-    uint32_t oneofIndex(uint32_t oneofId);  // chosen arm index (or -1)
+    // chosen arm index (or -1)
+    uint32_t oneofIndex(uint32_t oneofId, uint32_t width);
 
     void oneofEnter(uint32_t oneofId);
     void oneofExit();
@@ -66,7 +67,7 @@ class JsonEncodeAdapter {
     float f32();
     double f64();
 
-    bool ok() const { return m_err != ao::pack::Error::Ok; }
+    bool ok() const { return m_err == ao::pack::Error::Ok; }
     ao::pack::Error error() const { return m_err; }
 
    private:
@@ -100,7 +101,7 @@ class JsonEncodeAdapter {
     nlohmann::json const& m_root;
     nlohmann::json m_null = nlohmann::json{nullptr};
     std::vector<nlohmann::json const*> m_stack;
-    ao::pack::Error m_err;
+    ao::pack::Error m_err = ao::pack::Error::Ok;
 };
 
 // Decodes from codec
@@ -207,22 +208,23 @@ struct JsonEncodeState {
 
 JsonEncodeState generateJsonEncodeState(ir::IR const& ir, ErrorContext& errs);
 
-inline bool encodeJson(JsonEncodeState const& state,
-                       nlohmann::json const& json,
-                       pack::bit::WriteStream& stream,
-                       uint64_t messageId) {
+inline auto encodeJson(JsonEncodeState const& state,
+                              nlohmann::json const& json,
+                              pack::bit::WriteStream& stream,
+                              uint64_t messageId) {
     JsonEncodeAdapter object{state.json, json};
     vm::NetEncodeCodec<pack::bit::WriteStream> codec{
         stream,
         state.codec,
     };
     auto machine = vm::VM{&state.format.encode, object, codec};
-    return vm::encode(machine, messageId);
+    vm::encode(machine, messageId);
+    return machine;
 }
-inline bool decodeJson(JsonEncodeState const& state,
-                       pack::bit::ReadStream& stream,
-                       nlohmann::json& json,
-                       uint64_t messageId) {
+inline auto decodeJson(JsonEncodeState const& state,
+                              pack::bit::ReadStream& stream,
+                              nlohmann::json& json,
+                              uint64_t messageId) {
     JsonDecodeAdapter object{state.json};
     vm::NetDecodeCodec<pack::bit::ReadStream> codec{
         stream,
@@ -233,7 +235,7 @@ inline bool decodeJson(JsonEncodeState const& state,
     if (success) {
         json = object.root();
     }
-    return success;
+    return machine;
 }
 
 }  // namespace ao::schema::json

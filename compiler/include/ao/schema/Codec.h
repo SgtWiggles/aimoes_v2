@@ -6,7 +6,7 @@
 
 #include "ao/pack/BitStream.h"
 #include "ao/pack/ByteStream.h"
-#include "ao/pack/VarInt.h"
+#include "ao/pack/Varint.h"
 #include "ao/pack/ZigZag.h"
 
 #include "ao/schema/IR.h"

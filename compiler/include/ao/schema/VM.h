@@ -266,7 +266,7 @@ struct Format {
 Format generateProgram(ao::schema::ir::IR const& irCode, ErrorContext& errs);
 
 enum class VMError {
-    None,
+    Ok,
     InvalidProgram,
     RuntimeError,
     InvalidType,
@@ -332,7 +332,7 @@ void reset(VM& vm) {
     vm.dstBase = nullptr;
     vm.srcBase = nullptr;
     vm.stackDepth = 0;
-    vm.error = VMError::None;
+    vm.error = VMError::Ok;
 }
 
 template <class VM, class Object>
@@ -497,7 +497,7 @@ bool runInstr(VM& vm) {
         case Op::ARRAY_BEGIN: {
             vm.arrayStack.emplace_back(ArrayFrame{
                 .len = 0,
-                .idx = 0,
+                .idx = uint32_t(-1),
             });
             vm.codec.arrayBegin();
         } break;
@@ -608,8 +608,12 @@ bool runInstr(VM& vm) {
             }
         } break;
         case Op::O_WRITE_OPT_PRESENT: {
-            vm.error = VMError::InvalidInstr;
-            return false;
+            if constexpr (!EncodeMode) {
+                vm.object.optSetPresent(vm.flag == 1);
+            } else {
+                vm.error = VMError::InvalidInstr;
+                return false;
+            }
         } break;
         case Op::O_READ_OPT_PRESENT: {
             if constexpr (EncodeMode) {
@@ -623,12 +627,17 @@ bool runInstr(VM& vm) {
         } break;
         case Op::O_READ_ONEOF_ARM: {
             if constexpr (EncodeMode) {
-                vm.reg = vm.object.oneofIndex(instr.imm);
+                vm.reg = vm.object.oneofIndex(vm.oneofStack.back().oneofId, instr.imm);
             }
         } break;
         case Op::O_WRITE_ARRAY_LEN: {
-            vm.error = VMError::InvalidInstr;
-            return false;
+            if constexpr (!EncodeMode) {
+                vm.object.arrayPrepare(static_cast<uint32_t>(vm.reg));
+                vm.arrayStack.back().len = static_cast<uint32_t>(vm.reg);
+            } else {
+                vm.error = VMError::InvalidInstr;
+                return false;
+            }
         } break;
         case Op::O_READ_ARRAY_LEN: {
             if constexpr (EncodeMode) {
@@ -669,7 +678,7 @@ bool runVM(VM& vm, uint64_t typeId) {
     }
 
     // Exit successfully if there are no errors
-    return vm.error == VMError::None;
+    return vm.error == VMError::Ok;
 }
 }  // namespace detail
 

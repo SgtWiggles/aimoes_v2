@@ -55,8 +55,9 @@ void generateTypeProgram(VMGenerateContext& ctx,
                                          {
                                              .code = ErrorCode::INTERNAL,
                                              .message = std::format(
-                                                 "Unknown scalar type: {}",
-                                                 (int)scalar.kind),
+                                                 "Expected boolean to have "
+                                                 "width 1 but got {}",
+                                                 scalar.width),
                                              .loc = {},
                                          });
                         break;
@@ -65,24 +66,26 @@ void generateTypeProgram(VMGenerateContext& ctx,
                     case ir::Scalar::UINT:
                         break;
                     case ir::Scalar::F32:
-                        ctx.errs.require(scalar.width == 32,
-                                         {
-                                             .code = ErrorCode::INTERNAL,
-                                             .message = std::format(
-                                                 "Unknown scalar type: {}",
-                                                 (int)scalar.kind),
-                                             .loc = {},
-                                         });
+                        ctx.errs.require(
+                            scalar.width == 32,
+                            {
+                                .code = ErrorCode::INTERNAL,
+                                .message = std::format(
+                                    "Expected f32 to have width 32 but got {}",
+                                    scalar.width),
+                                .loc = {},
+                            });
                         break;
                     case ir::Scalar::F64:
-                        ctx.errs.require(scalar.width == 64,
-                                         {
-                                             .code = ErrorCode::INTERNAL,
-                                             .message = std::format(
-                                                 "Unknown scalar type: {}",
-                                                 (int)scalar.kind),
-                                             .loc = {},
-                                         });
+                        ctx.errs.require(
+                            scalar.width == 64,
+                            {
+                                .code = ErrorCode::INTERNAL,
+                                .message = std::format(
+                                    "Expected f64 to have width 64 but got {}",
+                                    scalar.width),
+                                .loc = {},
+                            });
                         break;
                     default:
                         ctx.errs.fail({
@@ -159,15 +162,20 @@ void generateTypeProgram(VMGenerateContext& ctx,
                 }
 
                 uint64_t failLabel = assembler.useLabel();
+                uint64_t endLabel = assembler.useLabel();
+                assembler.emit({Op::ONEOF_ARM_BEGIN, 0, 0}, {});
                 assembler.emitDispatch(labels, failLabel, {});
                 for (size_t idx = 0; idx < desc.arms.size(); ++idx) {
                     auto const& arm = desc.arms[idx];
                     auto const& fieldDesc = irCode.fields[arm.idx];
-                    assembler.emit({Op::ONEOF_ARM_BEGIN, 0, 0}, {labels[idx]});
-                    assembler.emitTypeCall(fieldDesc.type, {});
-                    assembler.emit({Op::ONEOF_ARM_END, 0, 0}, {});
+                    assembler.emitTypeCall(fieldDesc.type, {labels[idx]});
+                    assembler.jmp(endLabel, {});
                 }
-                assembler.emit({Op::ONEOF_END, 0, 0}, {failLabel});
+                // TODO skip contents of oneof if not defined
+                assembler.jmp(endLabel, failLabel);
+
+                assembler.emit({Op::ONEOF_ARM_END, 0, 0}, {endLabel});
+                assembler.emit({Op::ONEOF_END, 0, 0}, {});
             },
             [&](IdFor<ir::Message> msgId) {
                 auto const& desc = irCode.messages[msgId.idx];
@@ -282,8 +290,7 @@ Program generateProgram(ao::schema::ir::IR const& irCode,
     return ctx.prog;
 }
 
-Format generateProgram(ao::schema::ir::IR const& irCode,
-                              ErrorContext& errs) {
+Format generateProgram(ao::schema::ir::IR const& irCode, ErrorContext& errs) {
     auto encode = generateProgram(irCode, errs, true);
     auto decode = generateProgram(irCode, errs, false);
     auto index = generateMessageLookups(irCode);

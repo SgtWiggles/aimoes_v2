@@ -93,7 +93,7 @@ void JsonEncodeAdapter::arrayEnterElem(uint32_t i) {
 void JsonEncodeAdapter::JsonEncodeAdapter::arrayExitElem() {
     popStack();
 }
-uint32_t JsonEncodeAdapter::oneofIndex(uint32_t oneofId) {
+uint32_t JsonEncodeAdapter::oneofIndex(uint32_t oneofId, uint32_t width) {
     if (!ok())
         return 0;
     auto top = currentMsg();
@@ -105,7 +105,7 @@ uint32_t JsonEncodeAdapter::oneofIndex(uint32_t oneofId) {
     }
 
     auto const& caseNumber = top->at("case");
-    if (!caseNumber.is_number_unsigned()) {
+    if (!caseNumber.is_number_integer() && !caseNumber.is_number_unsigned()) {
         fail(pack::Error::BadData);
         return 0;
     }
@@ -176,7 +176,7 @@ int64_t JsonEncodeAdapter::i64(uint16_t /* width */) {
     auto top = currentMsg();
     if (!top)
         return 0;
-    if (!top->is_number_integer()) {
+    if (!top->is_number_integer() && !top->is_number_unsigned()) {
         fail(pack::Error::BadData);
         return 0;
     }
@@ -239,9 +239,13 @@ void JsonDecodeAdapter::optSetPresent(bool present) {
     auto top = currentMsg();
     if (!top)
         return;
-    *top = nlohmann::json::object({
-        {"value", nlohmann::json{nullptr}},
-    });
+    if (present) {
+        *top = nlohmann::json::object({
+            {"value", nlohmann::json{nullptr}},
+        });
+    } else {
+        *top = nlohmann::json{nullptr};
+    }
 }
 void JsonDecodeAdapter::optEnterValue() {
     if (!ok())

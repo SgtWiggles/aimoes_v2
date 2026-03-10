@@ -51,7 +51,7 @@ void Assembler::emitExt32(Op baseOp,
                           uint64_t idx,
                           std::optional<uint64_t> label) {
     if (idx <= std::numeric_limits<uint16_t>::max()) {
-        emit(Instr{baseOp, 0, static_cast<uint16_t>(idx)}, {});
+        emit(Instr{baseOp, 0, static_cast<uint16_t>(idx)}, label);
     } else if (idx <= std::numeric_limits<uint32_t>::max()) {
         emit(
             Instr{
@@ -59,7 +59,7 @@ void Assembler::emitExt32(Op baseOp,
                 (uint8_t)ext,
                 0,
             },
-            {});
+            label);
         emit(decodeInstr(static_cast<uint32_t>(idx)), {});
     } else {
         // TODO error out, complain type space was too large.

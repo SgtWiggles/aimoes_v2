@@ -173,7 +173,7 @@ message 42 test{
     REQUIRE(encoder.ok());
     encoder.fieldBegin(*hello);
     REQUIRE(encoder.ok());
-    REQUIRE(encoder.oneofIndex(0) == 2);
+    REQUIRE(encoder.oneofIndex(0, 0) == 2);
     encoder.oneofEnterArm(0, 2);
     REQUIRE(encoder.ok());
     REQUIRE(encoder.u64(0) == 102);
