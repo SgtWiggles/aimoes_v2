@@ -23,7 +23,7 @@ struct DiskStreams {
     using RS = ao::pack::byte::ReadStream;
 };
 
-using StreamTypes = std::tuple<NetStreams, DiskStreams>;
+using StreamTypes = std::tuple<NetStreams/*, DiskStreams*/>;
 
 // Scalar + nested message round trip
 TEMPLATE_LIST_TEST_CASE("Json codec round trips scalars and nested messages",

@@ -58,5 +58,7 @@ add_executable(CompilerTests
  "tests/IRGenerateTests.cpp"
  "tests/AssemblerTests.cpp"
  "tests/JSONCodecTests.cpp"
- "tests/CodecHelpers.h")
+ "tests/CodecHelpers.h"
+ "tests/DiskCodecTests.cpp"
+)
  target_link_libraries(CompilerTests PRIVATE compiler Catch2::Catch2WithMain)
