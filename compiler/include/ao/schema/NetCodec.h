@@ -9,39 +9,9 @@
 #include "ao/pack/Varint.h"
 #include "ao/pack/ZigZag.h"
 
-#include "ao/schema/IR.h"
+#include "ao/schema/CodecCommon.h"
 
 namespace ao::schema::vm {
-// TODO generate to this, basically just a map of the bit widths of the
-// individual fields OR variable width
-struct CodecField {
-    uint32_t fieldNumber;
-    uint32_t typeId;
-};
-struct CodecType {
-    uint8_t bitWidth;
-    uint8_t flags;
-};
-struct CodecMessage {
-    uint32_t fieldStart;
-    uint32_t fieldCount;
-};
-struct CodecOneof {
-    uint32_t fieldStart;
-    uint32_t fieldCount;
-};
-
-struct CodecTable {
-    std::vector<CodecType> types;
-    std::vector<CodecMessage> messages;
-    std::vector<CodecOneof> oneofs;
-
-    std::vector<CodecField> fields;
-};
-
-struct CodecBytes {};
-struct CodecBits {};
-
 template <class OutStream>
 struct NetEncodeCodec {
     using ChunkSize = CodecBits;
@@ -192,5 +162,4 @@ struct NetDecodeCodec {
     bool ok() const { return in.ok(); }
     ao::pack::Error error() const { return in.error(); }
 };
-CodecTable generateCodecTable(ir::IR const& ir);
 }  // namespace ao::schema::vm
