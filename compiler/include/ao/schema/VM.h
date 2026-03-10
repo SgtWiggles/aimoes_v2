@@ -592,7 +592,7 @@ bool runInstr(VM& vm) {
         } break;
         case Op::C_SKIP_FIELD_ID: {
             if constexpr (!EncodeMode) {
-                vm.flag = vm.codec.skip();
+                vm.flag = vm.codec.skipFieldId(instr.imm);
             }
         } break;
         case Op::O_WRITE_SCALAR: {

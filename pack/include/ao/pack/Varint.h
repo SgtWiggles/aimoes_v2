@@ -1,4 +1,5 @@
 #pragma once
+#include "ao/pack/Error.h"
 
 #include <array>
 #include <bit>
@@ -100,15 +101,19 @@ bool encodePrefixInt(WriteStream& enc, uint64_t v) {
 
 template <class ReadStream>
 bool decodePrefixInt(ReadStream& enc, uint64_t& out) {
-    auto buf = std::span<std::byte const>{};
-    if (!enc.bytes(buf, 1).ok())
+    std::byte prefix;
+    if (!enc.bytes(std::span<std::byte>{&prefix, 1}, 1).ok())
         return false;
-    auto [extra, shift, base] = decodePrefixIntHeader((uint8_t)buf[0]);
-    if (!enc.bytes(buf, extra).ok())
+    auto const [extra, shift, base] = decodePrefixIntHeader((uint8_t)prefix);
+
+    uint64_t data;
+    static_assert(sizeof(data) >= 8 * sizeof(std::byte));
+    auto dataBuffer = std::span<std::byte>{(std::byte*)&data, extra};
+    if (!enc.bytes(dataBuffer, extra).ok())
         return false;
 
     auto rest = std::span<std::byte>{(std::byte*)&out, sizeof(uint64_t)};
-    std::copy(buf.begin(), buf.end(), rest.begin());
+    std::copy(dataBuffer.begin(), dataBuffer.end(), rest.begin());
     out = ((out << shift) | base);
     return true;
 }
