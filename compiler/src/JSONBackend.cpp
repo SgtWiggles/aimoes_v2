@@ -226,7 +226,7 @@ void JsonDecodeAdapter::fieldBegin(uint32_t fieldId) {
     if (!top->is_object())
         return fail(pack::Error::BadData);
     auto name = fieldKey(fieldId);
-    auto& next = ((*top)[name] = nlohmann::json{nullptr});
+    auto& next = ((*top)[name] = nlohmann::json(nullptr));
     m_stack.push_back(&next);
 }
 void JsonDecodeAdapter::fieldEnd() {
@@ -241,10 +241,10 @@ void JsonDecodeAdapter::optSetPresent(bool present) {
         return;
     if (present) {
         *top = nlohmann::json::object({
-            {"value", nlohmann::json{nullptr}},
+            {"value", nlohmann::json(nullptr)},
         });
     } else {
-        *top = nlohmann::json{nullptr};
+        *top = nlohmann::json(nullptr);
     }
 }
 void JsonDecodeAdapter::optEnterValue() {
@@ -307,7 +307,7 @@ void JsonDecodeAdapter::oneofEnterArm(uint32_t oneofId, uint32_t armId) {
     auto top = currentMsg();
     if (!top)
         return;
-    (*top)["value"] = nlohmann::json{nullptr};
+    (*top)["value"] = nlohmann::json(nullptr);
     m_stack.push_back(&((*top)["value"]));
 }
 void JsonDecodeAdapter::oneofExitArm() {
