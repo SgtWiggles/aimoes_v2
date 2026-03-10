@@ -21,8 +21,10 @@ class ReadStream {
     ReadStream& align();
     ReadStream& bits(uint64_t& out, size_t count);
 
-    // TODO maybe relax the alignment requirements of this?
-    ReadStream& bytes(std::span<std::byte const>& out, size_t count);
+    // Read bytes into caller-provided buffer `out`. If the position is
+    // byte-aligned this is a direct copy from the underlying data; if
+    // unaligned, bytes are assembled by shifting blocks into `out`.
+    ReadStream& bytes(std::span<std::byte> out, size_t count);
     ReadStream& require(bool condition, Error err);
 
     size_t remainingBits() const;

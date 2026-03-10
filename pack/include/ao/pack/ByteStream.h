@@ -10,7 +10,9 @@ namespace ao::pack::byte {
 class ReadStream {
    public:
     ReadStream(std::span<std::byte const> data) : m_data(data) {}
-    ReadStream& bytes(std::span<std::byte const>& out, size_t count);
+    // Copy `count` bytes into the caller-provided buffer `out`.
+    // Caller must provide a writable span of at least `count` bytes.
+    ReadStream& bytes(std::span<std::byte> out, size_t count);
     ReadStream& require(bool condition, Error err);
 
     size_t remainingBytes() const { return m_data.size() - m_position; }

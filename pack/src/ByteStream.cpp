@@ -1,15 +1,21 @@
 #include <ao/pack/ByteStream.h>
 
+#include <algorithm>
 #include <limits>
 
 namespace ao::pack::byte {
-ReadStream& ReadStream::bytes(std::span<std::byte const>& out, size_t count) {
+ReadStream& ReadStream::bytes(std::span<std::byte> out, size_t count) {
     if (!ok())
         return *this;
+    if (count == 0)
+        return *this;
+    if (out.size() < count)
+        return fail(Error::BadArg);
     if (remainingBytes() < count)
         return fail(Error::Eof);
 
-    out = m_data.subspan(m_position, count);
+    auto src = m_data.subspan(m_position, count);
+    std::copy(src.begin(), src.end(), out.begin());
     m_position += count;
     return *this;
 }

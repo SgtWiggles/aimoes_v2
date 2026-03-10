@@ -1,6 +1,7 @@
 #include <ao/pack/BitStream.h>
 
 #include <limits>
+#include <algorithm>  // for std::copy and std::min
 
 namespace ao::pack::bit {
 ReadStream& ReadStream::align() {
@@ -39,7 +40,8 @@ ReadStream& ReadStream::bits(uint64_t& out, size_t count) {
     }
 
     while (ok() && count >= 8) {
-        std::span<std::byte const> b;
+        std::byte data;
+        std::span<std::byte> b = {&data, 1};
         bytes(b, 1);
         if (!ok())
             return *this;
@@ -58,17 +60,60 @@ ReadStream& ReadStream::bits(uint64_t& out, size_t count) {
     return *this;
 }
 
-ReadStream& ReadStream::bytes(std::span<std::byte const>& out, size_t count) {
+ReadStream& ReadStream::bytes(std::span<std::byte> out, size_t count) {
     if (!ok())
         return *this;
     if (count == 0)
         return *this;
-    if (!m_position.aligned())
-        return fail(Error::Unaligned);
-    if (m_position.byteIndex() + count > m_data.size())
+    if (out.size() < count)
+        return fail(Error::BadArg);
+
+    const size_t startByte = m_position.byteIndex();
+    const unsigned startBit = static_cast<unsigned>(m_position.bitIndex());
+
+    // required source bytes (may need one extra when unaligned)
+    const size_t requiredSrc = count + (startBit != 0 ? 1 : 0);
+    if (startByte + requiredSrc > m_data.size())
         return fail(Error::Eof);
 
-    out = m_data.subspan(m_position.byteIndex(), count);
+    // Aligned fast-path: copy directly into caller buffer.
+    if (startBit == 0) {
+        auto src = m_data.subspan(startByte, count);
+        std::copy(src.begin(), src.end(), out.begin());
+        m_position.bitPos += count * 8;
+        return *this;
+    }
+
+    // Unaligned: assemble bytes by shifting blocks using a 64-bit word.
+    const unsigned s = startBit;
+    const size_t maxOutput = (64u - s) / 8u;  // typically 7 for s in 1..7
+
+    size_t srcIdx = startByte;
+    size_t dstIdx = 0;
+    size_t remaining = count;
+
+    while (remaining > 0) {
+        const size_t k = std::min(maxOutput, remaining);
+
+        // Pack (k + 1) source bytes into a 64-bit little-endian word.
+        uint64_t u = 0;
+        for (size_t i = 0; i < k + 1; ++i) {
+            u |= (uint64_t)static_cast<uint8_t>(m_data[srcIdx + i]) << (8 * i);
+        }
+
+        // Shift right by the start-bit offset; lower bytes are the output bytes.
+        uint64_t v = u >> s;
+
+        for (size_t i = 0; i < k; ++i) {
+            uint8_t byte = static_cast<uint8_t>((v >> (8 * i)) & 0xFFu);
+            out[dstIdx + i] = std::byte{byte};
+        }
+
+        srcIdx += k;
+        dstIdx += k;
+        remaining -= k;
+    }
+
     m_position.bitPos += count * 8;
     return *this;
 }
@@ -150,16 +195,80 @@ WriteStream& WriteStream::bytes(std::span<std::byte> out, size_t count) {
         return *this;
     if (out.size() < count)
         return fail(Error::BadArg);
-    if (m_position.bitIndex() != 0)
-        return fail(Error::Unaligned);
-    if (m_buffer.size() <= m_position.byteIndex())
-        return fail(Error::Overflow);
-    if (m_buffer.size() - m_position.byteIndex() < count)
-        return fail(Error::Overflow);
 
     auto tmp = out.subspan(0, count);
-    std::copy(tmp.begin(), tmp.end(),
-              m_buffer.begin() + m_position.byteIndex());
+
+    const size_t startByte = m_position.byteIndex();
+    const unsigned startBit = static_cast<unsigned>(m_position.bitIndex());
+
+    if (m_buffer.size() <= startByte)
+        return fail(Error::Overflow);
+
+    // required bytes = count bytes plus one extra destination byte when
+    // unaligned
+    const size_t requiredBytes = count + (startBit != 0 ? 1 : 0);
+    if (m_buffer.size() - startByte < requiredBytes)
+        return fail(Error::Overflow);
+
+    // Aligned fast-path: direct copy
+    if (startBit == 0) {
+        std::copy(tmp.begin(), tmp.end(), m_buffer.begin() + startByte);
+        m_position.bitPos += count * 8;
+        return *this;
+    }
+
+    // Unaligned path: build little-endian words of up to 7 input bytes,
+    // shift once into position, write the resulting bytes.
+    const unsigned shift = startBit;
+    const unsigned rshift = 8u - shift;
+    const uint8_t lowMask = static_cast<uint8_t>(
+        (1u << shift) - 1u);  // bits to preserve in low part
+    const uint8_t highMask =
+        static_cast<uint8_t>(~lowMask);  // bits to preserve in high part
+
+    size_t dst = startByte;
+    size_t srcIdx = 0;
+    size_t remaining = count;
+
+    // Max number of input bytes we can pack into a 64-bit word without
+    // overflow:
+    const size_t maxBlock = (64u - shift) / 8u;  // <= 7 for shift in 1..7
+
+    while (remaining > 0) {
+        const size_t k = std::min(maxBlock, remaining);
+
+        // Pack k bytes little-endian into u
+        uint64_t u = 0;
+        for (size_t i = 0; i < k; ++i) {
+            u |= (uint64_t)static_cast<uint8_t>(tmp[srcIdx + i]) << (8 * i);
+        }
+
+        // Shift into destination bit position
+        uint64_t uLeft = u << shift;
+
+        // byte 0: merge into current destination byte, preserve low bits
+        uint8_t b0 = static_cast<uint8_t>(uLeft & 0xFFu);
+        uint8_t cur0 = static_cast<uint8_t>(m_buffer[dst]);
+        m_buffer[dst] = std::byte{static_cast<uint8_t>((cur0 & lowMask) | b0)};
+
+        // middle bytes (fully covered by payload) - overwrite directly
+        for (size_t i = 1; i < k; ++i) {
+            uint8_t bi = static_cast<uint8_t>((uLeft >> (8 * i)) & 0xFFu);
+            m_buffer[dst + i] = std::byte{bi};
+        }
+
+        // carry: write low bits into the next destination byte, preserve high
+        // bits
+        uint8_t bk = static_cast<uint8_t>((uLeft >> (8 * k)) & 0xFFu);
+        uint8_t curCarry = static_cast<uint8_t>(m_buffer[dst + k]);
+        m_buffer[dst + k] =
+            std::byte{static_cast<uint8_t>((curCarry & highMask) | bk)};
+
+        dst += k;
+        srcIdx += k;
+        remaining -= k;
+    }
+
     m_position.bitPos += count * 8;
     return *this;
 }
@@ -251,12 +360,15 @@ SizeWriteStream& SizeWriteStream::bytes(std::span<std::byte> out,
         return *this;
     if (out.size() < count)
         return fail(Error::BadArg);
-    if (m_position.bitIndex() != 0)
-        return fail(Error::Unaligned);
-    if (std::numeric_limits<size_t>::max() - m_position.byteIndex() < count)
+
+    // Allow unaligned size-only byte requests; just ensure we don't overflow.
+    if (count > std::numeric_limits<size_t>::max() / 8)
+        return fail(Error::Overflow);
+    const size_t bits = count * 8;
+    if (std::numeric_limits<size_t>::max() - m_position.bitPos < bits)
         return fail(Error::Overflow);
 
-    m_position.bitPos += count * 8;
+    m_position.bitPos += bits;
     return *this;
 }
 SizeWriteStream& SizeWriteStream::require(bool condition, Error err) {

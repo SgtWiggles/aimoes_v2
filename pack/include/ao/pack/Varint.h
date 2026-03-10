@@ -1,8 +1,8 @@
 #pragma once
 
-#include <cassert>
 #include <array>
 #include <bit>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -33,7 +33,7 @@ bool decodeVarint(ReadStream& enc, uint64_t& result) {
     uint8_t byte;
     uint64_t iterCount = 0;
     do {
-        std::span<std::byte const> read;
+        std::span<std::byte> read = {reinterpret_cast<std::byte*>(&byte), 1};
         enc.bytes(read, 1);
         if (!enc.ok())
             return false;
