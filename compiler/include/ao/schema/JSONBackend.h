@@ -238,4 +238,34 @@ inline auto decodeJson(JsonEncodeState const& state,
     return machine;
 }
 
+inline auto encodeJson(JsonEncodeState const& state,
+                              nlohmann::json const& json,
+                              pack::byte::WriteStream& stream,
+                              uint64_t messageId) {
+    JsonEncodeAdapter object{state.json, json};
+    vm::DiskEncodeCodec<pack::byte::WriteStream> codec{
+        stream,
+        state.codec,
+    };
+    auto machine = vm::VM{&state.format.encode, object, codec};
+    vm::encode(machine, messageId);
+    return machine;
+}
+inline auto decodeJson(JsonEncodeState const& state,
+                              pack::byte::ReadStream& stream,
+                              nlohmann::json& json,
+                              uint64_t messageId) {
+    JsonDecodeAdapter object{state.json};
+    vm::DiskDecodeCodec<pack::byte::ReadStream> codec{
+        stream,
+        state.codec,
+    };
+    auto machine = vm::VM{&state.format.decode, object, codec};
+    auto success = vm::decode(machine, messageId);
+    if (success) {
+        json = object.root();
+    }
+    return machine;
+}
+
 }  // namespace ao::schema::json

@@ -56,5 +56,7 @@ add_executable(CompilerTests
  "tests/ParserTests.cpp"
  "tests/JSONBackendTests.cpp"
  "tests/IRGenerateTests.cpp"
-  "tests/AssemblerTests.cpp" "tests/JSONNetCodecTests.cpp")
-target_link_libraries(CompilerTests PRIVATE compiler Catch2::Catch2WithMain)
+ "tests/AssemblerTests.cpp"
+ "tests/JSONNetCodecTests.cpp"
+ "tests/JSONDiskCodecTests.cpp" "tests/CodecHelpers.h")
+ target_link_libraries(CompilerTests PRIVATE compiler Catch2::Catch2WithMain)

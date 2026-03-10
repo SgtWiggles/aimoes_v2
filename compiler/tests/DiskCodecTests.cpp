@@ -2,19 +2,62 @@
 
 #include <vector>
 
+#include "Helpers.h"
 #include "ao/schema/JSONBackend.h"
 #include "ao/schema/VM.h"
 #include "ao/schema/VMPrettyPrint.h"
 
-#include "Helpers.h"
-#include "CodecHelpers.h"
-
 using namespace ao::schema::json;
 using namespace ao::schema::vm;
 
+namespace {
+JsonEncodeState buildJsonState(std::string_view schema) {
+    std::string buildErrors;
+    auto ir = buildToIR(schema, buildErrors);
+    INFO(buildErrors);
+    REQUIRE(ir.has_value());
+
+    ao::schema::ErrorContext errs;
+    auto state = generateJsonEncodeState(*ir, errs);
+    INFO(errs.toString());
+    REQUIRE(errs.ok());
+    return state;
+}
+
+uint64_t requireMessageId(JsonEncodeState const& state,
+                          uint64_t messageNumber) {
+    auto msgId = state.format.msgs.getId(messageNumber);
+    REQUIRE(msgId.has_value());
+    return *msgId;
+}
+
+nlohmann::json roundTrip(JsonEncodeState const& state,
+                         uint64_t messageId,
+                         nlohmann::json const& input) {
+    std::vector<std::byte> data(4096);
+    ao::pack::byte::WriteStream ws{data};
+    auto encoded = encodeJson(state, input, ws, messageId);
+    {
+        INFO("ENCODE " << prettyPrint(state.format.encode));
+        REQUIRE(encoded.error == ao::schema::vm::VMError::Ok);
+        REQUIRE(ws.ok());
+    }
+
+    ao::pack::byte::ReadStream rs{{data.data(), ws.byteSize()}};
+    nlohmann::json output{nullptr};
+    auto decoded = decodeJson(state, rs, output, messageId);
+    {
+        INFO("DECODE" << prettyPrint(state.format.decode));
+        REQUIRE(decoded.error == ao::schema::vm::VMError::Ok);
+        REQUIRE(rs.ok());
+        REQUIRE(rs.remainingBytes() == 0);
+    }
+    return output;
+}
+}  // namespace
 
 TEST_CASE("Json codec round trips scalars and nested messages",
-          "[json][codec]") {
+          "[disk][codec]") {
     auto state = buildJsonState(R"(
 package pkg;
 message 101 Inner {
@@ -43,7 +86,7 @@ message 100 Test {
                   })},
     });
 
-    auto output = bitRoundTrip(state, msgId, input);
+    auto output = roundTrip(state, msgId, input);
 
     REQUIRE(output["hello"].get<int64_t>() == -129);
     REQUIRE(output["world"].get<uint64_t>() == 129);
@@ -54,7 +97,7 @@ message 100 Test {
     REQUIRE(output["inner"]["enabled"].get<bool>() == false);
 }
 
-TEST_CASE("Json codec round trips array of messages", "[json][codec]") {
+TEST_CASE("Json codec round trips array of messages", "[disk][codec]") {
     auto state = buildJsonState(R"(
 package pkg;
 message 101 Inner {
@@ -74,7 +117,7 @@ message 100 Test {
                        })},
         });
 
-        auto output = bitRoundTrip(state, msgId, input);
+        auto output = roundTrip(state, msgId, input);
         REQUIRE(output["nested"] == nlohmann::json::array({
                                         nlohmann::json::object({{"value", 5}}),
                                         nlohmann::json::object({{"value", -6}}),
@@ -88,7 +131,7 @@ message 100 Test {
                        })},
         });
 
-        auto output = bitRoundTrip(state, msgId, input);
+        auto output = roundTrip(state, msgId, input);
         REQUIRE(output["nested"] == nlohmann::json::array({
                                         nlohmann::json::object({{"value", 11}}),
                                     }));
@@ -99,13 +142,13 @@ message 100 Test {
             {"nested", nlohmann::json::array()},
         });
 
-        auto output = bitRoundTrip(state, msgId, input);
+        auto output = roundTrip(state, msgId, input);
         REQUIRE(output["nested"] == nlohmann::json::array());
     }
 }
 
 TEST_CASE("Json codec round trips optionals oneofs and arrays",
-          "[json][codec]") {
+          "[disk][codec]") {
     auto state = buildJsonState(R"(
 package pkg;
 message 101 Inner {
@@ -143,7 +186,7 @@ message 100 Test {
                        })},
         });
 
-        auto output = bitRoundTrip(state, msgId, input);
+        auto output = roundTrip(state, msgId, input);
 
         REQUIRE(output["maybe"]["value"].get<int64_t>() == -17);
         REQUIRE(output["maybeInner"]["value"]["value"].get<int64_t>() == 9);
@@ -170,7 +213,7 @@ message 100 Test {
                        })},
         });
 
-        auto output = bitRoundTrip(state, msgId, input);
+        auto output = roundTrip(state, msgId, input);
 
         REQUIRE(output["maybe"].is_null());
         REQUIRE(output["maybeInner"].is_null());
@@ -194,7 +237,7 @@ message 100 Test {
             {"nested", nlohmann::json::array()},
         });
 
-        auto output = bitRoundTrip(state, msgId, input);
+        auto output = roundTrip(state, msgId, input);
 
         REQUIRE(output["choice"]["case"].get<uint64_t>() == 102);
         REQUIRE(output["choice"]["value"].get<bool>() == true);
@@ -203,7 +246,7 @@ message 100 Test {
     }
 }
 
-TEST_CASE("Json codec rejects malformed payloads", "[json][codec]") {
+TEST_CASE("Json codec rejects malformed payloads", "[disk][codec]") {
     auto state = buildJsonState(R"(
 package pkg;
 message 100 Test {
@@ -219,7 +262,7 @@ message 100 Test {
 
     SECTION("negative uint") {
         std::vector<std::byte> data(1024);
-        ao::pack::bit::WriteStream ws{data};
+        ao::pack::byte::WriteStream ws{data};
         auto encoded = encodeJson(
             state,
             nlohmann::json::object({
@@ -234,7 +277,7 @@ message 100 Test {
 
     SECTION("unknown oneof case") {
         std::vector<std::byte> data(1024);
-        ao::pack::bit::WriteStream ws{data};
+        ao::pack::byte::WriteStream ws{data};
         auto encoded = encodeJson(
             state,
             nlohmann::json::object({
@@ -249,7 +292,7 @@ message 100 Test {
 
     SECTION("array must be a json array") {
         std::vector<std::byte> data(1024);
-        ao::pack::bit::WriteStream ws{data};
+        ao::pack::byte::WriteStream ws{data};
         auto encoded = encodeJson(
             state,
             nlohmann::json::object({
@@ -263,7 +306,7 @@ message 100 Test {
     }
 }
 
-TEST_CASE("Json codec round trips arrays of oneofs", "[json][codec]") {
+TEST_CASE("Json codec round trips arrays of oneofs", "[disk][codec]") {
     auto state = buildJsonState(R"(
 package pkg;
 message 101 Inner {
@@ -284,94 +327,101 @@ message 100 Test {
 
     SECTION("multiple elements different arms") {
         auto input = nlohmann::json::object({
-            {"choices", nlohmann::json::array({
-                           nlohmann::json::object({
-                               {"choice",
-                                nlohmann::json::object({{"case", 101}, {"value", -5}})},
-                           }),
-                           nlohmann::json::object({
-                               {"choice",
-                                nlohmann::json::object({{"case", 102}, {"value", true}})},
-                           }),
-                       })},
+            {"choices",
+             nlohmann::json::array({
+                 nlohmann::json::object({
+                     {"choice",
+                      nlohmann::json::object({{"case", 101}, {"value", -5}})},
+                 }),
+                 nlohmann::json::object({
+                     {"choice",
+                      nlohmann::json::object({{"case", 102}, {"value", true}})},
+                 }),
+             })},
         });
 
-        auto output = bitRoundTrip(state, msgId, input);
-        REQUIRE(output["choices"] == nlohmann::json::array({
-                                        nlohmann::json::object({
-                                            {"choice",
-                                             nlohmann::json::object({{"case", 101}, {"value", -5}})},
-                                        }),
-                                        nlohmann::json::object({
-                                            {"choice",
-                                             nlohmann::json::object({{"case", 102}, {"value", true}})},
-                                        }),
-                                    }));
+        auto output = roundTrip(state, msgId, input);
+        REQUIRE(
+            output["choices"] ==
+            nlohmann::json::array({
+                nlohmann::json::object({
+                    {"choice",
+                     nlohmann::json::object({{"case", 101}, {"value", -5}})},
+                }),
+                nlohmann::json::object({
+                    {"choice",
+                     nlohmann::json::object({{"case", 102}, {"value", true}})},
+                }),
+            }));
     }
 
     SECTION("single element") {
         auto input = nlohmann::json::object({
             {"choices", nlohmann::json::array({
-                           nlohmann::json::object({
-                               {"choice",
-                                nlohmann::json::object({{"case", 101}, {"value", 17}})},
-                           }),
-                       })},
+                            nlohmann::json::object({
+                                {"choice", nlohmann::json::object(
+                                               {{"case", 101}, {"value", 17}})},
+                            }),
+                        })},
         });
 
-        auto output = bitRoundTrip(state, msgId, input);
-        REQUIRE(output["choices"] == nlohmann::json::array({
-                                        nlohmann::json::object({
-                                            {"choice",
-                                             nlohmann::json::object({{"case", 101}, {"value", 17}})},
-                                        }),
-                                    }));
+        auto output = roundTrip(state, msgId, input);
+        REQUIRE(output["choices"] ==
+                nlohmann::json::array({
+                    nlohmann::json::object({
+                        {"choice", nlohmann::json::object(
+                                       {{"case", 101}, {"value", 17}})},
+                    }),
+                }));
     }
 
     SECTION("empty array") {
-        auto input = nlohmann::json::object({{"choices", nlohmann::json::array()}});
-        auto output = bitRoundTrip(state, msgId, input);
+        auto input =
+            nlohmann::json::object({{"choices", nlohmann::json::array()}});
+        auto output = roundTrip(state, msgId, input);
         REQUIRE(output["choices"] == nlohmann::json::array());
     }
 
     SECTION("message oneof arm in an array element") {
         auto input = nlohmann::json::object({
-            {"choices", nlohmann::json::array({
-                           nlohmann::json::object({
-                               {"choice",
-                                nlohmann::json::object({
-                                    {"case", 103},
-                                    {"value", nlohmann::json::object({{"value", 9}})},
-                                })},
-                           }),
-                       })},
+            {"choices",
+             nlohmann::json::array({
+                 nlohmann::json::object({
+                     {"choice",
+                      nlohmann::json::object({
+                          {"case", 103},
+                          {"value", nlohmann::json::object({{"value", 9}})},
+                      })},
+                 }),
+             })},
         });
 
-        auto output = bitRoundTrip(state, msgId, input);
-        REQUIRE(output["choices"] == nlohmann::json::array({
-                                        nlohmann::json::object({
-                                            {"choice",
-                                             nlohmann::json::object({
-                                                 {"case", 103},
-                                                 {"value",
-                                                  nlohmann::json::object({{"value", 9}})},
-                                             })},
-                                        }),
-                                    }));
+        auto output = roundTrip(state, msgId, input);
+        REQUIRE(output["choices"] ==
+                nlohmann::json::array({
+                    nlohmann::json::object({
+                        {"choice",
+                         nlohmann::json::object({
+                             {"case", 103},
+                             {"value", nlohmann::json::object({{"value", 9}})},
+                         })},
+                    }),
+                }));
     }
 
     SECTION("unknown oneof case in an array element") {
         std::vector<std::byte> data(1024);
-        ao::pack::bit::WriteStream ws{data};
+        ao::pack::byte::WriteStream ws{data};
         auto encoded = encodeJson(
             state,
             nlohmann::json::object({
-                {"choices", nlohmann::json::array({
-                                nlohmann::json::object({
-                                    {"choice",
-                                     nlohmann::json::object({{"case", 999}, {"value", 3}})},
-                                }),
-                            })},
+                {"choices",
+                 nlohmann::json::array({
+                     nlohmann::json::object({
+                         {"choice", nlohmann::json::object(
+                                        {{"case", 999}, {"value", 3}})},
+                     }),
+                 })},
             }),
             ws, msgId);
         REQUIRE_FALSE(encoded.error == ao::schema::vm::VMError::Ok);
@@ -379,18 +429,17 @@ message 100 Test {
 
     SECTION("non-object element in array") {
         std::vector<std::byte> data(1024);
-        ao::pack::bit::WriteStream ws{data};
-        auto encoded = encodeJson(
-            state,
-            nlohmann::json::object({
-                {"choices", nlohmann::json::array({17})},
-            }),
-            ws, msgId);
+        ao::pack::byte::WriteStream ws{data};
+        auto encoded = encodeJson(state,
+                                  nlohmann::json::object({
+                                      {"choices", nlohmann::json::array({17})},
+                                  }),
+                                  ws, msgId);
         REQUIRE_FALSE(encoded.error == ao::schema::vm::VMError::Ok);
     }
 }
 
-TEST_CASE("Json codec round trips bare oneof arrays", "[json][codec]") {
+TEST_CASE("Json codec round trips bare oneof arrays", "[disk][codec]") {
     auto state = buildJsonState(R"(
 package pkg;
 message 101 Inner {
@@ -408,66 +457,74 @@ message 100 Test {
 
     SECTION("multiple elements different arms") {
         auto input = nlohmann::json::object({
-            {"choices", nlohmann::json::array({
-                           nlohmann::json::object({{"case", 101}, {"value", -5}}),
-                           nlohmann::json::object({{"case", 102}, {"value", true}}),
-                       })},
+            {"choices",
+             nlohmann::json::array({
+                 nlohmann::json::object({{"case", 101}, {"value", -5}}),
+                 nlohmann::json::object({{"case", 102}, {"value", true}}),
+             })},
         });
 
-        auto output = bitRoundTrip(state, msgId, input);
-        REQUIRE(output["choices"] == nlohmann::json::array({
-                                        nlohmann::json::object({{"case", 101}, {"value", -5}}),
-                                        nlohmann::json::object({{"case", 102}, {"value", true}}),
-                                    }));
+        auto output = roundTrip(state, msgId, input);
+        REQUIRE(output["choices"] ==
+                nlohmann::json::array({
+                    nlohmann::json::object({{"case", 101}, {"value", -5}}),
+                    nlohmann::json::object({{"case", 102}, {"value", true}}),
+                }));
     }
 
     SECTION("single element") {
         auto input = nlohmann::json::object({
-            {"choices", nlohmann::json::array({
-                           nlohmann::json::object({{"case", 101}, {"value", 17}}),
-                       })},
+            {"choices",
+             nlohmann::json::array({
+                 nlohmann::json::object({{"case", 101}, {"value", 17}}),
+             })},
         });
 
-        auto output = bitRoundTrip(state, msgId, input);
-        REQUIRE(output["choices"] == nlohmann::json::array({
-                                        nlohmann::json::object({{"case", 101}, {"value", 17}}),
-                                    }));
+        auto output = roundTrip(state, msgId, input);
+        REQUIRE(output["choices"] ==
+                nlohmann::json::array({
+                    nlohmann::json::object({{"case", 101}, {"value", 17}}),
+                }));
     }
 
     SECTION("empty array") {
-        auto input = nlohmann::json::object({{"choices", nlohmann::json::array()}});
-        auto output = bitRoundTrip(state, msgId, input);
+        auto input =
+            nlohmann::json::object({{"choices", nlohmann::json::array()}});
+        auto output = roundTrip(state, msgId, input);
         REQUIRE(output["choices"] == nlohmann::json::array());
     }
 
     SECTION("message oneof arm in an array element") {
         auto input = nlohmann::json::object({
-            {"choices", nlohmann::json::array({
-                           nlohmann::json::object({
-                               {"case", 103},
-                               {"value", nlohmann::json::object({{"value", 9}})},
-                           }),
-                       })},
+            {"choices",
+             nlohmann::json::array({
+                 nlohmann::json::object({
+                     {"case", 103},
+                     {"value", nlohmann::json::object({{"value", 9}})},
+                 }),
+             })},
         });
 
-        auto output = bitRoundTrip(state, msgId, input);
-        REQUIRE(output["choices"] == nlohmann::json::array({
-                                        nlohmann::json::object({
-                                            {"case", 103},
-                                            {"value", nlohmann::json::object({{"value", 9}})},
-                                        }),
-                                    }));
+        auto output = roundTrip(state, msgId, input);
+        REQUIRE(output["choices"] ==
+                nlohmann::json::array({
+                    nlohmann::json::object({
+                        {"case", 103},
+                        {"value", nlohmann::json::object({{"value", 9}})},
+                    }),
+                }));
     }
 
     SECTION("unknown oneof case in an array element") {
         std::vector<std::byte> data(1024);
-        ao::pack::bit::WriteStream ws{data};
+        ao::pack::byte::WriteStream ws{data};
         auto encoded = encodeJson(
             state,
             nlohmann::json::object({
-                {"choices", nlohmann::json::array({
-                                nlohmann::json::object({{"case", 999}, {"value", 3}}),
-                            })},
+                {"choices",
+                 nlohmann::json::array({
+                     nlohmann::json::object({{"case", 999}, {"value", 3}}),
+                 })},
             }),
             ws, msgId);
         REQUIRE_FALSE(encoded.error == ao::schema::vm::VMError::Ok);
@@ -475,31 +532,33 @@ message 100 Test {
 
     SECTION("non-object element in array") {
         std::vector<std::byte> data(1024);
-        ao::pack::bit::WriteStream ws{data};
-        auto encoded = encodeJson(
-            state,
-            nlohmann::json::object({
-                {"choices", nlohmann::json::array({17})},
-            }),
-            ws, msgId);
+        ao::pack::byte::WriteStream ws{data};
+        auto encoded = encodeJson(state,
+                                  nlohmann::json::object({
+                                      {"choices", nlohmann::json::array({17})},
+                                  }),
+                                  ws, msgId);
         REQUIRE_FALSE(encoded.error == ao::schema::vm::VMError::Ok);
     }
 
     SECTION("extra keys in element") {
         auto input = nlohmann::json::object({
-            {"choices", nlohmann::json::array({
-                           nlohmann::json::object({{"case", 101}, {"value", 8}, {"extra", "field"}}),
-                       })},
+            {"choices",
+             nlohmann::json::array({
+                 nlohmann::json::object(
+                     {{"case", 101}, {"value", 8}, {"extra", "field"}}),
+             })},
         });
 
-        auto output = bitRoundTrip(state, msgId, input);
-        REQUIRE(output["choices"] == nlohmann::json::array({
-                                        nlohmann::json::object({{"case", 101}, {"value", 8}}),
-                                    }));
+        auto output = roundTrip(state, msgId, input);
+        REQUIRE(output["choices"] ==
+                nlohmann::json::array({
+                    nlohmann::json::object({{"case", 101}, {"value", 8}}),
+                }));
     }
 }
 
-TEST_CASE("Json codec round trips array<optional<oneof>>", "[json][codec]") {
+TEST_CASE("Json codec round trips array<optional<oneof>>", "[disk][codec]") {
     auto state = buildJsonState(R"(
 package pkg;
 message 101 Inner {
@@ -517,50 +576,67 @@ message 100 Test {
 
     SECTION("present optionals with different arms") {
         auto input = nlohmann::json::object({
-            {"choices", nlohmann::json::array({
-                nlohmann::json::object({
-                    {"value", nlohmann::json::object({{"case", 101}, {"value", -5}})},
-                }),
-                nlohmann::json::object({
-                    {"value", nlohmann::json::object({{"case", 102}, {"value", true}})},
-                }),
-                nlohmann::json::object({
-                    {"value",
-                     nlohmann::json::object({
-                         {"case", 103},
-                         {"value", nlohmann::json::object({{"value", 9}})},
-                     })},
-                }),
-            })},
+            {"choices",
+             nlohmann::json::array({
+                 nlohmann::json::object({
+                     {"value",
+                      nlohmann::json::object({{"case", 101}, {"value", -5}})},
+                 }),
+                 nlohmann::json::object({
+                     {"value",
+                      nlohmann::json::object({{"case", 102}, {"value", true}})},
+                 }),
+                 nlohmann::json::object({
+                     {"value",
+                      nlohmann::json::object({
+                          {"case", 103},
+                          {"value", nlohmann::json::object({{"value", 9}})},
+                      })},
+                 }),
+             })},
         });
 
-        auto output = bitRoundTrip(state, msgId, input);
+        auto output = roundTrip(state, msgId, input);
 
         REQUIRE(output["choices"] ==
                 nlohmann::json::array({
-                    nlohmann::json::object({{"value", nlohmann::json::object({{"case", 101}, {"value", -5}})}}),
-                    nlohmann::json::object({{"value", nlohmann::json::object({{"case", 102}, {"value", true}})}}),
-                    nlohmann::json::object({{"value", nlohmann::json::object({{"case", 103}, {"value", nlohmann::json::object({{"value", 9}})}})}}),
+                    nlohmann::json::object(
+                        {{"value", nlohmann::json::object(
+                                       {{"case", 101}, {"value", -5}})}}),
+                    nlohmann::json::object(
+                        {{"value", nlohmann::json::object(
+                                       {{"case", 102}, {"value", true}})}}),
+                    nlohmann::json::object(
+                        {{"value", nlohmann::json::object(
+                                       {{"case", 103},
+                                        {"value", nlohmann::json::object(
+                                                      {{"value", 9}})}})}}),
                 }));
     }
 
     SECTION("single present element") {
         auto input = nlohmann::json::object({
-            {"choices", nlohmann::json::array({
-                nlohmann::json::object({{"value", nlohmann::json::object({{"case", 101}, {"value", 17}})}}),
-            })},
+            {"choices",
+             nlohmann::json::array({
+                 nlohmann::json::object(
+                     {{"value", nlohmann::json::object(
+                                    {{"case", 101}, {"value", 17}})}}),
+             })},
         });
 
-        auto output = bitRoundTrip(state, msgId, input);
+        auto output = roundTrip(state, msgId, input);
         REQUIRE(output["choices"] ==
                 nlohmann::json::array({
-                    nlohmann::json::object({{"value", nlohmann::json::object({{"case", 101}, {"value", 17}})}}),
+                    nlohmann::json::object(
+                        {{"value", nlohmann::json::object(
+                                       {{"case", 101}, {"value", 17}})}}),
                 }));
     }
 
     SECTION("empty array") {
-        auto input = nlohmann::json::object({{"choices", nlohmann::json::array()}});
-        auto output = bitRoundTrip(state, msgId, input);
+        auto input =
+            nlohmann::json::object({{"choices", nlohmann::json::array()}});
+        auto output = roundTrip(state, msgId, input);
         REQUIRE(output["choices"] == nlohmann::json::array());
     }
 
@@ -569,38 +645,46 @@ message 100 Test {
             {"choices", nlohmann::json::array({nullptr, nullptr})},
         });
 
-        auto output = bitRoundTrip(state, msgId, input);
+        auto output = roundTrip(state, msgId, input);
         REQUIRE(output["choices"] == nlohmann::json::array({nullptr, nullptr}));
     }
 
     SECTION("mixed present and absent elements") {
         auto input = nlohmann::json::object({
-            {"choices", nlohmann::json::array({
-                nullptr,
-                nlohmann::json::object({{"value", nlohmann::json::object({{"case", 101}, {"value", 7}})}}),
-                nullptr,
-            })},
+            {"choices",
+             nlohmann::json::array({
+                 nullptr,
+                 nlohmann::json::object(
+                     {{"value",
+                       nlohmann::json::object({{"case", 101}, {"value", 7}})}}),
+                 nullptr,
+             })},
         });
 
-        auto output = bitRoundTrip(state, msgId, input);
-        REQUIRE(output["choices"] == nlohmann::json::array({
-            nullptr,
-            nlohmann::json::object({{"value", nlohmann::json::object({{"case", 101}, {"value", 7}})}}),
-            nullptr,
-        }));
+        auto output = roundTrip(state, msgId, input);
+        REQUIRE(output["choices"] ==
+                nlohmann::json::array({
+                    nullptr,
+                    nlohmann::json::object(
+                        {{"value", nlohmann::json::object(
+                                       {{"case", 101}, {"value", 7}})}}),
+                    nullptr,
+                }));
     }
 
     SECTION("unknown oneof case in an array element") {
         std::vector<std::byte> data(1024);
-        ao::pack::bit::WriteStream ws{data};
+        ao::pack::byte::WriteStream ws{data};
         auto encoded = encodeJson(
             state,
             nlohmann::json::object({
-                {"choices", nlohmann::json::array({
-                    nlohmann::json::object({
-                        {"value", nlohmann::json::object({{"case", 999}, {"value", 3}})},
-                    }),
-                })},
+                {"choices",
+                 nlohmann::json::array({
+                     nlohmann::json::object({
+                         {"value", nlohmann::json::object(
+                                       {{"case", 999}, {"value", 3}})},
+                     }),
+                 })},
             }),
             ws, msgId);
         REQUIRE_FALSE(encoded.error == ao::schema::vm::VMError::Ok);
@@ -608,28 +692,28 @@ message 100 Test {
 
     SECTION("non-object element in array") {
         std::vector<std::byte> data(1024);
-        ao::pack::bit::WriteStream ws{data};
-        auto encoded = encodeJson(
-            state,
-            nlohmann::json::object({
-                {"choices", nlohmann::json::array({17})},
-            }),
-            ws, msgId);
+        ao::pack::byte::WriteStream ws{data};
+        auto encoded = encodeJson(state,
+                                  nlohmann::json::object({
+                                      {"choices", nlohmann::json::array({17})},
+                                  }),
+                                  ws, msgId);
         REQUIRE_FALSE(encoded.error == ao::schema::vm::VMError::Ok);
     }
 
     SECTION("present object missing 'value' treated as absent") {
         std::vector<std::byte> data(1024);
-        ao::pack::bit::WriteStream ws{data};
+        ao::pack::byte::WriteStream ws{data};
         auto input = nlohmann::json::object({
-            {"choices", nlohmann::json::array({
-                nlohmann::json::object({}),  // object without "value"
-            })},
+            {"choices",
+             nlohmann::json::array({
+                 nlohmann::json::object({}),  // object without "value"
+             })},
         });
         auto encoded = encodeJson(state, input, ws, msgId);
         REQUIRE(encoded.error == ao::schema::vm::VMError::Ok);
 
-        ao::pack::bit::ReadStream rs{{data.data(), ws.byteSize()}};
+        ao::pack::byte::ReadStream rs{{data.data(), ws.byteSize()}};
         nlohmann::json output{nullptr};
         auto decoded = decodeJson(state, rs, output, msgId);
         REQUIRE(decoded.error == ao::schema::vm::VMError::Ok);
