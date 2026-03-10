@@ -28,6 +28,8 @@ class ReadStream {
     size_t remainingBits() const;
     size_t remainingBytes() const { return remainingBits() / 8; }
 
+    BitPosition position() const { return m_position; }
+
     bool ok() const { return m_status == Error::Ok; }
     Error error() const { return m_status; }
 

@@ -399,11 +399,11 @@ bool runInstr(VM& vm) {
             // Break from the program
             return false;
         case Op::JMP:
-            nextPc += static_cast<int16_t>(instr.imm);
+            nextPc = vm.pc + static_cast<int16_t>(instr.imm);
             break;
         case Op::JZ:
             if (vm.flag == 0)
-                nextPc += static_cast<int16_t>(instr.imm);
+                nextPc = vm.pc + static_cast<int16_t>(instr.imm);
             break;
 
         case Op::RET:

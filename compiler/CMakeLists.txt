@@ -30,7 +30,7 @@ add_library(compiler OBJECT
  "src/Error.cpp"
  "include/ao/schema/Assembler.h"
  "src/Assembler.cpp"
-)
+ "include/ao/schema/VMPrettyPrint.h" "src/VMPrettyPrint.cpp")
 target_include_directories(compiler PUBLIC include)
 target_link_libraries(compiler PUBLIC
 	Boost::container_hash

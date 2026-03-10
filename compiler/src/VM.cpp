@@ -242,7 +242,6 @@ void linkTypeCodes(VMGenerateContext& ctx, ao::schema::ir::IR const& irCode) {
         auto code = assembler.assemble(ctx.errs);
         linked.insert(linked.end(), code.begin(), code.end());
     }
-
     ctx.prog.codeWords = std::move(linked);
     ctx.prog.typeEntryPc = std::move(typePcOffsets);
 

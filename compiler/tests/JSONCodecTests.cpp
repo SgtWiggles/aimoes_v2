@@ -5,6 +5,7 @@
 #include "Helpers.h"
 #include "ao/schema/JSONBackend.h"
 #include "ao/schema/VM.h"
+#include "ao/schema/VMPrettyPrint.h"
 
 using namespace ao::schema::json;
 using namespace ao::schema::vm;
@@ -51,5 +52,16 @@ message 100 Test {
     REQUIRE(rs.ok());
     REQUIRE(read == (129 & 0x03FF));
 
+    ao::pack::bit::ReadStream rsDecode{{data.data(), ws.byteSize()}};
+    nlohmann::json output{nullptr};
+    auto success = decodeJson(encodeState, rsDecode, output, *msgNumber);
+    INFO(prettyPrint(encodeState.format.decode));
+    REQUIRE(success);
 
+    REQUIRE(output.contains("hello"));
+    REQUIRE(output["hello"].get<int64_t>() == -129);
+    REQUIRE(output.contains("world"));
+    REQUIRE(output["world"].get<uint64_t>() == 129);
+
+    REQUIRE(rsDecode.position().bitPos == ws.bitSize());
 }

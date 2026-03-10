@@ -16,7 +16,7 @@ void JsonEncodeAdapter::msgBegin(uint32_t msgId) {
 void JsonEncodeAdapter::msgEnd() {
     // Do nothing, comes from field/root
 }
-void JsonEncodeAdapter::JsonEncodeAdapter::fieldBegin(uint32_t fieldId) {
+void JsonEncodeAdapter::fieldBegin(uint32_t fieldId) {
     if (!ok())
         return;
     auto top = currentMsg();
@@ -30,10 +30,10 @@ void JsonEncodeAdapter::JsonEncodeAdapter::fieldBegin(uint32_t fieldId) {
         m_stack.push_back(&nameIter.value());
     }
 }
-void JsonEncodeAdapter::JsonEncodeAdapter::fieldEnd() {
+void JsonEncodeAdapter::fieldEnd() {
     popStack();
 }
-bool JsonEncodeAdapter::JsonEncodeAdapter::optPresent() {
+bool JsonEncodeAdapter::optPresent() {
     if (!ok())
         return false;
     auto top = currentMsg();
