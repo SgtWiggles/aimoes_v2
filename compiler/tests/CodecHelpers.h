@@ -56,19 +56,3 @@ inline nlohmann::json roundTrip(ao::schema::json::JsonEncodeState const& state,
     }
     return output;
 }
-
-inline nlohmann::json bitRoundTrip(
-    ao::schema::json::JsonEncodeState const& state,
-    uint64_t messageId,
-    nlohmann::json const& input) {
-    return roundTrip<ao::pack::bit::WriteStream, ao::pack::bit::ReadStream>(
-        state, messageId, input);
-}
-
-inline nlohmann::json byteRoundTrip(
-    ao::schema::json::JsonEncodeState const& state,
-    uint64_t messageId,
-    nlohmann::json const& input) {
-    return roundTrip<ao::pack::byte::WriteStream, ao::pack::byte::ReadStream>(
-        state, messageId, input);
-}
