@@ -212,7 +212,7 @@ TEST_CASE(
 
     std::array<std::byte, 10> out2{};
     auto out2Data = std::array<std::byte, bytes2.size()>{};
-    auto out2Span = std::span<std::byte >(out2Data);
+    auto out2Span = std::span<std::byte>(out2Data);
     rs.bytes(out2Span, bytes2.size());
     REQUIRE(out2Span.size() == bytes2.size());
     std::copy(out2Span.begin(), out2Span.end(), out2.begin());
@@ -752,4 +752,91 @@ TEST_CASE("ReadStream bytes() supports unaligned reads",
     }
 
     REQUIRE(std::equal(outSpan.begin(), outSpan.end(), expected.begin()));
+}
+
+TEST_CASE(
+    "ReadStream bytes() unaligned for various start-bit offsets and lengths",
+    "[ReadStream][unaligned][bytes][param]") {
+    // Large buffer so tests don't hit EOF unless intended.
+    std::array<std::byte, 256> data{};
+    fillPattern(data);
+
+    // Test start-bit offsets 1..7 (unaligned) and a variety of byte counts,
+    // including counts that force the internal loop to iterate more than once.
+    for (unsigned s = 1; s <= 7; ++s) {
+        const unsigned startBit = s;
+        const unsigned maxOutput = (64u - s) / 8u;
+
+        std::vector<size_t> counts = {
+            1u,
+            2u,
+            3u,
+            7u,
+            8u,
+            static_cast<size_t>(maxOutput),
+            static_cast<size_t>(maxOutput) + 1u,
+            static_cast<size_t>(maxOutput) * 3u + 2u,
+        };
+
+        for (size_t count : counts) {
+            // Ensure test buffer is big enough: requiredSrc = count + 1 when
+            // unaligned.
+            if (count + 1 > data.size())
+                continue;
+
+            // Prepare stream and consume `startBit` bits to become unaligned.
+            ReadStream rs{std::span<std::byte>(data)};
+            uint64_t discard = 0;
+            rs.bits(discard, startBit);
+
+            // Read `count` bytes using bytes().
+            std::vector<std::byte> out(count);
+            auto outSpan = std::span<std::byte>(out.data(), count);
+            rs.bytes(outSpan, count);
+
+            REQUIRE(rs.ok());
+            REQUIRE(outSpan.size() == count);
+
+            // Build expected bytes by performing equivalent bit-by-bit reads
+            // (LSB-first) from a fresh ReadStream that consumes the same
+            // initial `startBit`.
+            ReadStream rs2{std::span<std::byte>(data)};
+            rs2.bits(discard, startBit);
+
+            std::vector<std::byte> expected(count);
+            for (size_t i = 0; i < count; ++i) {
+                uint8_t b = 0;
+                for (int bit = 0; bit < 8; ++bit) {
+                    uint64_t v = 0;
+                    rs2.bits(v, 1);
+                    b |= static_cast<uint8_t>((v & 1u) << bit);  // LSB-first
+                }
+                expected[i] = std::byte{b};
+            }
+
+            REQUIRE(std::equal(out.begin(), out.end(), expected.begin()));
+        }
+    }
+}
+
+TEST_CASE(
+    "ReadStream bytes() unaligned returns Eof when insufficient source bytes",
+    "[ReadStream][unaligned][bytes][eof]") {
+    // Small buffer to trigger EOF for unaligned read.
+    std::vector<std::byte> data(4);
+    fillPattern(data);
+
+    ReadStream rs{std::span<std::byte>(data)};
+
+    // Consume one bit to become unaligned.
+    uint64_t discard = 0;
+    rs.bits(discard, 1);
+
+    // Request 4 bytes while an extra source byte is required (4 + 1 > 4).
+    std::vector<std::byte> out(4);
+    auto outSpan = std::span<std::byte>(out.data(), out.size());
+    rs.bytes(outSpan, outSpan.size());
+
+    REQUIRE_FALSE(rs.ok());
+    REQUIRE(rs.error() == Error::Eof);
 }
