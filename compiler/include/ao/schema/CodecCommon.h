@@ -29,6 +29,7 @@ struct CodecTable {
     std::vector<CodecType> types;
     std::vector<CodecMessage> messages;
     std::vector<CodecOneof> oneofs;
+    std::vector<uint32_t> oneofFieldNumbers;
 
     std::vector<CodecField> fields;
 };
@@ -60,8 +61,6 @@ concept CodecEncode = requires(T codec,
     codec.fieldBegin(u32);
     codec.fieldEnd();
     codec.fieldId(u32);
-    codec.present(b);
-    codec.align();
 
     // Primitives
     codec.boolean(b);
@@ -69,6 +68,11 @@ concept CodecEncode = requires(T codec,
     codec.i64(u32, i64);  // width, value
     codec.f32(f);
     codec.f64(d);
+
+    // Optionals
+    codec.optBegin();
+    codec.optEnd();
+    codec.present(b);
 
     // Arrays
     codec.arrayBegin();
@@ -100,8 +104,6 @@ concept CodecDecode = requires(T codec, uint32_t u32) {
     codec.fieldEnd();
     { codec.fieldId(u32) } -> std::same_as<bool>;
     { codec.skipFieldId(u32) } -> std::same_as<bool>;
-    { codec.present() } -> std::same_as<bool>;
-    codec.align();
 
     // Primitives
     { codec.boolean() } -> std::same_as<bool>;
@@ -109,6 +111,11 @@ concept CodecDecode = requires(T codec, uint32_t u32) {
     { codec.i64(u32) } -> std::same_as<int64_t>;
     { codec.f32() } -> std::same_as<float>;
     { codec.f64() } -> std::same_as<double>;
+
+    // Optionals
+    codec.optBegin();
+    codec.optEnd();
+    { codec.present() } -> std::same_as<bool>;
 
     // Arrays
     codec.arrayBegin();

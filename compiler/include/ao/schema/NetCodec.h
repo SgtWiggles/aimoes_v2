@@ -31,9 +31,6 @@ struct NetEncodeCodec {
     void fieldEnd() {}
     void fieldId(uint32_t fieldId) { (void)fieldId; }
 
-    void present(bool present) { out.bits(present ? 1u : 0u, 1); }
-    void align() { out.align(); }
-
     void boolean(bool v) { out.bits(v ? 1u : 0u, 1); }
     void u64(uint32_t bw, uint64_t v) { out.bits(v, bw); }
     void i64(uint32_t bw, int64_t v) {
@@ -60,6 +57,10 @@ struct NetEncodeCodec {
             out.bits(len, width);
         }
     }
+
+    void optBegin() {}
+    void optEnd() {}
+    void present(bool present) { out.bits(present ? 1u : 0u, 1); }
 
     // Oneof: if net needs arm id encoded, do it here.
     // TODO change this to use oneofid and armid
@@ -92,15 +93,6 @@ struct NetDecodeCodec {
     void fieldEnd() {}
     bool fieldId(uint32_t fieldId) { return true; }
     bool skipFieldId(uint32_t fieldId) { return false; }
-
-    // If presence is inline:
-    bool present() {
-        uint64_t b = 0;
-        in.bits(b, 1);
-        return (b & 1u) != 0;
-    }
-
-    void align() { in.align(); }
 
     bool boolean() {
         uint64_t b = 0;
@@ -138,6 +130,15 @@ struct NetDecodeCodec {
         uint64_t bits = 0;
         in.bits(bits, 64);
         return std::bit_cast<double>(bits);
+    }
+
+    void optBegin() {}
+    void optEnd() {}
+    // If presence is inline:
+    bool present() {
+        uint64_t b = 0;
+        in.bits(b, 1);
+        return (b & 1u) != 0;
     }
 
     void arrayBegin() {}

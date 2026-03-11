@@ -463,11 +463,13 @@ bool runInstr(VM& vm) {
         case Op::OPT_BEGIN: {
             // Maybe this is a no op?
             vm.object.optEnter();
+            vm.codec.optBegin();
             vm.optionalStack.emplace_back(OptionalFrame{});
         } break;
         case Op::OPT_END: {
             // Maybe this is a no op?
             vm.object.optExit();
+            vm.codec.optEnd();
             vm.optionalStack.pop_back();
         } break;
         case Op::OPT_BEGIN_VALUE: {
