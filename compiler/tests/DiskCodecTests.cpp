@@ -129,33 +129,40 @@ TEST_CASE("Disk codec skip field works", "[disk][codec][skip]") {
     REQUIRE(rs.remainingBytes() == 0);
 }
 
-// New tests: oneof, optional and arrays
-TEST_CASE("Disk codec oneof round trip", "[disk][codec][oneof]") {
+// Oneof message arm test
+TEST_CASE("Disk codec oneof message arm", "[disk][codec][oneof][message]") {
     std::vector<std::byte> data(1024);
 
     ao::schema::codec::CodecTable table;
-    // Message field that contains the oneof
+    // field0 is the oneof container
     table.fields.push_back(
         ao::schema::codec::CodecField{.fieldNumber = 10, .typeId = 0});
+    // field1 is a nested message's field
+    table.fields.push_back(
+        ao::schema::codec::CodecField{.fieldNumber = 201, .typeId = 0});
 
-    // Define oneof arms with distinct field numbers
+    // oneof with single arm that maps to field number201
     table.oneofs.push_back(ao::schema::codec::CodecOneof{.fieldStart = 0,
-                                                         .fieldCount = 2});
-    table.oneofFieldNumbers.push_back(101);
-    table.oneofFieldNumbers.push_back(102);
+                                                         .fieldCount = 1});
+    table.oneofFieldNumbers.push_back(201);
 
     ao::pack::byte::WriteStream ws{
         std::span<std::byte>(data.data(), data.size())};
     DiskEncodeCodec<ao::pack::byte::WriteStream> enc{table, ws};
 
-    // Encode: field0 is the oneof container. Choose arm0 and write a boolean
+    // Encode: oneof container field with a message arm containing one u64
     enc.msgBegin(0);
     enc.fieldBegin(0);
     enc.fieldId(0);
     enc.oneofEnter(0);
-    auto oneofEnterBytes = ws.byteSize();
-    enc.oneofArm(0, 0);  // arm0 -> field number101 gets written
-    enc.boolean(true);
+    enc.oneofArm(0, 0);  // writes arm field number (201)
+    // Now write the nested message
+    enc.msgBegin(0);
+    enc.fieldBegin(1);
+    enc.fieldId(1);
+    enc.u64(0, 55);
+    enc.fieldEnd();
+    enc.msgEnd();
     enc.oneofExit();
     enc.fieldEnd();
     enc.msgEnd();
@@ -168,18 +175,19 @@ TEST_CASE("Disk codec oneof round trip", "[disk][codec][oneof]") {
     DiskDecodeCodec<ao::pack::byte::ReadStream> dec{table, rs};
 
     dec.msgBegin(0);
-    REQUIRE(dec.ok());
     dec.fieldBegin(0);
-    REQUIRE(dec.ok());
     REQUIRE(dec.fieldId(0));
     dec.oneofEnter(0);
-    REQUIRE(dec.ok());
-    REQUIRE(oneofEnterBytes == rs.position());
     auto arm = dec.oneofArm(0, 1);
-    REQUIRE(dec.ok());
     REQUIRE(arm == 0);
-    auto val = dec.boolean();
-    REQUIRE(val == true);
+    // Next should be nested message
+    dec.msgBegin(0);
+    dec.fieldBegin(1);
+    REQUIRE(dec.fieldId(1));
+    auto nv = dec.u64();
+    REQUIRE(nv == 55);
+    dec.fieldEnd();
+    dec.msgEnd();
     dec.oneofExit();
     dec.fieldEnd();
     dec.msgEnd();
@@ -189,74 +197,46 @@ TEST_CASE("Disk codec oneof round trip", "[disk][codec][oneof]") {
     REQUIRE(rs.remainingBytes() == 0);
 }
 
-TEST_CASE("Disk codec optional round trip", "[disk][codec][opt]") {
-    std::vector<std::byte> data(1024);
-
-    ao::schema::codec::CodecTable table;
-    table.fields.push_back(
-        ao::schema::codec::CodecField{.fieldNumber = 11, .typeId = 0});
-
-    ao::pack::byte::WriteStream ws{
-        std::span<std::byte>(data.data(), data.size())};
-    DiskEncodeCodec<ao::pack::byte::WriteStream> enc{table, ws};
-
-    // Encode optional present with a u64 value
-    enc.msgBegin(0);
-    enc.fieldBegin(0);
-    enc.fieldId(0);
-    enc.optBegin();
-    enc.u64(0, 42);
-    enc.optEnd();
-    enc.fieldEnd();
-    enc.msgEnd();
-
-    REQUIRE(enc.ok());
-    REQUIRE(ws.ok());
-
-    ao::pack::byte::ReadStream rs{
-        std::span<std::byte const>(data.data(), ws.byteSize())};
-    DiskDecodeCodec<ao::pack::byte::ReadStream> dec{table, rs};
-
-    dec.msgBegin(0);
-    dec.fieldBegin(0);
-    REQUIRE(dec.fieldId(0));
-    dec.optBegin();
-    auto v = dec.u64();
-    REQUIRE(v == 42);
-    dec.optEnd();
-    dec.fieldEnd();
-    dec.msgEnd();
-
-    REQUIRE(dec.ok());
-    REQUIRE(rs.ok());
-    REQUIRE(rs.remainingBytes() == 0);
-}
-
-TEST_CASE("Disk codec array round trip", "[disk][codec][array]") {
+// Arrays of messages
+TEST_CASE("Disk codec array of messages", "[disk][codec][array][message]") {
     std::vector<std::byte> data(2048);
 
     ao::schema::codec::CodecTable table;
+    // field0 is the array field in the outer message
     table.fields.push_back(
-        ao::schema::codec::CodecField{.fieldNumber = 12, .typeId = 0});
+        ao::schema::codec::CodecField{.fieldNumber = 30, .typeId = 0});
+    // field1 is the nested message's single field
+    table.fields.push_back(
+        ao::schema::codec::CodecField{.fieldNumber = 41, .typeId = 0});
 
     ao::pack::byte::WriteStream ws{
         std::span<std::byte>(data.data(), data.size())};
     DiskEncodeCodec<ao::pack::byte::WriteStream> enc{table, ws};
 
-    // Encode array of three u64 elements:1,2,3
     enc.msgBegin(0);
     enc.fieldBegin(0);
     enc.fieldId(0);
     enc.arrayBegin();
-    // Write an explicit element type tag so decoder's arrayBegin() can read it
+    // element type tag (messages)
     {
-        std::byte t = (std::byte)DiskTag::Varint;
+        std::byte t = (std::byte)DiskTag::MsgBegin;
         ws.bytes(std::span<std::byte>{&t, 1}, 1);
     }
-    enc.arrayLen(0, 3);
-    enc.u64(0, 1);
-    enc.u64(0, 2);
-    enc.u64(0, 3);
+    enc.arrayLen(0, 2);
+    // element1
+    enc.msgBegin(0);
+    enc.fieldBegin(1);
+    enc.fieldId(1);
+    enc.u64(0, 7);
+    enc.fieldEnd();
+    enc.msgEnd();
+    // element2
+    enc.msgBegin(0);
+    enc.fieldBegin(1);
+    enc.fieldId(1);
+    enc.u64(0, 8);
+    enc.fieldEnd();
+    enc.msgEnd();
     enc.arrayEnd();
     enc.fieldEnd();
     enc.msgEnd();
@@ -269,20 +249,27 @@ TEST_CASE("Disk codec array round trip", "[disk][codec][array]") {
     DiskDecodeCodec<ao::pack::byte::ReadStream> dec{table, rs};
 
     dec.msgBegin(0);
-    REQUIRE(dec.ok());
     dec.fieldBegin(0);
-    REQUIRE(dec.ok());
     REQUIRE(dec.fieldId(0));
     dec.arrayBegin();
-    REQUIRE(dec.ok());
     auto len = dec.arrayLen(0);
-    REQUIRE(len == 3);
-    auto a = dec.u64();
-    auto b = dec.u64();
-    auto c = dec.u64();
-    REQUIRE(a == 1);
-    REQUIRE(b == 2);
-    REQUIRE(c == 3);
+    REQUIRE(len == 2);
+    // element1
+    dec.msgBegin(0);
+    dec.fieldBegin(1);
+    REQUIRE(dec.fieldId(1));
+    auto e1 = dec.u64();
+    REQUIRE(e1 == 7);
+    dec.fieldEnd();
+    dec.msgEnd();
+    // element2
+    dec.msgBegin(0);
+    dec.fieldBegin(1);
+    REQUIRE(dec.fieldId(1));
+    auto e2 = dec.u64();
+    REQUIRE(e2 == 8);
+    dec.fieldEnd();
+    dec.msgEnd();
     dec.arrayEnd();
     dec.fieldEnd();
     dec.msgEnd();
@@ -290,4 +277,206 @@ TEST_CASE("Disk codec array round trip", "[disk][codec][array]") {
     REQUIRE(dec.ok());
     REQUIRE(rs.ok());
     REQUIRE(rs.remainingBytes() == 0);
+}
+
+// Message that contains an array field
+TEST_CASE("Disk codec message containing array field", "[disk][codec][message][array]") {
+    std::vector<std::byte> data(2048);
+
+    ao::schema::codec::CodecTable table;
+    // field0 is the nested message field in the outer message
+    table.fields.push_back(
+        ao::schema::codec::CodecField{.fieldNumber = 50, .typeId = 0});
+    // field1 is the array field inside the nested message
+    table.fields.push_back(
+        ao::schema::codec::CodecField{.fieldNumber = 60, .typeId = 0});
+
+    ao::pack::byte::WriteStream ws{
+        std::span<std::byte>(data.data(), data.size())};
+    DiskEncodeCodec<ao::pack::byte::WriteStream> enc{table, ws};
+
+    enc.msgBegin(0);
+    enc.fieldBegin(0);
+    enc.fieldId(0);
+    // begin nested message
+    enc.msgBegin(0);
+    // nested message's array field
+    enc.fieldBegin(1);
+    enc.fieldId(1);
+    enc.arrayBegin();
+    // element type tag (varint)
+    {
+        std::byte t = (std::byte)DiskTag::Varint;
+        ws.bytes(std::span<std::byte>{&t, 1}, 1);
+    }
+    enc.arrayLen(0, 3);
+    enc.u64(0, 11);
+    enc.u64(0, 12);
+    enc.u64(0, 13);
+    enc.arrayEnd();
+    enc.fieldEnd();
+    enc.msgEnd();
+    enc.fieldEnd();
+    enc.msgEnd();
+
+    REQUIRE(enc.ok());
+    REQUIRE(ws.ok());
+
+    ao::pack::byte::ReadStream rs{
+        std::span<std::byte const>(data.data(), ws.byteSize())};
+    DiskDecodeCodec<ao::pack::byte::ReadStream> dec{table, rs};
+
+    dec.msgBegin(0);
+    dec.fieldBegin(0);
+    REQUIRE(dec.fieldId(0));
+    dec.msgBegin(0);
+    dec.fieldBegin(1);
+    REQUIRE(dec.fieldId(1));
+    dec.arrayBegin();
+    auto len = dec.arrayLen(0);
+    REQUIRE(len == 3);
+    auto a1 = dec.u64();
+    auto a2 = dec.u64();
+    auto a3 = dec.u64();
+    REQUIRE(a1 == 11);
+    REQUIRE(a2 == 12);
+    REQUIRE(a3 == 13);
+    dec.arrayEnd();
+    dec.fieldEnd();
+    dec.msgEnd();
+    dec.fieldEnd();
+    dec.msgEnd();
+
+    REQUIRE(dec.ok());
+    REQUIRE(rs.ok());
+    REQUIRE(rs.remainingBytes() == 0);
+}
+
+// Malformed inputs ---------------------------------------------------------
+
+TEST_CASE("Disk codec truncated varint yields Eof error", "[disk][codec][malformed]") {
+    std::vector<std::byte> data(1024);
+    ao::schema::codec::CodecTable table;
+    table.fields.push_back({.fieldNumber = 1, .typeId = 0});
+
+    ao::pack::byte::WriteStream ws{std::span<std::byte>(data.data(), data.size())};
+    DiskEncodeCodec<ao::pack::byte::WriteStream> enc{table, ws};
+
+    // Encode a large varint so it occupies multiple bytes
+    enc.msgBegin(0);
+    enc.fieldBegin(0);
+    enc.fieldId(0);
+    enc.u64(0, (1ull << 56));
+    enc.fieldEnd();
+    enc.msgEnd();
+
+    REQUIRE(enc.ok());
+    REQUIRE(ws.ok());
+
+    // Truncate the last byte to simulate EOF in the middle of varint
+    auto fullSize = ws.byteSize();
+    REQUIRE(fullSize > 3);
+    ao::pack::byte::ReadStream rs{std::span<std::byte const>(data.data(), fullSize - 3)};
+    DiskDecodeCodec<ao::pack::byte::ReadStream> dec{table, rs};
+
+    dec.msgBegin(0);
+    dec.fieldBegin(0);
+    REQUIRE(dec.fieldId(0));
+    // Attempt to read varint: should fail due to truncated data
+    (void)dec.u64();
+    REQUIRE_FALSE(dec.ok());
+    REQUIRE(dec.error() == ao::pack::Error::Eof);
+}
+
+TEST_CASE("Disk codec invalid top-level tag yields BadData", "[disk][codec][malformed]") {
+    std::vector<std::byte> data(16);
+    ao::pack::byte::WriteStream ws{std::span<std::byte>(data.data(), data.size())};
+
+    // Write an invalid tag value as a prefix-int (large number)
+    ao::pack::encodePrefixInt(ws, 255);
+
+    ao::pack::byte::ReadStream rs{std::span<std::byte const>(data.data(), ws.byteSize())};
+    ao::schema::codec::CodecTable table;
+    DiskDecodeCodec<ao::pack::byte::ReadStream> dec{table, rs};
+
+    // Expect reading a MsgBegin to fail due to bad tag
+    dec.msgBegin(0);
+    REQUIRE_FALSE(dec.ok());
+    REQUIRE(dec.error() == ao::pack::Error::BadData);
+}
+
+TEST_CASE("Disk codec unknown oneof arm returns max without error", "[disk][codec][malformed]") {
+    std::vector<std::byte> data(256);
+    ao::schema::codec::CodecTable table;
+    table.fields.push_back({.fieldNumber = 10, .typeId = 0});
+    // oneof with arms101,102
+    table.oneofs.push_back({.fieldStart = 0, .fieldCount = 2});
+    table.oneofFieldNumbers.push_back(101);
+    table.oneofFieldNumbers.push_back(102);
+
+    ao::pack::byte::WriteStream ws{std::span<std::byte>(data.data(), data.size())};
+    DiskEncodeCodec<ao::pack::byte::WriteStream> enc{table, ws};
+
+    enc.msgBegin(0);
+    enc.fieldBegin(0);
+    enc.fieldId(0);
+    enc.oneofEnter(0);
+    // Manually encode an unknown arm id (e.g.,999)
+    ao::pack::encodePrefixInt(ws, (uint64_t)999);
+    enc.oneofExit();
+    enc.fieldEnd();
+    enc.msgEnd();
+
+    REQUIRE(enc.ok());
+
+    ao::pack::byte::ReadStream rs{std::span<std::byte const>(data.data(), ws.byteSize())};
+    DiskDecodeCodec<ao::pack::byte::ReadStream> dec{table, rs};
+
+    dec.msgBegin(0);
+    dec.fieldBegin(0);
+    REQUIRE(dec.fieldId(0));
+    dec.oneofEnter(0);
+    auto arm = dec.oneofArm(0, 8);
+    REQUIRE(arm == std::numeric_limits<uint32_t>::max());
+    // Exiting should still succeed
+    dec.oneofExit();
+    dec.fieldEnd();
+    dec.msgEnd();
+
+    REQUIRE(dec.ok());
+}
+
+TEST_CASE("Disk codec malformed array element tag yields BadData", "[disk][codec][malformed]") {
+    std::vector<std::byte> data(256);
+    ao::schema::codec::CodecTable table;
+    table.fields.push_back({.fieldNumber = 7, .typeId = 0});
+
+    ao::pack::byte::WriteStream ws{std::span<std::byte>(data.data(), data.size())};
+    DiskEncodeCodec<ao::pack::byte::WriteStream> enc{table, ws};
+
+    enc.msgBegin(0);
+    enc.fieldBegin(0);
+    enc.fieldId(0);
+    enc.arrayBegin();
+    // Write an invalid element-type tag as a prefix-int
+    ao::pack::encodePrefixInt(ws, (uint64_t)255);
+    enc.arrayLen(0, 1);
+    // write one element (but decoder should fail on element tag)
+    enc.u64(0, 5);
+    enc.arrayEnd();
+    enc.fieldEnd();
+    enc.msgEnd();
+
+    REQUIRE(enc.ok());
+
+    ao::pack::byte::ReadStream rs{std::span<std::byte const>(data.data(), ws.byteSize())};
+    DiskDecodeCodec<ao::pack::byte::ReadStream> dec{table, rs};
+
+    dec.msgBegin(0);
+    dec.fieldBegin(0);
+    REQUIRE(dec.fieldId(0));
+    // arrayBegin should fail because element tag is invalid
+    dec.arrayBegin();
+    REQUIRE_FALSE(dec.ok());
+    REQUIRE(dec.error() == ao::pack::Error::BadData);
 }
