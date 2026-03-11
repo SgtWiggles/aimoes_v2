@@ -176,7 +176,7 @@ class DiskDecodeCodec {
     }
     void arrayEnd() { readTag(DiskTag::End); }
     uint32_t arrayLen(uint32_t width) {
-        uint64_t value;
+        uint64_t value = 0;
         ao::pack::decodePrefixInt(m_stream, value);
         raiseError();
         if (value > std::numeric_limits<uint32_t>::max()) {
@@ -196,10 +196,12 @@ class DiskDecodeCodec {
     void oneofEnter(uint32_t oneofId) { readTag(DiskTag::OneofBegin); }
     void oneofExit() { readTag(DiskTag::End); }
     uint32_t oneofArm(uint32_t oneofId, uint32_t width) {
-        uint64_t value;
-        ao::pack::decodePrefixInt(m_stream, value);
-        raiseError();
-        if (value > std::numeric_limits<uint32_t>::max()) {
+        uint64_t value = 0;
+        if (!ao::pack::decodePrefixInt(m_stream, value)) {
+            raiseError();
+            return 0;
+        }
+        if (value > std::numeric_limits<uint32_t>::max() || !ok()) {
             fail(ao::pack::Error::BadData);
             return 0;
         }

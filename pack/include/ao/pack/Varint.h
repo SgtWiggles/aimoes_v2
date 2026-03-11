@@ -112,6 +112,7 @@ bool decodePrefixInt(ReadStream& enc, uint64_t& out) {
     if (!enc.bytes(dataBuffer, extra).ok())
         return false;
 
+    out = 0;
     auto rest = std::span<std::byte>{(std::byte*)&out, sizeof(uint64_t)};
     std::copy(dataBuffer.begin(), dataBuffer.end(), rest.begin());
     out = ((out << shift) | base);

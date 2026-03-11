@@ -16,6 +16,7 @@ class ReadStream {
     ReadStream& require(bool condition, Error err);
 
     size_t remainingBytes() const { return m_data.size() - m_position; }
+    size_t position() const { return m_position; }
 
     bool ok() const { return m_status == Error::Ok; }
     Error error() const { return m_status; }
