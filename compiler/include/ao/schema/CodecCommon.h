@@ -6,7 +6,7 @@
 #include "ao/pack/Error.h"
 #include "ao/schema/IR.h"
 
-namespace ao::schema::vm {
+namespace ao::schema::codec {
 
 struct CodecField {
     uint32_t fieldNumber;
@@ -35,7 +35,6 @@ struct CodecTable {
 
 struct CodecBytes {};
 struct CodecBits {};
-
 
 /**
  * @brief Concept for a Codec that handles encoding (serialization).
@@ -124,4 +123,4 @@ concept CodecDecode = requires(T codec, uint32_t u32) {
 
 CodecTable generateCodecTable(ir::IR const& ir);
 
-}  // namespace ao::schema::vm
+}  // namespace ao::schema::codec

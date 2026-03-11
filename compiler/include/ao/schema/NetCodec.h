@@ -11,7 +11,7 @@
 
 #include "ao/schema/CodecCommon.h"
 
-namespace ao::schema::vm {
+namespace ao::schema::codec::net {
 template <class OutStream>
 struct NetEncodeCodec {
     using ChunkSize = CodecBits;
@@ -74,6 +74,7 @@ struct NetEncodeCodec {
     bool ok() const { return out.ok(); }
     ao::pack::Error error() const { return out.error(); }
 };
+static_assert(CodecEncode<NetEncodeCodec<ao::pack::bit::WriteStream>>);
 
 template <class InStream>
 struct NetDecodeCodec {
@@ -162,4 +163,6 @@ struct NetDecodeCodec {
     bool ok() const { return in.ok(); }
     ao::pack::Error error() const { return in.error(); }
 };
-}  // namespace ao::schema::vm
+static_assert(CodecDecode<NetDecodeCodec<ao::pack::bit::ReadStream>>);
+
+}  // namespace ao::schema::codec::net

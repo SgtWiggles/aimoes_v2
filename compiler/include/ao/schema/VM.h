@@ -294,7 +294,7 @@ struct OneofFrame {
 template <class ObjectAdapter, class CodecAdapter>
 struct VM {
     static constexpr bool IsBitCodec =
-        std::is_same_v<typename CodecAdapter::ChunkSize, CodecBits>;
+        std::is_same_v<typename CodecAdapter::ChunkSize, codec::CodecBits>;
     Program const* prog = nullptr;
     ObjectAdapter object;
     CodecAdapter codec;

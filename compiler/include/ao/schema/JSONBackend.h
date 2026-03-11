@@ -202,7 +202,7 @@ JsonTable generateJsonTable(ir::IR const& ir);
 
 struct JsonEncodeState {
     vm::Format format;
-    vm::CodecTable codec;
+    codec::CodecTable codec;
     JsonTable json;
 };
 
@@ -213,7 +213,7 @@ inline auto encodeJson(JsonEncodeState const& state,
                               pack::bit::WriteStream& stream,
                               uint64_t messageId) {
     JsonEncodeAdapter object{state.json, json};
-    vm::NetEncodeCodec<pack::bit::WriteStream> codec{
+    codec::net::NetEncodeCodec<pack::bit::WriteStream> codec{
         stream,
         state.codec,
     };
@@ -226,7 +226,7 @@ inline auto decodeJson(JsonEncodeState const& state,
                               nlohmann::json& json,
                               uint64_t messageId) {
     JsonDecodeAdapter object{state.json};
-    vm::NetDecodeCodec<pack::bit::ReadStream> codec{
+    codec::net::NetDecodeCodec<pack::bit::ReadStream> codec{
         stream,
         state.codec,
     };
@@ -238,12 +238,13 @@ inline auto decodeJson(JsonEncodeState const& state,
     return machine;
 }
 
+/*
 inline auto encodeJson(JsonEncodeState const& state,
                               nlohmann::json const& json,
                               pack::byte::WriteStream& stream,
                               uint64_t messageId) {
     JsonEncodeAdapter object{state.json, json};
-    vm::DiskEncodeCodec<pack::byte::WriteStream> codec{
+    codec::DiskEncodeCodec<pack::byte::WriteStream> codec{
         stream,
         state.codec,
     };
@@ -256,7 +257,7 @@ inline auto decodeJson(JsonEncodeState const& state,
                               nlohmann::json& json,
                               uint64_t messageId) {
     JsonDecodeAdapter object{state.json};
-    vm::DiskDecodeCodec<pack::byte::ReadStream> codec{
+    codec::DiskDecodeCodec<pack::byte::ReadStream> codec{
         stream,
         state.codec,
     };
@@ -267,5 +268,6 @@ inline auto decodeJson(JsonEncodeState const& state,
     }
     return machine;
 }
+*/
 
 }  // namespace ao::schema::json

@@ -2,10 +2,10 @@
 
 #include <algorithm>
 
-#include "ao/utils/Overloaded.h"
 #include "ao/schema/IR.h"
+#include "ao/utils/Overloaded.h"
 
-namespace ao::schema::vm {
+namespace ao::schema::codec {
 CodecTable generateCodecTable(ir::IR const& ir) {
     CodecTable ret;
     for (auto& type : ir.types) {
@@ -42,4 +42,4 @@ CodecTable generateCodecTable(ir::IR const& ir) {
     // TODO build messages, for now we only need types
     return ret;
 }
-}  // namespace ao::schema::vm
+}  // namespace ao::schema::codec

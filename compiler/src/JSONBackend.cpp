@@ -379,7 +379,7 @@ JsonTable generateJsonTable(ir::IR const& ir) {
 JsonEncodeState generateJsonEncodeState(ir::IR const& ir, ErrorContext& errs) {
     auto prog = vm::generateProgram(ir, errs);
     auto json = generateJsonTable(ir);
-    auto codec = vm::generateCodecTable(ir);
+    auto codec = codec::generateCodecTable(ir);
     return {
         std::move(prog),
         std::move(codec),
