@@ -92,7 +92,7 @@ struct NetDecodeCodec {
     void fieldBegin(uint32_t fieldId) {}
     void fieldEnd() {}
     bool fieldId(uint32_t fieldId) { return true; }
-    bool skipFieldId(uint32_t fieldId) { return false; }
+    bool skipField(uint32_t fieldId) { return false; }
 
     bool boolean() {
         uint64_t b = 0;

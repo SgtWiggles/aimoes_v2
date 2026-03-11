@@ -201,7 +201,7 @@ void generateTypeProgram(VMGenerateContext& ctx,
 
                         // TODO make this emit32
                         assembler.emit(
-                            {Op::C_SKIP_FIELD_ID, 0, (uint16_t)fieldId.idx},
+                            {Op::C_SKIP_FIELD, 0, (uint16_t)fieldId.idx},
                             skipLabel);
                     }
 

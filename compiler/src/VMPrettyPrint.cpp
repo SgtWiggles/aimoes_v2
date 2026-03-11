@@ -40,7 +40,7 @@ static std::string opName(Op op) {
         CASE(ENVELOPE_END)
         CASE(C_WRITE_FIELD_ID)
         CASE(C_MATCH_FIELD_ID)
-        CASE(C_SKIP_FIELD_ID)
+        CASE(C_SKIP_FIELD)
         CASE(C_WRITE_SCALAR)
         CASE(C_READ_SCALAR)
         CASE(C_WRITE_OPT_PRESENT)
@@ -168,7 +168,7 @@ std::string prettyPrint(Program const& prog) {
             case Op::ONEOF_ARM_BEGIN:
             case Op::C_WRITE_FIELD_ID:
             case Op::C_MATCH_FIELD_ID:
-            case Op::C_SKIP_FIELD_ID:
+            case Op::C_SKIP_FIELD:
             case Op::C_WRITE_SCALAR:
             case Op::C_READ_SCALAR:
             case Op::C_WRITE_ONEOF_ARM:

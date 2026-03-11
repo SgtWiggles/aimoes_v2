@@ -103,7 +103,7 @@ concept CodecDecode = requires(T codec, uint32_t u32) {
     codec.fieldBegin(u32);
     codec.fieldEnd();
     { codec.fieldId(u32) } -> std::same_as<bool>;
-    { codec.skipFieldId(u32) } -> std::same_as<bool>;
+    { codec.skipField(u32) } -> std::same_as<bool>;
 
     // Primitives
     { codec.boolean() } -> std::same_as<bool>;

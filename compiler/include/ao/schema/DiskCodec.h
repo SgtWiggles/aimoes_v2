@@ -101,7 +101,10 @@ class DiskEncodeCodec {
     }
 
    private:
-    void writeTag(DiskTag tag) { m_stream.bytes((uint8_t)tag); }
+    void writeTag(DiskTag tag) {
+        auto data = (std::byte)tag;
+        m_stream.bytes(std::span<std::byte>{&data, 1}, 1);
+    }
 
     ao::pack::Error fail(ao::pack::Error err) {
         if (!ok())
@@ -118,6 +121,8 @@ static_assert(CodecEncode<DiskEncodeCodec<ao::pack::byte::WriteStream>>);
 template <class InStream>
 class DiskDecodeCodec {
    public:
+    DiskDecodeCodec(CodecTable const& table, InStream& stream)
+        : m_codec(table), m_stream(stream) {}
     using ChunkSize = CodecBytes;
     bool ok() const { return error() == ao::pack::Error::Ok; }
     ao::pack::Error error() const { return m_error; }
@@ -130,7 +135,7 @@ class DiskDecodeCodec {
 
     bool fieldId(uint32_t fieldId) {
         uint64_t expected = m_codec.fields[fieldId].fieldNumber;
-        uint64_t fieldNum = readTaggedVarint(DiskTag::Field);
+        uint64_t fieldNum = readVarint();
         if (!ok())
             return false;
         return expected == fieldNum;
@@ -139,10 +144,11 @@ class DiskDecodeCodec {
     // Skip from previous information
     // We are expecting an END eventually
     // Current processing a value
-    bool skipFieldId(uint32_t fieldId) {
-        skipField();
+    bool skipField(uint32_t fieldId) {
+        if (!skipFieldImpl())
+            return false;
         // Expect the end tag after parsing the value
-        readTag(DiskTag::End);
+        return readTag(DiskTag::End);
     }
 
     bool boolean() { return readTaggedVarint(DiskTag::Varint) != 0; }
@@ -231,27 +237,25 @@ class DiskDecodeCodec {
             return 0;
         return readVarint();
     }
-    uint64_t readTag() {
+    DiskTag readTag() {
         if (!ok())
-            return 0;
+            return DiskTag::Unknown;
         uint64_t out = 0;
         if (!ao::pack::decodePrefixInt(m_stream, out)) {
             fail(ao::pack::Error::BadData);
-            return 0;
+            return DiskTag::Unknown;
         }
         if (out >= (uint64_t)DiskTag::DiskTagMax) {
             fail(ao::pack::Error::BadData);
-            return 0;
+            return DiskTag::Unknown;
         }
-        return out;
+        return static_cast<DiskTag>(out);
     }
     bool readTag(DiskTag expected) {
         auto tag = readTag();
         if (!ok())
             return false;
-
-        uint64_t out = 0;
-        if (out != (uint64_t)expected) {
+        if (tag != expected) {
             fail(ao::pack::Error::BadData);
             return false;
         }
@@ -270,7 +274,7 @@ class DiskDecodeCodec {
         // This skips the _body_ of the message
         auto tag = readTag();
         while (ok() && tag == DiskTag::Field) {
-            if (!skipField())
+            if (!skipFieldImpl())
                 return false;
             tag = readTag();
         }
@@ -282,7 +286,7 @@ class DiskDecodeCodec {
         uint64_t fieldId = readVarint();
 
         // Encoded as a field from here
-        return skipField();
+        return skipFieldImpl();
     }
     bool skipArray() {
         uint64_t len = readVarint();
@@ -290,7 +294,7 @@ class DiskDecodeCodec {
             // TODO lift the readtag to the start of the array
             // Format for array should be ARRAY TYPE LEN ... ITEMS ... END
             auto tag = readTag();
-            if (!skipField(tag))
+            if (!skipFieldImpl(tag))
                 return false;
         }
         return readTag(DiskTag::End);
@@ -299,12 +303,12 @@ class DiskDecodeCodec {
         auto tag = readTag();
         if (tag == DiskTag::End)
             return true;
-        if (!skipField(tag))
+        if (!skipFieldImpl(tag))
             return false;
         return readTag(DiskTag::End);
     }
 
-    bool skipField(DiskTag tag) {
+    bool skipFieldImpl(DiskTag tag) {
         if (!ok())
             return false;
 
@@ -346,17 +350,18 @@ class DiskDecodeCodec {
 
         return true;
     }
-    bool skipField() { return skipField(readTag()); }
+    bool skipFieldImpl() { return skipFieldImpl(readTag()); }
 
     ao::pack::Error fail(ao::pack::Error err) {
         if (!ok())
-            return;
+            return m_error;
         m_error = err;
+        return m_error;
     }
 
     ao::pack::Error m_error = ao::pack::Error::Ok;
     CodecTable const& m_codec;
-    InStream m_stream;
+    InStream& m_stream;
 };
 
 /*

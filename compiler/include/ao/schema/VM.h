@@ -145,7 +145,7 @@ enum class Op : uint8_t {
     // imm16: expected field id
     // flag = expected == current field id
 
-    C_SKIP_FIELD_ID,
+    C_SKIP_FIELD,
     // always returns false for net format
     // imm16: original expected field id
     // flag = field was skipped
@@ -592,9 +592,9 @@ bool runInstr(VM& vm) {
                 vm.flag = vm.codec.fieldId(instr.imm);
             }
         } break;
-        case Op::C_SKIP_FIELD_ID: {
+        case Op::C_SKIP_FIELD: {
             if constexpr (!EncodeMode) {
-                vm.flag = vm.codec.skipFieldId(instr.imm);
+                vm.flag = vm.codec.skipField(instr.imm);
             }
         } break;
         case Op::O_WRITE_SCALAR: {
