@@ -217,11 +217,7 @@ TEST_CASE("Disk codec array of messages", "[disk][codec][array][message]") {
     enc.fieldBegin(0);
     enc.fieldId(0);
     enc.arrayBegin();
-    // element type tag (messages)
-    {
-        std::byte t = (std::byte)DiskTag::MsgBegin;
-        ws.bytes(std::span<std::byte>{&t, 1}, 1);
-    }
+
     enc.arrayLen(0, 2);
     // element1
     enc.msgBegin(0);
@@ -304,11 +300,6 @@ TEST_CASE("Disk codec message containing array field", "[disk][codec][message][a
     enc.fieldBegin(1);
     enc.fieldId(1);
     enc.arrayBegin();
-    // element type tag (varint)
-    {
-        std::byte t = (std::byte)DiskTag::Varint;
-        ws.bytes(std::span<std::byte>{&t, 1}, 1);
-    }
     enc.arrayLen(0, 3);
     enc.u64(0, 11);
     enc.u64(0, 12);
@@ -477,6 +468,8 @@ TEST_CASE("Disk codec malformed array element tag yields BadData", "[disk][codec
     REQUIRE(dec.fieldId(0));
     // arrayBegin should fail because element tag is invalid
     dec.arrayBegin();
+    REQUIRE(dec.ok());
+    dec.u64(0);
     REQUIRE_FALSE(dec.ok());
     REQUIRE(dec.error() == ao::pack::Error::BadData);
 }

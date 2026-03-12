@@ -174,7 +174,7 @@ class DiskDecodeCodec {
         readTag(DiskTag::ArrayBegin);
 
         // Read the type tag, as we aren't skipping it doesn't matter
-        readTag();
+        // readTag();
     }
     void arrayEnd() { readTag(DiskTag::End); }
     uint32_t arrayLen(uint32_t width) {
