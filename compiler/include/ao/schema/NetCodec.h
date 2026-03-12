@@ -16,8 +16,8 @@ template <class OutStream>
 struct NetEncodeCodec {
     using ChunkSize = CodecBits;
 
-    OutStream& out;
     CodecTable const& net;
+    OutStream& out;
 
     // Message boundaries (presence bitmaps/alignment are codec concerns).
     void msgBegin(uint32_t msgId) {
@@ -70,7 +70,12 @@ struct NetEncodeCodec {
     void oneofExit() {}
 
     // Net format uses the compressed armid
-    void oneofArm(uint32_t width, uint64_t armid) { out.bits(armid, width); }
+    void oneofArm(uint32_t oneofId, uint64_t armid) {
+        auto width = std::bit_width(net.oneofs[oneofId].fieldCount);
+        if (width > 0) {
+            out.bits(armid, width);
+        }
+    }
 
     bool ok() const { return out.ok(); }
     ao::pack::Error error() const { return out.error(); }
@@ -81,8 +86,8 @@ template <class InStream>
 struct NetDecodeCodec {
     using ChunkSize = CodecBits;
 
-    InStream& in;
     CodecTable const& net;
+    InStream& in;
 
     void msgBegin(uint32_t msgId) {
         (void)msgId; /* align, read presence bitmap if applicable */
@@ -155,7 +160,10 @@ struct NetDecodeCodec {
 
     void oneofEnter(uint32_t typeId) {}
     void oneofExit() {}
-    uint32_t oneofArm(uint32_t oneofId, uint32_t width) {
+    uint32_t oneofArm(uint32_t oneofId) {
+        auto width = std::bit_width(net.oneofs[oneofId].fieldCount);
+        if (width == 0)
+            return 0;
         uint64_t u = 0;
         in.bits(u, width);
         return static_cast<uint32_t>(u);

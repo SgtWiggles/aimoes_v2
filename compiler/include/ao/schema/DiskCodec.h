@@ -77,13 +77,13 @@ class DiskEncodeCodec {
         writeTag(DiskTag::Fixed32);
         static constexpr auto size = sizeof(float);
         static_assert(size == 4);
-        m_stream.bytes(std::span{(std::byte*)v, size}, size);
+        m_stream.bytes(std::span{(std::byte*)&v, size}, size);
     }
     void f64(double v) {
         writeTag(DiskTag::Fixed64);
         static constexpr auto size = sizeof(double);
         static_assert(size == 8);
-        m_stream.bytes(std::span{(std::byte*)v, size}, size);
+        m_stream.bytes(std::span{(std::byte*)&v, size}, size);
     }
 
     void arrayBegin() { writeTag(DiskTag::ArrayBegin); }
@@ -152,8 +152,10 @@ class DiskDecodeCodec {
     }
 
     bool boolean() { return readTaggedVarint(DiskTag::Varint) != 0; }
-    uint64_t u64() { return readTaggedVarint(DiskTag::Varint); }
-    int64_t i64() {
+    uint64_t u64(uint16_t /*  width */) {
+        return readTaggedVarint(DiskTag::Varint);
+    }
+    int64_t i64(uint16_t /*  width */) {
         auto v = readTaggedVarint(DiskTag::Varint);
         return ao::pack::decodeZigZag(v);
     }
@@ -190,12 +192,17 @@ class DiskDecodeCodec {
     void optBegin() { readTag(DiskTag::OptBegin); }
     void optEnd() { readTag(DiskTag::End); }
     bool present() {
-        // Do nothing
+        std::byte byte;
+        if (!m_stream.peek({&byte, 1}, 1)) {
+            fail(ao::pack::Error::BadData);
+            return false;
+        }
+        return static_cast<DiskTag>(byte) != DiskTag::End;
     }
 
     void oneofEnter(uint32_t oneofId) { readTag(DiskTag::OneofBegin); }
     void oneofExit() { readTag(DiskTag::End); }
-    uint32_t oneofArm(uint32_t oneofId, uint32_t width) {
+    uint32_t oneofArm(uint32_t oneofId) {
         uint64_t value = 0;
         if (!ao::pack::decodePrefixInt(m_stream, value)) {
             raiseError();
@@ -230,8 +237,9 @@ class DiskDecodeCodec {
     }
     uint64_t readVarint() {
         uint64_t value = 0;
-        ao::pack::decodePrefixInt(m_stream, value);
-        raiseError();
+        if (!ao::pack::decodePrefixInt(m_stream, value)) {
+            raiseError();
+        }
         return value;
     }
     uint64_t readTaggedVarint(DiskTag expectedTag) {
@@ -366,8 +374,5 @@ class DiskDecodeCodec {
     InStream& m_stream;
 };
 
-/*
-static_assert(CodecEncode<DiskEncodeCodec<ao::pack::byte::WriteStream>>);
 static_assert(CodecDecode<DiskDecodeCodec<ao::pack::byte::ReadStream>>);
-*/
 }  // namespace ao::schema::codec::disk

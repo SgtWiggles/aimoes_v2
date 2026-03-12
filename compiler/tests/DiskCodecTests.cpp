@@ -54,7 +54,7 @@ TEST_CASE("Disk codec round trip basic fields", "[disk][codec]") {
     dec.fieldBegin(0);
     auto success = dec.fieldId(0);
     REQUIRE(success);
-    auto v = dec.u64();
+    auto v = dec.u64(1);
     REQUIRE(v == 123456789);
     dec.fieldEnd();
 
@@ -118,7 +118,7 @@ TEST_CASE("Disk codec skip field works", "[disk][codec][skip]") {
     // Now next field should be readable
     dec.fieldBegin(1);
     REQUIRE(dec.fieldId(1));
-    auto v = dec.u64();
+    auto v = dec.u64(1);
     REQUIRE(v == 99);
     dec.fieldEnd();
 
@@ -178,13 +178,13 @@ TEST_CASE("Disk codec oneof message arm", "[disk][codec][oneof][message]") {
     dec.fieldBegin(0);
     REQUIRE(dec.fieldId(0));
     dec.oneofEnter(0);
-    auto arm = dec.oneofArm(0, 1);
+    auto arm = dec.oneofArm(0);
     REQUIRE(arm == 0);
     // Next should be nested message
     dec.msgBegin(0);
     dec.fieldBegin(1);
     REQUIRE(dec.fieldId(1));
-    auto nv = dec.u64();
+    auto nv = dec.u64(1);
     REQUIRE(nv == 55);
     dec.fieldEnd();
     dec.msgEnd();
@@ -258,7 +258,7 @@ TEST_CASE("Disk codec array of messages", "[disk][codec][array][message]") {
     dec.msgBegin(0);
     dec.fieldBegin(1);
     REQUIRE(dec.fieldId(1));
-    auto e1 = dec.u64();
+    auto e1 = dec.u64(1);
     REQUIRE(e1 == 7);
     dec.fieldEnd();
     dec.msgEnd();
@@ -266,7 +266,7 @@ TEST_CASE("Disk codec array of messages", "[disk][codec][array][message]") {
     dec.msgBegin(0);
     dec.fieldBegin(1);
     REQUIRE(dec.fieldId(1));
-    auto e2 = dec.u64();
+    auto e2 = dec.u64(1);
     REQUIRE(e2 == 8);
     dec.fieldEnd();
     dec.msgEnd();
@@ -335,9 +335,9 @@ TEST_CASE("Disk codec message containing array field", "[disk][codec][message][a
     dec.arrayBegin();
     auto len = dec.arrayLen(0);
     REQUIRE(len == 3);
-    auto a1 = dec.u64();
-    auto a2 = dec.u64();
-    auto a3 = dec.u64();
+    auto a1 = dec.u64(1);
+    auto a2 = dec.u64(1);
+    auto a3 = dec.u64(1);
     REQUIRE(a1 == 11);
     REQUIRE(a2 == 12);
     REQUIRE(a3 == 13);
@@ -383,7 +383,7 @@ TEST_CASE("Disk codec truncated varint yields Eof error", "[disk][codec][malform
     dec.fieldBegin(0);
     REQUIRE(dec.fieldId(0));
     // Attempt to read varint: should fail due to truncated data
-    (void)dec.u64();
+    (void)dec.u64(1);
     REQUIRE_FALSE(dec.ok());
     REQUIRE(dec.error() == ao::pack::Error::Eof);
 }
@@ -436,7 +436,7 @@ TEST_CASE("Disk codec unknown oneof arm returns max without error", "[disk][code
     dec.fieldBegin(0);
     REQUIRE(dec.fieldId(0));
     dec.oneofEnter(0);
-    auto arm = dec.oneofArm(0, 8);
+    auto arm = dec.oneofArm(0);
     REQUIRE(arm == std::numeric_limits<uint32_t>::max());
     // Exiting should still succeed
     dec.oneofExit();

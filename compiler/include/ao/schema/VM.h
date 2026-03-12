@@ -562,13 +562,12 @@ bool runInstr(VM& vm) {
         } break;
         case Op::C_WRITE_ONEOF_ARM:
             if constexpr (EncodeMode) {
-                vm.codec.oneofArm(instr.imm, vm.reg);
+                vm.codec.oneofArm(vm.oneofStack.back().oneofId, vm.reg);
             }
             break;
         case Op::C_READ_ONEOF_ARM:
             if constexpr (!EncodeMode) {
-                vm.reg =
-                    vm.codec.oneofArm(vm.oneofStack.back().oneofId, instr.imm);
+                vm.reg = vm.codec.oneofArm(vm.oneofStack.back().oneofId);
             }
             break;
         case Op::C_WRITE_ARRAY_LEN:
@@ -629,7 +628,8 @@ bool runInstr(VM& vm) {
         } break;
         case Op::O_READ_ONEOF_ARM: {
             if constexpr (EncodeMode) {
-                vm.reg = vm.object.oneofIndex(vm.oneofStack.back().oneofId, instr.imm);
+                vm.reg = vm.object.oneofIndex(vm.oneofStack.back().oneofId,
+                                              instr.imm);
             }
         } break;
         case Op::O_WRITE_ARRAY_LEN: {

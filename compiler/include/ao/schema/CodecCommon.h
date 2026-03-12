@@ -9,7 +9,7 @@
 namespace ao::schema::codec {
 
 struct CodecField {
-    uint32_t fieldNumber;
+    uint64_t fieldNumber;
     uint32_t typeId;
 };
 struct CodecType {
@@ -27,7 +27,6 @@ struct CodecOneof {
 
 struct CodecTable {
     std::vector<CodecType> types;
-    std::vector<CodecMessage> messages;
     std::vector<CodecOneof> oneofs;
     std::vector<uint32_t> oneofFieldNumbers;
 
@@ -82,7 +81,7 @@ concept CodecEncode = requires(T codec,
     // Oneofs
     codec.oneofEnter(u32);
     codec.oneofExit();
-    codec.oneofArm(u32, u64);  // width, armId
+    codec.oneofArm(u32, u64);  // oneofId, armId
 };
 
 /**
@@ -125,7 +124,7 @@ concept CodecDecode = requires(T codec, uint32_t u32) {
     // Oneofs
     codec.oneofEnter(u32);
     codec.oneofExit();
-    { codec.oneofArm(u32, u32) } -> std::same_as<uint32_t>;  // oneofId, width
+    { codec.oneofArm(u32) } -> std::same_as<uint32_t>;  // oneofId
 };
 
 CodecTable generateCodecTable(ir::IR const& ir);

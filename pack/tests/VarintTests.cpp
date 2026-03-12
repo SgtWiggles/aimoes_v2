@@ -379,6 +379,8 @@ TEST_CASE("PrefixInt: roundtrip decode(encode(v)) for boundary values") {
         16384ULL,
         (1ULL << 32) - 1,
         (1ULL << 32),
+        (1ULL << 56) - 1,
+        (1ULL << 56),
         std::numeric_limits<uint64_t>::max() - 1,
         std::numeric_limits<uint64_t>::max(),
     };

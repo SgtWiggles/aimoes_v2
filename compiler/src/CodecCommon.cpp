@@ -39,7 +39,25 @@ CodecTable generateCodecTable(ir::IR const& ir) {
         ret.types.emplace_back(entry);
     }
 
-    // TODO build messages, for now we only need types
+    for (auto& field : ir.fields) {
+        ret.fields.push_back(CodecField{
+            .fieldNumber = field.fieldNumber,
+            .typeId = (uint32_t)field.type.idx,
+        });
+    }
+
+    for (auto& oneofs : ir.oneOfs) {
+        ret.oneofs.push_back(CodecOneof{
+            .fieldStart = (uint32_t)ret.oneofFieldNumbers.size(),
+            .fieldCount = (uint32_t)oneofs.arms.size(),
+        });
+
+        for (auto const& arm : oneofs.arms) {
+            auto const& field = ir.fields[arm.idx];
+            ret.oneofFieldNumbers.push_back(field.fieldNumber);
+        }
+    }
+
     return ret;
 }
 }  // namespace ao::schema::codec

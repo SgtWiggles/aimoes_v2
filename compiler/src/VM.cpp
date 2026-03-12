@@ -147,12 +147,20 @@ void generateTypeProgram(VMGenerateContext& ctx,
                 // TODO ext32
                 assembler.emit({Op::ONEOF_BEGIN, 0, 0}, {});
                 assembler.emit(
-                    {encodeMode ? Op::O_READ_ONEOF_ARM : Op::C_READ_ONEOF_ARM,
-                     0, armBits},
+                    {
+                        encodeMode ? Op::O_READ_ONEOF_ARM
+                                   : Op::C_READ_ONEOF_ARM,
+                        0,
+                        armBits,
+                    },
                     {});
                 assembler.emit(
-                    {encodeMode ? Op::C_WRITE_ONEOF_ARM : Op::O_WRITE_ONEOF_ARM,
-                     0, armBits},
+                    {
+                        encodeMode ? Op::C_WRITE_ONEOF_ARM
+                                   : Op::O_WRITE_ONEOF_ARM,
+                        0,
+                        armBits,
+                    },
                     {});
 
                 // TODO fix the case where we have more than 2^16 arms

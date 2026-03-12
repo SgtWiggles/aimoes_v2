@@ -209,26 +209,26 @@ struct JsonEncodeState {
 JsonEncodeState generateJsonEncodeState(ir::IR const& ir, ErrorContext& errs);
 
 inline auto encodeJson(JsonEncodeState const& state,
-                              nlohmann::json const& json,
-                              pack::bit::WriteStream& stream,
-                              uint64_t messageId) {
+                       nlohmann::json const& json,
+                       pack::bit::WriteStream& stream,
+                       uint64_t messageId) {
     JsonEncodeAdapter object{state.json, json};
     codec::net::NetEncodeCodec<pack::bit::WriteStream> codec{
-        stream,
         state.codec,
+        stream,
     };
     auto machine = vm::VM{&state.format.encode, object, codec};
     vm::encode(machine, messageId);
     return machine;
 }
 inline auto decodeJson(JsonEncodeState const& state,
-                              pack::bit::ReadStream& stream,
-                              nlohmann::json& json,
-                              uint64_t messageId) {
+                       pack::bit::ReadStream& stream,
+                       nlohmann::json& json,
+                       uint64_t messageId) {
     JsonDecodeAdapter object{state.json};
     codec::net::NetDecodeCodec<pack::bit::ReadStream> codec{
-        stream,
         state.codec,
+        stream,
     };
     auto machine = vm::VM{&state.format.decode, object, codec};
     auto success = vm::decode(machine, messageId);
@@ -238,28 +238,27 @@ inline auto decodeJson(JsonEncodeState const& state,
     return machine;
 }
 
-/*
 inline auto encodeJson(JsonEncodeState const& state,
-                              nlohmann::json const& json,
-                              pack::byte::WriteStream& stream,
-                              uint64_t messageId) {
+                       nlohmann::json const& json,
+                       pack::byte::WriteStream& stream,
+                       uint64_t messageId) {
     JsonEncodeAdapter object{state.json, json};
-    codec::DiskEncodeCodec<pack::byte::WriteStream> codec{
-        stream,
+    codec::disk::DiskEncodeCodec<pack::byte::WriteStream> codec{
         state.codec,
+        stream,
     };
     auto machine = vm::VM{&state.format.encode, object, codec};
     vm::encode(machine, messageId);
     return machine;
 }
 inline auto decodeJson(JsonEncodeState const& state,
-                              pack::byte::ReadStream& stream,
-                              nlohmann::json& json,
-                              uint64_t messageId) {
+                       pack::byte::ReadStream& stream,
+                       nlohmann::json& json,
+                       uint64_t messageId) {
     JsonDecodeAdapter object{state.json};
-    codec::DiskDecodeCodec<pack::byte::ReadStream> codec{
-        stream,
+    codec::disk::DiskDecodeCodec<pack::byte::ReadStream> codec{
         state.codec,
+        stream,
     };
     auto machine = vm::VM{&state.format.decode, object, codec};
     auto success = vm::decode(machine, messageId);
@@ -268,6 +267,5 @@ inline auto decodeJson(JsonEncodeState const& state,
     }
     return machine;
 }
-*/
 
 }  // namespace ao::schema::json
