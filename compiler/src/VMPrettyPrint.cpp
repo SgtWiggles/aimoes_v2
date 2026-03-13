@@ -69,8 +69,6 @@ static std::string extKindName(ExtKind k) {
             return "JMP32";
         case ExtKind::JZ32:
             return "JZ32";
-        case ExtKind::CALL32:
-            return "CALL32";
         case ExtKind::MSG_BEGIN32:
             return "MSG_BEGIN32";
         case ExtKind::FIELD_BEGIN32:

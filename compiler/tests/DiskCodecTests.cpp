@@ -216,7 +216,7 @@ TEST_CASE("Disk codec array of messages", "[disk][codec][array][message]") {
     enc.msgBegin(0);
     enc.fieldBegin(0);
     enc.fieldId(0);
-    enc.arrayBegin();
+    enc.arrayBegin(0);
 
     enc.arrayLen(0, 2);
     // element1
@@ -247,7 +247,7 @@ TEST_CASE("Disk codec array of messages", "[disk][codec][array][message]") {
     dec.msgBegin(0);
     dec.fieldBegin(0);
     REQUIRE(dec.fieldId(0));
-    dec.arrayBegin();
+    dec.arrayBegin(0);
     auto len = dec.arrayLen(0);
     REQUIRE(len == 2);
     // element1
@@ -299,7 +299,7 @@ TEST_CASE("Disk codec message containing array field", "[disk][codec][message][a
     // nested message's array field
     enc.fieldBegin(1);
     enc.fieldId(1);
-    enc.arrayBegin();
+    enc.arrayBegin(0);
     enc.arrayLen(0, 3);
     enc.u64(0, 11);
     enc.u64(0, 12);
@@ -323,7 +323,7 @@ TEST_CASE("Disk codec message containing array field", "[disk][codec][message][a
     dec.msgBegin(0);
     dec.fieldBegin(1);
     REQUIRE(dec.fieldId(1));
-    dec.arrayBegin();
+    dec.arrayBegin(0);
     auto len = dec.arrayLen(0);
     REQUIRE(len == 3);
     auto a1 = dec.u64(1);
@@ -448,7 +448,7 @@ TEST_CASE("Disk codec malformed array element tag yields BadData", "[disk][codec
     enc.msgBegin(0);
     enc.fieldBegin(0);
     enc.fieldId(0);
-    enc.arrayBegin();
+    enc.arrayBegin(0);
     // Write an invalid element-type tag as a prefix-int
     ao::pack::encodePrefixInt(ws, (uint64_t)255);
     enc.arrayLen(0, 1);
@@ -467,7 +467,7 @@ TEST_CASE("Disk codec malformed array element tag yields BadData", "[disk][codec
     dec.fieldBegin(0);
     REQUIRE(dec.fieldId(0));
     // arrayBegin should fail because element tag is invalid
-    dec.arrayBegin();
+    dec.arrayBegin(0);
     REQUIRE(dec.ok());
     dec.u64(0);
     REQUIRE_FALSE(dec.ok());

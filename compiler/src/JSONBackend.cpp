@@ -1,6 +1,7 @@
 #include "ao/schema/JSONBackend.h"
 
 #include "ao/schema/Codec.h"
+#include "ao/utils/Overloaded.h"
 
 namespace ao::schema::json {
 void JsonEncodeAdapter::msgBegin(uint32_t msgId) {
@@ -72,11 +73,15 @@ uint32_t JsonEncodeAdapter::arrayLen() {
     auto top = currentMsg();
     if (!top)
         return 0;
-    if (!top->is_array()) {
+    if (top->is_array()) {
+        return top->size();
+    } else if (top->is_string()) {
+        auto str = top->get_ptr<nlohmann::json::string_t const*>();
+        return str->size();
+    } else {
         fail(pack::Error::BadData);
         return 0;
     }
-    return top->size();
 }
 void JsonEncodeAdapter::arrayEnterElem(uint32_t i) {
     if (!ok())
@@ -84,11 +89,18 @@ void JsonEncodeAdapter::arrayEnterElem(uint32_t i) {
     auto top = currentMsg();
     if (!top)
         return;
-    if (!top->is_array())
+    if (top->is_array()) {
+        if (i >= top->size())
+            return fail(pack::Error::BadData);
+        m_stack.emplace_back(&((*top)[i]));
+    } else if (top->is_string()) {
+        auto const* str = top->get_ptr<nlohmann::json::string_t const*>();
+        if (i >= str->size())
+            return fail(pack::Error::BadData);
+        m_stack.emplace_back((uint64_t)((*str)[i]));
+    } else {
         return fail(pack::Error::BadData);
-    if (i >= top->size())
-        return fail(pack::Error::BadData);
-    m_stack.emplace_back(&((*top)[i]));
+    }
 }
 void JsonEncodeAdapter::JsonEncodeAdapter::arrayExitElem() {
     popStack();
@@ -261,14 +273,53 @@ void JsonDecodeAdapter::optEnterValue() {
 void JsonDecodeAdapter::optExitValue() {
     popStack();
 }
+void JsonDecodeAdapter::arrayEnter(uint32_t typeId) {
+    if (!ok())
+        return;
+    auto top = currentMsg();
+    if (!top)
+        return fail(ao::pack::Error::BadData);
 
+    *top = nlohmann::json::array();
+    m_inString = m_table.types[typeId].isString;
+}
+
+void JsonDecodeAdapter::arrayExit() {
+    ([&, this]() {
+        if (!ok())
+            return;
+        auto top = currentMsg();
+        if (!top)
+            return fail(ao::pack::Error::BadData);
+        if (m_inString) {
+            if (!top->is_array())
+                return fail(ao::pack::Error::BadData);
+            std::string str;
+            str.reserve(top->size());
+            for (auto& elem : top->get<nlohmann::json::array_t>()) {
+                if (!elem.is_number_unsigned() && !elem.is_number_integer())
+                    return fail(ao::pack::Error::BadData);
+                auto charVal = elem.get<uint64_t>();
+                if (charVal > 255)
+                    return fail(ao::pack::Error::BadData);
+                str.push_back(static_cast<char>(charVal));
+            }
+            *top = str;
+        } else {
+            if (!top->is_array())
+                return fail(ao::pack::Error::BadData);
+        }
+    })();
+    m_inString = false;
+}
 void JsonDecodeAdapter::arrayPrepare(uint32_t len) {
     if (!ok())
         return;
     auto top = currentMsg();
     if (!top)
         return fail(ao::pack::Error::BadData);
-    *top = nlohmann::json::array();
+    if (!top->is_array())
+        return fail(ao::pack::Error::BadData);
     top->get_ptr<nlohmann::json::array_t*>()->resize(len);
 }
 void JsonDecodeAdapter::arrayEnterElem(uint32_t i) {
@@ -277,7 +328,7 @@ void JsonDecodeAdapter::arrayEnterElem(uint32_t i) {
     auto top = currentMsg();
     if (!top)
         return fail(ao::pack::Error::BadData);
-    m_stack.push_back(&(*top)[i]);
+    m_stack.emplace_back(&(*top)[i]);
 }
 void JsonDecodeAdapter::arrayExitElem() {
     popStack();
@@ -373,6 +424,28 @@ JsonTable generateJsonTable(ir::IR const& ir) {
         for (auto const& arm : oneof.arms)
             arms.fieldNumbers.push_back(ir.fields[arm.idx].fieldNumber);
         ret.oneofs.emplace_back(std::move(arms));
+    }
+
+    ret.types.reserve(ir.types.size());
+    for (auto& type : ir.types) {
+        auto jsonType = std::visit(
+            Overloaded{
+                [&](ir::Array const& arr) {
+                    auto& subtype = ir.types[arr.type.idx];
+                    auto subScalar = std::get_if<ir::Scalar>(&subtype.payload);
+                    return JsonType{
+                        .isString =
+                            subScalar && subScalar->kind == ir::Scalar::CHAR,
+                    };
+                },
+                [](auto const&) {
+                    return JsonType{
+                        .isString = false,
+                    };
+                },
+            },
+            type.payload);
+        ret.types.emplace_back(std::move(jsonType));
     }
     return ret;
 }

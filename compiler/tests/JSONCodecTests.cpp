@@ -1,5 +1,6 @@
 #include <catch2/catch_all.hpp>
 
+#include <algorithm>
 #include <tuple>
 #include <vector>
 
@@ -745,6 +746,9 @@ message 100 StrBytes {
     2 b bytes;
 }
 )");
+    REQUIRE(std::count_if(state.json.types.begin(), state.json.types.end(),
+                          [](JsonType const& item) { return item.isString; }) ==
+            1);
 
     auto msgId = requireMessageId(state, 100);
 
@@ -754,7 +758,10 @@ message 100 StrBytes {
             {"b", nlohmann::json::array({0, 255, 1})},
         });
         auto output = roundTrip<WS, RS>(state, msgId, input);
-        REQUIRE(output == input);
+        REQUIRE(output == nlohmann::json::object({
+                              {"s", "hello"},  // "hello"
+                              {"b", nlohmann::json::array({0, 255, 1})},
+                          }));
     }
 
     SECTION("empty arrays") {
@@ -763,7 +770,10 @@ message 100 StrBytes {
             {"b", nlohmann::json::array()},
         });
         auto output = roundTrip<WS, RS>(state, msgId, input);
-        REQUIRE(output == input);
+        REQUIRE(output == nlohmann::json::object({
+                              {"s", ""},
+                              {"b", nlohmann::json::array()},
+                          }));
     }
 
     SECTION("string provided as JSON string should encode") {
@@ -776,17 +786,18 @@ message 100 StrBytes {
         REQUIRE(output == input);
     }
 
-    SECTION("bytes provided as JSON string should fail encode") {
-        std::vector<std::byte> data(1024);
-        WS ws{data};
-        auto encoded = encodeJson(
-            state,
-            nlohmann::json::object({
-                {"s", nlohmann::json::array({65, 66})},
-                {"b",
-                 std::string("abc")},  // wrong representation for `bytes` type
-            }),
-            ws, msgId);
-        REQUIRE_FALSE(encoded.error == VMError::Ok);
+    SECTION("bytes provided as JSON string should encode") {
+        auto input = nlohmann::json::object({
+            {"s", nlohmann::json::array({65, 66})},
+            {"b", std::string("abc")},  // wrong representation for `bytes` type
+        });
+        auto output = roundTrip<WS, RS>(state, msgId, input);
+        REQUIRE(output == nlohmann::json::object({
+                              {"s", "AB"},
+                              {
+                                  "b",
+                                  nlohmann::json::array({97, 98, 99}),
+                              },  // wrong representation for `bytes` type
+                          }));
     }
 }

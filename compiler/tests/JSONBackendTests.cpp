@@ -136,6 +136,7 @@ message 42 test{
     decoder.oneofExit();
     decoder.fieldEnd();
     decoder.fieldBegin(*hello2);
+    decoder.arrayEnter(ir->fields[*hello2].type.idx); // Fetch typeId from IR
     decoder.arrayPrepare(3);
     decoder.arrayEnterElem(0);
     decoder.u64(0, 10);
@@ -146,6 +147,7 @@ message 42 test{
     decoder.arrayEnterElem(2);
     decoder.u64(0, 12);
     decoder.arrayExitElem();
+    decoder.arrayExit();
     decoder.fieldEnd();
     decoder.msgEnd();
 

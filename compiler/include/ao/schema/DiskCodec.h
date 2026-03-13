@@ -86,7 +86,7 @@ class DiskEncodeCodec {
         m_stream.bytes(std::span{(std::byte*)&v, size}, size);
     }
 
-    void arrayBegin() { writeTag(DiskTag::ArrayBegin); }
+    void arrayBegin(uint32_t /* typeId*/) { writeTag(DiskTag::ArrayBegin); }
     void arrayEnd() { writeTag(DiskTag::End); }
     void arrayLen(uint32_t width, uint32_t length) {
         ao::pack::encodePrefixInt(m_stream, length);
@@ -170,7 +170,7 @@ class DiskDecodeCodec {
         return fixed<double, 8>();
     }
 
-    void arrayBegin() {
+    void arrayBegin(uint32_t /* typeId */) {
         readTag(DiskTag::ArrayBegin);
 
         // Read the type tag, as we aren't skipping it doesn't matter

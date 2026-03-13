@@ -40,6 +40,7 @@ inline nlohmann::json roundTrip(ao::schema::json::JsonEncodeState const& state,
     WS ws{data};
     auto encoded = encodeJson(state, input, ws, messageId);
     {
+        INFO("PC " << encoded.pc);
         INFO("ENCODE " << prettyPrint(state.format.encode));
         REQUIRE(encoded.error == ao::schema::vm::VMError::Ok);
         REQUIRE(ws.ok());
@@ -49,6 +50,7 @@ inline nlohmann::json roundTrip(ao::schema::json::JsonEncodeState const& state,
     nlohmann::json output{nullptr};
     auto decoded = decodeJson(state, rs, output, messageId);
     {
+        INFO("PC " << decoded.pc);
         INFO("DECODE" << prettyPrint(state.format.decode));
         REQUIRE(decoded.error == ao::schema::vm::VMError::Ok);
         REQUIRE(rs.ok());

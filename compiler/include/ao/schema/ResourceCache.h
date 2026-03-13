@@ -13,8 +13,8 @@ struct IdFor {
     uint64_t idx = std::numeric_limits<uint64_t>::max();
 
     auto operator<=>(IdFor<T> const& other) const = default;
-    operator bool() const { return this->valid(); }
-    uint64_t valid() const {
+    explicit operator bool() const { return this->valid(); }
+    bool valid() const {
         return idx != std::numeric_limits<uint64_t>::max();
     }
 };

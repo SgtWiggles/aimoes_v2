@@ -74,7 +74,7 @@ concept CodecEncode = requires(T codec,
     codec.present(b);
 
     // Arrays
-    codec.arrayBegin();
+    codec.arrayBegin(u32);
     codec.arrayEnd();
     codec.arrayLen(u32, u32);  // width, length
 
@@ -117,7 +117,7 @@ concept CodecDecode = requires(T codec, uint32_t u32) {
     { codec.present() } -> std::same_as<bool>;
 
     // Arrays
-    codec.arrayBegin();
+    codec.arrayBegin(u32);
     codec.arrayEnd();
     { codec.arrayLen(u32) } -> std::same_as<uint32_t>;
 

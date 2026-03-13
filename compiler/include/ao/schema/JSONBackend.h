@@ -22,8 +22,12 @@ struct JsonField {
 struct JsonOneOf {
     std::vector<uint32_t> fieldNumbers;
 };
+struct JsonType {
+    bool isString;
+};
 
 struct JsonTable {
+    std::vector<JsonType> types;
     std::vector<JsonField> fields;
     std::vector<std::string> strings;
     std::vector<JsonOneOf> oneofs;
@@ -49,6 +53,8 @@ class JsonEncodeAdapter {
     void optEnterValue();
     void optExitValue();
 
+    void arrayEnter(uint32_t typeId) {}
+    void arrayExit() {}
     uint32_t arrayLen();
     void arrayEnterElem(uint32_t i);
     void arrayExitElem();
@@ -82,7 +88,10 @@ class JsonEncodeAdapter {
             fail(ao::pack::Error::BadData);
             return nullptr;
         }
-        return m_stack.back();
+        auto ptr = std::get_if<nlohmann::json const*>(&m_stack.back());
+        if (ptr)
+            return *ptr;
+        return std::get_if<nlohmann::json>(&m_stack.back());
     }
     void popStack() {
         if (!ok())
@@ -100,7 +109,7 @@ class JsonEncodeAdapter {
     JsonTable const& m_table;
     nlohmann::json const& m_root;
     nlohmann::json m_null = nlohmann::json{nullptr};
-    std::vector<nlohmann::json const*> m_stack;
+    std::vector<std::variant<nlohmann::json const*, nlohmann::json>> m_stack;
     ao::pack::Error m_err = ao::pack::Error::Ok;
 };
 
@@ -135,8 +144,8 @@ class JsonDecodeAdapter {
     // Array:
     // For decode, codec provides length; object adapter must resize/prepare
     // container.
-    void arrayBegin() {}
-    void arrayEnd() {}
+    void arrayEnter(uint32_t typeId);
+    void arrayExit();
     void arrayPrepare(uint32_t len);
     void arrayEnterElem(uint32_t i);
     void arrayExitElem();
@@ -195,6 +204,9 @@ class JsonDecodeAdapter {
     nlohmann::json m_root = {};
     std::vector<nlohmann::json*> m_stack = {};
 
+    bool m_inString = false;
+    std::string m_stringBuffer = {};
+
     ao::pack::Error m_err = {};
 };
 
@@ -208,60 +220,60 @@ struct JsonEncodeState {
 
 JsonEncodeState generateJsonEncodeState(ir::IR const& ir, ErrorContext& errs);
 
-inline auto encodeJson(JsonEncodeState const& state,
-                       nlohmann::json const& json,
-                       pack::bit::WriteStream& stream,
-                       uint64_t messageId) {
+inline vm::VM encodeJson(JsonEncodeState const& state,
+                         nlohmann::json const& json,
+                         pack::bit::WriteStream& stream,
+                         uint64_t messageId) {
     JsonEncodeAdapter object{state.json, json};
-    codec::net::NetEncodeCodec<pack::bit::WriteStream> codec{
+    codec::net::NetEncode codec{
         state.codec,
         stream,
     };
-    auto machine = vm::VM{&state.format.encode, object, codec};
-    vm::encode(machine, messageId);
+    auto machine = vm::VM{&state.format.encode};
+    vm::encode(machine, object, codec, messageId);
     return machine;
 }
-inline auto decodeJson(JsonEncodeState const& state,
-                       pack::bit::ReadStream& stream,
-                       nlohmann::json& json,
-                       uint64_t messageId) {
+inline vm::VM decodeJson(JsonEncodeState const& state,
+                         pack::bit::ReadStream& stream,
+                         nlohmann::json& json,
+                         uint64_t messageId) {
     JsonDecodeAdapter object{state.json};
-    codec::net::NetDecodeCodec<pack::bit::ReadStream> codec{
+    codec::net::NetDecode codec{
         state.codec,
         stream,
     };
-    auto machine = vm::VM{&state.format.decode, object, codec};
-    auto success = vm::decode(machine, messageId);
+    auto machine = vm::VM{&state.format.decode};
+    auto success = vm::decode(machine, object, codec, messageId);
     if (success) {
         json = object.root();
     }
     return machine;
 }
 
-inline auto encodeJson(JsonEncodeState const& state,
-                       nlohmann::json const& json,
-                       pack::byte::WriteStream& stream,
-                       uint64_t messageId) {
+inline vm::VM encodeJson(JsonEncodeState const& state,
+                         nlohmann::json const& json,
+                         pack::byte::WriteStream& stream,
+                         uint64_t messageId) {
     JsonEncodeAdapter object{state.json, json};
     codec::disk::DiskEncodeCodec<pack::byte::WriteStream> codec{
         state.codec,
         stream,
     };
-    auto machine = vm::VM{&state.format.encode, object, codec};
-    vm::encode(machine, messageId);
+    auto machine = vm::VM{&state.format.encode};
+    vm::encode(machine, object, codec, messageId);
     return machine;
 }
-inline auto decodeJson(JsonEncodeState const& state,
-                       pack::byte::ReadStream& stream,
-                       nlohmann::json& json,
-                       uint64_t messageId) {
+inline vm::VM decodeJson(JsonEncodeState const& state,
+                         pack::byte::ReadStream& stream,
+                         nlohmann::json& json,
+                         uint64_t messageId) {
     JsonDecodeAdapter object{state.json};
     codec::disk::DiskDecodeCodec<pack::byte::ReadStream> codec{
         state.codec,
         stream,
     };
-    auto machine = vm::VM{&state.format.decode, object, codec};
-    auto success = vm::decode(machine, messageId);
+    auto machine = vm::VM{&state.format.decode};
+    auto success = vm::decode(machine, object, codec, messageId);
     if (success) {
         json = object.root();
     }

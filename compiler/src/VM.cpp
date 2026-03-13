@@ -23,6 +23,7 @@ struct VMGenerateContext {
 // into
 void generateTypeProgram(VMGenerateContext& ctx,
                          ir::Type const& type,
+                         uint32_t typeId,
                          Assembler& assembler,
                          ao::schema::ir::IR const& irCode,
                          bool const encodeMode) {
@@ -114,7 +115,7 @@ void generateTypeProgram(VMGenerateContext& ctx,
                 if (arr.maxSize)
                     lenbits =
                         std::max(std::bit_width((uint64_t)*arr.maxSize), 1);
-                assembler.emit({Op::ARRAY_BEGIN, 0, 0}, {});
+                assembler.arrayBegin(typeId, {});
                 assembler.emit(
                     {encodeMode ? Op::O_READ_ARRAY_LEN : Op::C_READ_ARRAY_LEN,
                      0, lenbits},
@@ -238,10 +239,10 @@ void generateTypeProgram(VMGenerateContext& ctx,
 void generateVMTypeCodes(VMGenerateContext& ctx,
                          ao::schema::ir::IR const& irCode,
                          bool const encodeMode) {
-    for (size_t i = 0; i < irCode.types.size(); ++i) {
+    for (uint32_t i = 0; i < irCode.types.size(); ++i) {
         auto const& type = irCode.types[i];
         auto& assembler = ctx.typePrograms.emplace_back();
-        generateTypeProgram(ctx, type, assembler, irCode, encodeMode);
+        generateTypeProgram(ctx, type, i, assembler, irCode, encodeMode);
     }
 }
 

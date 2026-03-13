@@ -59,6 +59,9 @@ struct Assembler {
     void emitMsgBegin(IdFor<ir::Message> msg, std::optional<uint64_t> label) {
         emitExt32(Op::MSG_BEGIN, ExtKind::MSG_BEGIN32, msg.idx, label);
     }
+    void arrayBegin(uint64_t typeId, std::optional<uint64_t> label) {
+         emitExt32(Op::ARRAY_BEGIN, ExtKind::ARRAY_BEGIN32, typeId, label);
+    }
 
     void emitExt32(Op baseOp,
                    ExtKind ext,

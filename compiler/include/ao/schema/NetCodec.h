@@ -47,7 +47,7 @@ struct NetEncodeCodec {
     }
 
     // Arrays: if net needs length prefix, write it here; otherwise no-op.
-    void arrayBegin() {}
+    void arrayBegin(uint32_t /* typeId */) {}
     void arrayEnd() {}
     void arrayLen(uint32_t width, uint32_t len) {
         if (width == 0) {
@@ -81,6 +81,7 @@ struct NetEncodeCodec {
     ao::pack::Error error() const { return out.error(); }
 };
 static_assert(CodecEncode<NetEncodeCodec<ao::pack::bit::WriteStream>>);
+using NetEncode = NetEncodeCodec<ao::pack::bit::WriteStream>;
 
 template <class InStream>
 struct NetDecodeCodec {
@@ -146,7 +147,7 @@ struct NetDecodeCodec {
         return (b & 1u) != 0;
     }
 
-    void arrayBegin() {}
+    void arrayBegin(uint32_t typeId) {}
     void arrayEnd() {}
     uint32_t arrayLen(uint32_t width) {
         uint64_t u = 0;
@@ -172,6 +173,7 @@ struct NetDecodeCodec {
     bool ok() const { return in.ok(); }
     ao::pack::Error error() const { return in.error(); }
 };
+using NetDecode = NetDecodeCodec<ao::pack::bit::ReadStream>;
 static_assert(CodecDecode<NetDecodeCodec<ao::pack::bit::ReadStream>>);
 
 }  // namespace ao::schema::codec::net

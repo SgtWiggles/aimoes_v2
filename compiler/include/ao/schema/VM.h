@@ -19,11 +19,11 @@ enum class ExtKind : uint8_t {
     // Jumps relative to EXT32 instruction
     JMP32,          // imm32: rel32
     JZ32,           // imm32: rel32
-    CALL32,         // imm32: rel32
+    DISPATCH32,     // imm32: branch count
     MSG_BEGIN32,    // imm32: msgId
     FIELD_BEGIN32,  // imm32: fieldId
     CALL_TYPE32,    // imm32: typeEntryId
-    DISPATCH32,     // imm32: dispatch
+    ARRAY_BEGIN32,  // imm32: maxSize
 };
 
 enum class JumpTableKind : uint8_t {
@@ -291,13 +291,8 @@ struct OneofFrame {
     uint32_t oneofId = 0;
 };
 
-template <class ObjectAdapter, class CodecAdapter>
 struct VM {
-    static constexpr bool IsBitCodec =
-        std::is_same_v<typename CodecAdapter::ChunkSize, codec::CodecBits>;
     Program const* prog = nullptr;
-    ObjectAdapter object;
-    CodecAdapter codec;
 
     uint32_t pc = 0;
     uint8_t flag = 0;
@@ -335,7 +330,7 @@ void reset(VM& vm) {
     vm.error = VMError::Ok;
 }
 
-template <class VM, class Object>
+template <class Object>
 bool writeScalar(Instr instr, VM& vm, Object& o) {
     switch (instr.mode) {
         case ScalarKind::BOOL:
@@ -363,7 +358,7 @@ bool writeScalar(Instr instr, VM& vm, Object& o) {
     }
     return true;
 }
-template <class VM, class Object>
+template <class Object>
 bool readScalar(Instr instr, VM& vm, Object& o) {
     switch (instr.mode) {
         case ScalarKind::BOOL:
@@ -390,8 +385,8 @@ bool readScalar(Instr instr, VM& vm, Object& o) {
     return true;
 }
 
-template <bool EncodeMode, class VM>
-bool runInstr(VM& vm) {
+template <bool EncodeMode, class Object, class Codec>
+bool runInstr(VM& vm, Object& object, Codec& codec) {
     if (vm.pc >= vm.prog->codeWords.size()) {
         vm.error = VMError::RuntimeError;
         return false;
@@ -450,74 +445,76 @@ bool runInstr(VM& vm) {
             nextPc = vm.pc + vm.prog->codeWords[pc];
         } break;
         case Op::MSG_BEGIN: {
-            vm.object.msgBegin(instr.imm);
-            vm.codec.msgBegin(instr.imm);
+            object.msgBegin(instr.imm);
+            codec.msgBegin(instr.imm);
         } break;
         case Op::MSG_END:
-            vm.object.msgEnd();
-            vm.codec.msgEnd();
+            object.msgEnd();
+            codec.msgEnd();
             break;
         case Op::FIELD_BEGIN:
-            vm.object.fieldBegin(instr.imm);
-            vm.codec.fieldBegin(instr.imm);
+            object.fieldBegin(instr.imm);
+            codec.fieldBegin(instr.imm);
             break;
         case Op::FIELD_END:
-            vm.object.fieldEnd();
-            vm.codec.fieldEnd();
+            object.fieldEnd();
+            codec.fieldEnd();
             break;
         case Op::OPT_BEGIN: {
             // Maybe this is a no op?
-            vm.object.optEnter();
-            vm.codec.optBegin();
+            object.optEnter();
+            codec.optBegin();
             vm.optionalStack.emplace_back(OptionalFrame{});
         } break;
         case Op::OPT_END: {
             // Maybe this is a no op?
-            vm.object.optExit();
-            vm.codec.optEnd();
+            object.optExit();
+            codec.optEnd();
             vm.optionalStack.pop_back();
         } break;
         case Op::OPT_BEGIN_VALUE: {
-            vm.object.optEnterValue();
+            object.optEnterValue();
         } break;
         case Op::OPT_END_VALUE: {
-            vm.object.optExitValue();
+            object.optExitValue();
         } break;
         case Op::ONEOF_BEGIN: {
             // These might also be a nullopt
             vm.oneofStack.emplace_back(OneofFrame{(uint32_t)instr.imm});
-            vm.object.oneofEnter(vm.oneofStack.back().oneofId);
-            vm.codec.oneofEnter(vm.oneofStack.back().oneofId);
+            object.oneofEnter(vm.oneofStack.back().oneofId);
+            codec.oneofEnter(vm.oneofStack.back().oneofId);
         } break;
         case Op::ONEOF_END: {
             vm.oneofStack.pop_back();
-            vm.object.oneofExit();
-            vm.codec.oneofExit();
+            object.oneofExit();
+            codec.oneofExit();
         } break;
         case Op::ONEOF_ARM_BEGIN: {
-            vm.object.oneofEnterArm(vm.oneofStack.back().oneofId,
-                                    (uint32_t)instr.imm);
+            object.oneofEnterArm(vm.oneofStack.back().oneofId,
+                                 (uint32_t)instr.imm);
         } break;
         case Op::ONEOF_ARM_END: {
-            vm.object.oneofExitArm();
+            object.oneofExitArm();
         } break;
         case Op::ARRAY_BEGIN: {
             vm.arrayStack.emplace_back(ArrayFrame{
                 .len = 0,
                 .idx = uint32_t(-1),
             });
-            vm.codec.arrayBegin();
+            object.arrayEnter(instr.imm);
+            codec.arrayBegin(instr.imm);
         } break;
         case Op::ARRAY_END: {
             vm.arrayStack.pop_back();
-            vm.codec.arrayEnd();
+            object.arrayExit();
+            codec.arrayEnd();
         } break;
         case Op::ARRAY_ELEM_BEGIN: {
             auto cidx = vm.arrayStack.back().idx;
-            vm.object.arrayEnterElem(cidx);
+            object.arrayEnterElem(cidx);
         } break;
         case Op::ARRAY_ELEM_END: {
-            vm.object.arrayExitElem();
+            object.arrayExitElem();
         } break;
         case Op::ARRAY_NEXT: {
             vm.arrayStack.back().idx += 1;
@@ -533,7 +530,7 @@ bool runInstr(VM& vm) {
             break;
         case Op::C_WRITE_SCALAR: {
             if constexpr (EncodeMode) {
-                if (!writeScalar(instr, vm, vm.codec))
+                if (!writeScalar(instr, vm, codec))
                     return false;
             } else {
                 vm.error = VMError::InvalidInstr;
@@ -542,7 +539,7 @@ bool runInstr(VM& vm) {
         } break;
         case Op::C_READ_SCALAR: {
             if constexpr (!EncodeMode) {
-                if (!readScalar(instr, vm, vm.codec))
+                if (!readScalar(instr, vm, codec))
                     return false;
             } else {
                 vm.error = VMError::InvalidInstr;
@@ -551,7 +548,7 @@ bool runInstr(VM& vm) {
         } break;
         case Op::C_WRITE_OPT_PRESENT: {
             if constexpr (EncodeMode) {
-                vm.codec.present(vm.flag == 1);
+                codec.present(vm.flag == 1);
             } else {
                 vm.error = VMError::InvalidInstr;
                 return false;
@@ -559,7 +556,7 @@ bool runInstr(VM& vm) {
         } break;
         case Op::C_READ_OPT_PRESENT: {
             if constexpr (!EncodeMode) {
-                vm.flag = vm.codec.present();
+                vm.flag = codec.present();
             } else {
                 vm.error = VMError::InvalidInstr;
                 return false;
@@ -567,55 +564,55 @@ bool runInstr(VM& vm) {
         } break;
         case Op::C_WRITE_ONEOF_ARM:
             if constexpr (EncodeMode) {
-                vm.codec.oneofArm(vm.oneofStack.back().oneofId, vm.reg);
+                codec.oneofArm(vm.oneofStack.back().oneofId, vm.reg);
             }
             break;
         case Op::C_READ_ONEOF_ARM:
             if constexpr (!EncodeMode) {
-                vm.reg = vm.codec.oneofArm(vm.oneofStack.back().oneofId);
+                vm.reg = codec.oneofArm(vm.oneofStack.back().oneofId);
             }
             break;
         case Op::C_WRITE_ARRAY_LEN:
             if constexpr (EncodeMode) {
-                vm.codec.arrayLen(instr.imm, vm.arrayStack.back().len);
+                codec.arrayLen(instr.imm, vm.arrayStack.back().len);
             }
             break;
         case Op::C_READ_ARRAY_LEN:
             if constexpr (!EncodeMode) {
-                vm.reg = vm.codec.arrayLen(instr.imm);
+                vm.reg = codec.arrayLen(instr.imm);
                 vm.arrayStack.back().len = vm.reg;
             }
             break;
         case Op::C_WRITE_FIELD_ID: {
             if constexpr (EncodeMode) {
-                vm.codec.fieldId(instr.imm);
+                codec.fieldId(instr.imm);
             }
         } break;
         case Op::C_MATCH_FIELD_ID: {
             if constexpr (!EncodeMode) {
-                vm.flag = vm.codec.fieldId(instr.imm);
+                vm.flag = codec.fieldId(instr.imm);
             }
         } break;
         case Op::C_SKIP_FIELD: {
             if constexpr (!EncodeMode) {
-                vm.flag = vm.codec.skipField(instr.imm);
+                vm.flag = codec.skipField(instr.imm);
             }
         } break;
         case Op::O_WRITE_SCALAR: {
             if constexpr (!EncodeMode) {
-                if (!writeScalar(instr, vm, vm.object))
+                if (!writeScalar(instr, vm, object))
                     return false;
             }
         } break;
         case Op::O_READ_SCALAR: {
             if constexpr (EncodeMode) {
-                if (!readScalar(instr, vm, vm.object))
+                if (!readScalar(instr, vm, object))
                     return false;
             }
         } break;
         case Op::O_WRITE_OPT_PRESENT: {
             if constexpr (!EncodeMode) {
-                vm.object.optSetPresent(vm.flag == 1);
+                object.optSetPresent(vm.flag == 1);
             } else {
                 vm.error = VMError::InvalidInstr;
                 return false;
@@ -623,23 +620,23 @@ bool runInstr(VM& vm) {
         } break;
         case Op::O_READ_OPT_PRESENT: {
             if constexpr (EncodeMode) {
-                vm.flag = vm.object.optPresent();
+                vm.flag = object.optPresent();
             }
         } break;
         case Op::O_WRITE_ONEOF_ARM: {
             if constexpr (!EncodeMode) {
-                vm.object.oneofIndex(vm.oneofStack.back().oneofId, vm.reg);
+                object.oneofIndex(vm.oneofStack.back().oneofId, vm.reg);
             }
         } break;
         case Op::O_READ_ONEOF_ARM: {
             if constexpr (EncodeMode) {
-                vm.reg = vm.object.oneofIndex(vm.oneofStack.back().oneofId,
-                                              instr.imm);
+                vm.reg =
+                    object.oneofIndex(vm.oneofStack.back().oneofId, instr.imm);
             }
         } break;
         case Op::O_WRITE_ARRAY_LEN: {
             if constexpr (!EncodeMode) {
-                vm.object.arrayPrepare(static_cast<uint32_t>(vm.reg));
+                object.arrayPrepare(static_cast<uint32_t>(vm.reg));
                 vm.arrayStack.back().len = static_cast<uint32_t>(vm.reg);
             } else {
                 vm.error = VMError::InvalidInstr;
@@ -648,7 +645,7 @@ bool runInstr(VM& vm) {
         } break;
         case Op::O_READ_ARRAY_LEN: {
             if constexpr (EncodeMode) {
-                vm.reg = vm.object.arrayLen();
+                vm.reg = object.arrayLen();
                 vm.arrayStack.back().len = vm.reg;
             }
         } break;
@@ -657,11 +654,11 @@ bool runInstr(VM& vm) {
             return false;
     }
 
-    if (!vm.object.ok()) {
+    if (!object.ok()) {
         vm.error = VMError::ObjectError;
         return false;
     }
-    if (!vm.codec.ok()) {
+    if (!codec.ok()) {
         vm.error = VMError::CodecError;
         return false;
     }
@@ -670,8 +667,8 @@ bool runInstr(VM& vm) {
     return true;
 }
 
-template <bool EncodeMode, class VM>
-bool runVM(VM& vm, uint64_t typeId) {
+template <bool EncodeMode, class Object, class Codec>
+bool runVM(VM& vm, Object& object, Codec& codec, uint64_t typeId) {
     size_t stepCount = 0;
     reset(vm);
 
@@ -681,7 +678,7 @@ bool runVM(VM& vm, uint64_t typeId) {
     }
 
     vm.reg = typeId;
-    while (runInstr<EncodeMode>(vm)) {
+    while (runInstr<EncodeMode>(vm, object, codec)) {
     }
 
     // Exit successfully if there are no errors
@@ -690,12 +687,18 @@ bool runVM(VM& vm, uint64_t typeId) {
 }  // namespace detail
 
 template <class ObjectAdapter, class CodecAdapter>
-bool encode(VM<ObjectAdapter, CodecAdapter>& vm, uint64_t typeId) {
-    return detail::runVM<true>(vm, typeId);
+bool encode(VM& vm,
+            ObjectAdapter& object,
+            CodecAdapter& codec,
+            uint64_t typeId) {
+    return detail::runVM<true>(vm, object, codec, typeId);
 }
 template <class ObjectAdapter, class CodecAdapter>
-bool decode(VM<ObjectAdapter, CodecAdapter>& vm, uint64_t typeId) {
-    return detail::runVM<false>(vm, typeId);
+bool decode(VM& vm,
+            ObjectAdapter& object,
+            CodecAdapter& codec,
+            uint64_t typeId) {
+    return detail::runVM<false>(vm, object, codec, typeId);
 }
 
 }  // namespace ao::schema::vm
