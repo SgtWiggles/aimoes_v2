@@ -185,6 +185,17 @@ TEST_CASE("generateIR retains types, messages, fields and directives", "[ir]") {
         }
         return false;
     };
+    auto isArrayOfChar = [&](IdFor<Type> typeId) -> bool {
+        auto const& t = ir.types[typeId.idx];
+        if (auto p = std::get_if<Array>(&t.payload)) {
+            auto inner = ir.types[p->type.idx];
+            if (auto innerScalar = std::get_if<Scalar>(&inner.payload)) {
+                return innerScalar->kind == Scalar::CHAR &&
+                       innerScalar->width == 8;
+            }
+        }
+        return false;
+    };
     auto isOptionalOfInt = [&](IdFor<Type> typeId) -> bool {
         auto const& t = ir.types[typeId.idx];
         if (auto p = std::get_if<Optional>(&t.payload)) {
@@ -204,7 +215,7 @@ TEST_CASE("generateIR retains types, messages, fields and directives", "[ir]") {
     CHECK(isScalarKind(f_ir_f->type, Scalar::INT));
 
     // g -> string -> represented as array<uint8_t>
-    CHECK(isArrayOfUint8(f_ir_g->type));
+    CHECK(isArrayOfChar(f_ir_g->type));
 
     // h -> array<int> -> Array whose inner is Scalar INT
     {
@@ -229,7 +240,7 @@ TEST_CASE("generateIR retains types, messages, fields and directives", "[ir]") {
         auto arm0 = ir.fields[oneof.arms[0].idx];
         auto arm1 = ir.fields[oneof.arms[1].idx];
         CHECK(isScalarKind(arm0.type, Scalar::INT));
-        CHECK(isArrayOfUint8(arm1.type));
+        CHECK(isArrayOfChar(arm1.type));
     }
 
     // Now verify USER type mapping: B.refA should be a Type that points to
@@ -379,7 +390,7 @@ message 43 B {
         auto inner = ir.types[parr->type.idx];
         auto innerScalar = std::get_if<Scalar>(&inner.payload);
         REQUIRE(innerScalar != nullptr);
-        CHECK(innerScalar->kind == Scalar::UINT);
+        CHECK(innerScalar->kind == Scalar::CHAR);
         CHECK(innerScalar->width == 8);
     }
 
@@ -506,7 +517,7 @@ message 101 Outer  {
         REQUIRE(parr != nullptr);
         auto inner = std::get_if<Scalar>(&ir.types[parr->type.idx].payload);
         REQUIRE(inner != nullptr);
-        CHECK(inner->kind == Scalar::UINT);
+        CHECK(inner->kind == Scalar::CHAR);
         CHECK(inner->width == 8);
     }
 

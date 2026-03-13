@@ -131,6 +131,10 @@ struct Scalar {
         UINT,  // unsigned
         F32,
         F64,
+
+        // Special types for bytes/strings
+        CHAR,
+        BYTE,
     };
     // TODO maybe change this to a variant? nothing directly consumes it other
     // than the compiler itself

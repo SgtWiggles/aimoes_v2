@@ -341,6 +341,8 @@ bool writeScalar(Instr instr, VM& vm, Object& o) {
         case ScalarKind::BOOL:
             o.boolean(vm.reg != 0);
             break;
+        case ScalarKind::CHAR:
+        case ScalarKind::BYTE:
         case ScalarKind::UINT:
             o.u64(instr.imm, vm.reg);
             break;
@@ -354,6 +356,7 @@ bool writeScalar(Instr instr, VM& vm, Object& o) {
         case ScalarKind::F64:
             o.f64(std::bit_cast<double>(vm.reg));
             break;
+            break;
         default:
             vm.error = VMError::InvalidInstr;
             return false;
@@ -366,6 +369,8 @@ bool readScalar(Instr instr, VM& vm, Object& o) {
         case ScalarKind::BOOL:
             vm.reg = o.boolean();
             break;
+        case ScalarKind::CHAR:
+        case ScalarKind::BYTE:
         case ScalarKind::UINT:
             vm.reg = o.u64(instr.imm);
             break;

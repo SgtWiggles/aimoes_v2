@@ -65,6 +65,18 @@ void generateTypeProgram(VMGenerateContext& ctx,
                         break;
                     case ir::Scalar::UINT:
                         break;
+                    case ir::Scalar::CHAR:
+                    case ir::Scalar::BYTE:
+                        ctx.errs.require(scalar.width == 8,
+                                         {
+                                             .code = ErrorCode::INTERNAL,
+                                             .message = std::format(
+                                                 "Expected CHAR/BYTE to have "
+                                                 "width 8 but got {}",
+                                                 scalar.width),
+                                             .loc = {},
+                                         });
+                        break;
                     case ir::Scalar::F32:
                         ctx.errs.require(
                             scalar.width == 32,

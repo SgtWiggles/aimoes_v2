@@ -92,7 +92,7 @@ IdFor<Type> generateIR(IRContext& ctx, AstType const& type) {
                     currentType = Type{
                         Array{
                             .type = ctx.types.getId(Type{Scalar{
-                                .kind = Scalar::UINT,
+                                .kind = Scalar::CHAR,
                                 .width = 8,
                             }}),
                         },
@@ -106,7 +106,7 @@ IdFor<Type> generateIR(IRContext& ctx, AstType const& type) {
                     currentType = Type{
                         Array{
                             .type = ctx.types.getId(Type{Scalar{
-                                .kind = Scalar::UINT,
+                                .kind = Scalar::BYTE,
                                 .width = 8,
                             }}),
                         },
