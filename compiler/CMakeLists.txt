@@ -65,5 +65,6 @@ add_executable(CompilerTests
  "tests/JSONCodecTests.cpp"
  "tests/CodecHelpers.h"
  "tests/DiskCodecTests.cpp"
+ "tests/CppBackendTests.cpp"
 )
  target_link_libraries(CompilerTests PRIVATE compiler Catch2::Catch2WithMain)
