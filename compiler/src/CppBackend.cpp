@@ -11,9 +11,9 @@ struct CppCodeGenContext {
     ErrorContext& errs;
 
     std::vector<std::string> generatedTypeNames;
-    std::vector<std::optional<std::string>> generatedTypeDecls;
-    std::vector<std::optional<std::string>> generatedTypeDefs;
-    std::vector<std::optional<std::string>> generatedMessages;
+    std::vector<std::string> generatedTypeDecls;
+    std::vector<std::string> generatedTypeDefs;
+    std::vector<std::string> generatedMessages;
 };
 
 uint8_t getCppBitWidth(CppCodeGenContext& ctx, uint64_t width) {
@@ -243,23 +243,17 @@ namespace aosl_detail {
 )";
 
     for (auto const& def : ctx.generatedTypeDecls) {
-        if (!def)
-            continue;
-        out << *def << "\n";
+        out << def << "\n";
     }
 
     for (auto const& def : ctx.generatedTypeDefs) {
-        if (!def)
-            continue;
-        out << *def << "\n";
+        out << def << "\n";
     }
 
     out << "\n}\n";
 
     for (auto const& def : ctx.generatedMessages) {
-        if (!def)
-            continue;
-        out << *def << "\n";
+        out << def << "\n";
     }
 }
 
@@ -274,19 +268,24 @@ bool generateCppCode(ir::IR const& ir, ErrorContext& errs, std::ostream& out) {
     });
     enumerate(ir.types, [&ctx](size_t i, auto const& type) {
         auto typeDef = generateTypeDef(ctx, i, type);
-        ctx.generatedTypeDefs.emplace_back(std::move(typeDef));
+        if (!typeDef)
+            return;
+        ctx.generatedTypeDefs.emplace_back(std::move(*typeDef));
     });
     enumerate(ir.types, [&ctx](size_t i, auto const& type) {
         auto typeDecl = generateTypeDecl(ctx, i, type);
-        ctx.generatedTypeDecls.emplace_back(std::move(typeDecl));
+        if (!typeDecl)
+            return;
+        ctx.generatedTypeDecls.emplace_back(std::move(*typeDecl));
     });
     enumerate(ir.types, [&ctx](size_t i, auto const& type) {
         auto msg = std::get_if<IdFor<ir::Message>>(&type.payload);
         if (!msg)
             return;
-
         auto msgForward = generateNamespaceForwarding(ctx, i, *msg);
-        ctx.generatedMessages.emplace_back(std::move(msgForward));
+        if (!msgForward)
+            return;
+        ctx.generatedMessages.emplace_back(std::move(*msgForward));
     });
 
     generateCppCode(ctx, out);
