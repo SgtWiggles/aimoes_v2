@@ -234,6 +234,14 @@ static std::optional<std::string> generateNamespaceForwarding(
     return ss.str();
 }
 
+static std::optional<std::string> generateTypeAccessors() {
+
+
+
+}
+
+
+
 void generateCppCode(CppCodeGenContext& ctx, std::ostream& out) {
     out << R"(#include <vector>
 #include <variant>
@@ -256,6 +264,8 @@ namespace aosl_detail {
         out << def << "\n";
     }
 }
+
+
 
 bool generateCppCode(ir::IR const& ir, ErrorContext& errs, std::ostream& out) {
     if (!errs.ok())
