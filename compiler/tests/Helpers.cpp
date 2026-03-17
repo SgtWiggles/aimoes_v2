@@ -5,14 +5,7 @@
 using namespace ao::schema;
 
 AstQualifiedName qnameFromString(std::string const& s) {
-    AstQualifiedName q;
-    std::stringstream ss(s);
-    std::string part;
-    while (std::getline(ss, part, '.')) {
-        if (!part.empty())
-            q.name.push_back(part);
-    }
-    return q;
+    return parseQualifiedName(s);
 }
 
 SourceLocation locFor(std::string const& path) {
@@ -209,7 +202,8 @@ std::expected<std::string, std::string> SimpleTestFrontend::resolveModule(
     AstQualifiedName moduleName) {
     if (resolvedModules.find(moduleName.toString()) != resolvedModules.end())
         return moduleName.toString();
-    return std::unexpected<std::string>("could not resolve: " + moduleName.toString());
+    return std::unexpected<std::string>("could not resolve: " +
+                                        moduleName.toString());
 }
 
 std::expected<std::shared_ptr<AstFile>, std::string>
