@@ -29,6 +29,4 @@ message 42 test{
     std::stringstream ss;
     auto success = cpp::generateCppCode(*ir, errs, ss);
     REQUIRE(success);
-
-    std::cout << "\nCPP OUTPUT:\n" << ss.str() << "\n\n";
 }
