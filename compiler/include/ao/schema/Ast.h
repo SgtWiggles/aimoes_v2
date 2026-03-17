@@ -50,8 +50,10 @@ struct AstQualifiedName {
     }
 };
 
+AstQualifiedName parseQualifiedName(std::string_view path);
+
 struct AstImport {
-    std::string path;
+    AstQualifiedName moduleName;
     SourceLocation loc;
 };
 

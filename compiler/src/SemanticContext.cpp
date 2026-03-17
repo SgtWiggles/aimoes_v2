@@ -3,6 +3,7 @@
 
 #include <format>
 #include <queue>
+#include <ranges>
 #include <sstream>
 #include <unordered_set>
 #include <variant>
@@ -45,9 +46,17 @@ struct ModuleLoadContext {
     AstImport import;
 };
 
+
+struct ToResolve {
+    std::string moduleName;
+    std::string filePath;
+    SourceLocation importLocation;
+};
+
 bool SemanticContext::loadFile(std::string rootPath) {
     std::queue<std::tuple<std::string, SourceLocation>> toResolve;
-    auto rootPathResolved = m_frontend->resolvePath("", rootPath);
+    auto moduleName = parseQualifiedName(rootPath);
+    auto rootPathResolved = m_frontend->resolveModule(moduleName);
     if (!rootPathResolved.has_value()) {
         m_errors.errors.push_back({
             ErrorCode::FAILED_TO_RESOLVE_IMPORT,
@@ -105,8 +114,7 @@ bool SemanticContext::loadFile(std::string rootPath) {
             if (!importDecl)
                 continue;
 
-            auto dependency =
-                m_frontend->resolvePath(current, importDecl->path);
+            auto dependency = m_frontend->resolveModule(importDecl->moduleName);
             if (!dependency.has_value()) {
                 m_errors.errors.push_back({
                     ErrorCode::FAILED_TO_RESOLVE_IMPORT,
@@ -149,7 +157,7 @@ bool SemanticContext::loadFile(std::string rootPath) {
             for (auto const& [fromPath, fromImport] : from) {
                 ss << "\n\t";
                 ss << std::format("at {} for file {}", fromImport.loc,
-                                  fromImport.path);
+                                  fromImport.moduleName.toString());
             }
         }
         m_errors.errors.push_back({

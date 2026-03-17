@@ -43,7 +43,7 @@ std::shared_ptr<AstFile> makeFileWithPackageAndDecls(
     for (auto const& imp : imports) {
         AstDecl id;
         AstImport ai;
-        ai.path = imp;
+        ai.moduleName = parseQualifiedName(imp);
         ai.loc = locFor(absolutePath);
         id.decl = ai;
         id.loc = ai.loc;
@@ -176,10 +176,9 @@ class TestTextFrontend : public CompilerFrontend {
             return std::unexpected(parseErrors);
         return ast;
     }
-    std::expected<std::string, std::string> resolvePath(
-        std::string currentFile,
-        std::string path) override {
-        return path;
+    std::expected<std::string, std::string> resolveModule(
+        AstQualifiedName path) override {
+        return path.toString();
     }
 
    private:
@@ -206,12 +205,11 @@ std::optional<ao::schema::ir::IR> buildToIR(std::string_view fileContents,
 
 // SimpleTestFrontend method implementations ----------------------------------
 
-std::expected<std::string, std::string> SimpleTestFrontend::resolvePath(
-    std::string /*currentFile*/,
-    std::string path) {
-    if (resolvedModules.find(path) != resolvedModules.end())
-        return path;
-    return std::unexpected<std::string>("could not resolve: " + path);
+std::expected<std::string, std::string> SimpleTestFrontend::resolveModule(
+    AstQualifiedName moduleName) {
+    if (resolvedModules.find(moduleName.toString()) != resolvedModules.end())
+        return moduleName.toString();
+    return std::unexpected<std::string>("could not resolve: " + moduleName.toString());
 }
 
 std::expected<std::shared_ptr<AstFile>, std::string>

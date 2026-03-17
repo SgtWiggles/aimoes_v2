@@ -70,10 +70,8 @@ class SimpleTestFrontend : public ao::schema::CompilerFrontend {
     std::unordered_map<std::string, std::shared_ptr<ao::schema::AstFile>>
         resolvedModules;
 
-    virtual std::expected<std::string, std::string> resolvePath(
-        std::string /*currentFile*/,
-        std::string path) override;
-
+    virtual std::expected<std::string, std::string> resolveModule(
+        ao::schema::AstQualifiedName moduleName) override;
     virtual std::expected<std::shared_ptr<ao::schema::AstFile>, std::string>
     loadFile(std::string resolvedPath) override;
 };

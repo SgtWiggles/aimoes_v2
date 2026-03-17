@@ -515,13 +515,15 @@ struct MessageDecl {
 
 struct ImportDecl {
     static constexpr auto rule = dsl::position(
-        LEXY_LIT("import") >> dsl::p<StringLiteral> + LEXY_LIT(";"));
+        LEXY_LIT("import") >> dsl::p<QualifiedSymbol> + LEXY_LIT(";"));
     static constexpr auto value = lexy::callback_with_state<AstDecl>(
-        [](ParsingContext const& ctx, auto input, std::string path) {
-            return AstDecl{AstImport{
-                .path = std::move(path),
-                .loc = ctx.getSourceLocation(input),
-            }};
+        [](ParsingContext const& ctx, auto input, std::vector<std::string> path) {
+            return AstDecl{
+                AstImport{
+                    .moduleName = AstQualifiedName{std::move(path)},
+                    .loc = ctx.getSourceLocation(input),
+                },
+            };
         });
 };
 

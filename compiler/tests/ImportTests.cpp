@@ -39,9 +39,9 @@ class ImportTestFrontend : public CompilerFrontend {
 
     std::unordered_map<std::string, std::string> resolveOverrides;
 
-    virtual std::expected<std::string, std::string> resolvePath(
-        std::string /*currentFile*/,
-        std::string path) override {
+    virtual std::expected<std::string, std::string> resolveModule(
+        AstQualifiedName qname) override {
+        auto path = qname.toString();
         if (auto it = resolveOverrides.find(path); it != resolveOverrides.end())
             return it->second;
 
@@ -66,7 +66,7 @@ static std::shared_ptr<AstFile> makeImportFile(
     for (auto const& imp : imports) {
         AstDecl decl;
         AstImport ai;
-        ai.path = imp;
+        ai.moduleName = parseQualifiedName(imp);
         ai.loc = SourceLocation{absolutePath, 1, 1};
         decl.decl = ai;
         decl.loc = ai.loc;

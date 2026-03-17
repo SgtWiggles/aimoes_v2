@@ -30,7 +30,7 @@ TEST_CASE("Parser passing message tests", "[parse]") {
         "message 1234332423 name { 1 _12382904820j0s9dj0e29ujf09j10fj "
         "oneof(bits=10) { 1231242 name int; }; }",
         "message object {}",
-        "import \"hello \\\" world\";message object { 1 hello_world_value "
+        "import package   . name;message object { 1 hello_world_value "
         "int(bits=123)\t\r\n;}",
         "message object { 1 hello_world_value int(bits=123)\t\r\n;}message "
         "object { 1 hello_world_value int(bits=123)\t\r\n;}",
@@ -65,18 +65,18 @@ message name
 
         // --- package + import combos ---
         "package a; message X {}",
-        "package a.b; import \"x\"; message X {}",
-        "import \"a\"; import \"b\"; message X {}",
+        "package a.b; import x; message X {}",
+        "import a; import b; message X {}",
 
-        // --- import string escape coverage ---
-        "import \"hello \\\" world\"; message X {}",
-        "import \"line1\\nline2\\tend\"; message X {}",
-        "import \"slashes \\\\ and quote \\\"\"; message X {}",
+        // --- import ---
+        "import hello.world; message X {}",
+        "import aosidjasoidjsdofijsdofij; message X {}",
+        "import qweqoijw.qwe.q.eqw.eq.wewq.ewq.e.qwe.wq.e; message X {}",
 
         // --- multiple messages in one input ---
         "message A {} message B {}",
         "package a.b.c; message A {} message B {}",
-        "import \"x\"; message A {} import \"y\"; message B {}",
+        "import x; message A {} import y; message B {}",
 
         // --- simple fields (type + ';') ---
         "message A { 1 f int; }",
@@ -174,8 +174,8 @@ TEST_CASE("Parser failing message tests", "[parse]") {
         "package a..b.c; message 1 A {}",  // empty package segment
         "package a.b.; message 1 A {}",    // trailing dot
 
-        "import \"x\" message 1 A {}",            // missing ';' after import
-        "import \"unterminated; message 1 A {}",  // unterminated string literal
+        "import x message 1 A {}",            // missing ';' after import
+        "import unterminated.; message 1 A {}",  // unterminated string literal
 
         // --- generics structure (not type resolution) ---
         "message 1 A { 1 f array<>; }",             // empty generic args
@@ -211,12 +211,8 @@ TEST_CASE("Parser failing message tests", "[parse]") {
         "x"
 
         // missing semicolon for import/package
-        "import \"x\""
+        "import x"
         "package a.b.c"
-
-        // import requires a StringLiteral
-        "import x;"
-        "import 123;"
 
         // package requires QualifiedSymbol (no leading/trailing dot, no empty
         // segment)

@@ -13,6 +13,9 @@
 #include "ao/schema/ResourceCache.h"
 #include "ao/schema/SemanticContext.h"
 
+// We need to maybe make this incremental?
+// That means the IR generate context needs to be there
+// Given a base IR, add new types from an AST
 namespace ao::schema::ir {
 struct Type;
 
@@ -179,6 +182,7 @@ inline size_t hash_value(Type const& type) {
     return boost::hash_value(type.payload);
 }
 
+// TODO serialize this
 struct IR {
     std::vector<std::string> strings;
     std::vector<DirectiveProperty> directiveProperties;
