@@ -16,6 +16,7 @@ struct IRContext {
     ResourceCache<DirectiveSet> directiveSets = {};
     ResourceCache<OneOf> oneOfs = {};
     ResourceCache<Field> fields = {};
+    ResourceCache<Module> modules = {};
 
     // Keyed by symbol ID
     KeyedResourceCache<uint64_t, Message> messages = {};
@@ -317,6 +318,9 @@ IdFor<Message> generateIR(IRContext& ctx,
 
 void generateIR(IRContext& ctx,
                 ao::schema::SemanticContext::Module const& module) {
+    Module irModule{};
+    irModule.moduleName = ctx.strings.getId(module.packageName.toString());
+
     for (auto const& [symbolId, message] : module.messagesBySymbolId) {
         ctx.errors.require(message != nullptr,
                            {
@@ -326,8 +330,12 @@ void generateIR(IRContext& ctx,
                            });
         if (!message)
             continue;
-        generateIR(ctx, *message, module.symbolInfoBySymbolId.at(symbolId));
+        auto msgId = generateIR(ctx, *message, module.symbolInfoBySymbolId.at(symbolId));
+        irModule.messages.emplace_back(msgId);
     }
+
+    // Add exports to module
+    ctx.modules.getId(irModule);
 }
 
 IR generateIR(
@@ -348,6 +356,7 @@ IR generateIR(
         .fields = ctx.fields.values(),
         .messages = ctx.messages.values(),
         .types = ctx.types.values(),
+        .modules = ctx.modules.values(),
     };
 }
 }  // namespace ao::schema::ir

@@ -182,6 +182,18 @@ inline size_t hash_value(Type const& type) {
     return boost::hash_value(type.payload);
 }
 
+struct Module {
+    IdFor<std::string> moduleName;
+    std::vector<IdFor<Message>> messages;
+    auto operator<=>(Module const& other) const = default;
+};
+inline size_t hash_value(Module const& m) {
+    size_t ret = 0;
+    boost::hash_combine(ret, m.moduleName);
+    boost::hash_combine(ret, m.messages);
+    return ret;
+}
+
 // TODO serialize this
 struct IR {
     std::vector<std::string> strings;
@@ -192,6 +204,7 @@ struct IR {
     std::vector<Field> fields;
     std::vector<Message> messages;
     std::vector<Type> types;
+    std::vector<Module> modules;
 };
 
 IR generateIR(
