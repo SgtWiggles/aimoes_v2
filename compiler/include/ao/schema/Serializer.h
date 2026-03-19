@@ -7,6 +7,7 @@
 #include <ao/utils/Variant.h>
 
 #include <optional>
+#include <string>
 #include <variant>
 #include <vector>
 
@@ -27,10 +28,12 @@ void deserialize(Stream& stream, Value& v) {
 
 template <>
 struct Serializer<bool> {
-    void serialize(ao::pack::byte::WriteStream& stream, bool v) {
+    template <class Stream>
+    void serialize(Stream& stream, bool v) {
         stream.bytes(ao::utils::makeByteSpan(v), 1);
     }
-    void deserialize(ao::pack::byte::ReadStream& stream, bool& v) {
+    template <class Stream>
+    void deserialize(Stream& stream, bool& v) {
         v = false;
         std::byte byte;
         stream.bytes(ao::utils::makeByteSpan(byte), 1);
@@ -40,15 +43,17 @@ struct Serializer<bool> {
     }
 };
 
-#define INTEGRAL_TYPE_SERIALIZER(Type)                                  \
-    template <>                                                         \
-    struct Serializer<Type> {                                           \
-        void serialize(ao::pack::byte::WriteStream& stream, Type v) {   \
-            stream.bytes(ao::utils::makeByteSpan(v), sizeof(Type));     \
-        }                                                               \
-        void deserialize(ao::pack::byte::ReadStream& stream, Type& v) { \
-            stream.bytes(ao::utils::makeByteSpan(v), sizeof(Type));     \
-        }                                                               \
+#define INTEGRAL_TYPE_SERIALIZER(Type)                              \
+    template <>                                                     \
+    struct Serializer<Type> {                                       \
+        template <class Stream>                                     \
+        void serialize(Stream& stream, Type v) {                    \
+            stream.bytes(ao::utils::makeByteSpan(v), sizeof(Type)); \
+        }                                                           \
+        template <class Stream>                                     \
+        void deserialize(Stream& stream, Type& v) {                 \
+            stream.bytes(ao::utils::makeByteSpan(v), sizeof(Type)); \
+        }                                                           \
     };
 
 INTEGRAL_TYPE_SERIALIZER(uint8_t);
@@ -61,19 +66,23 @@ INTEGRAL_TYPE_SERIALIZER(int16_t);
 INTEGRAL_TYPE_SERIALIZER(int32_t);
 INTEGRAL_TYPE_SERIALIZER(int64_t);
 
+INTEGRAL_TYPE_SERIALIZER(float);
+INTEGRAL_TYPE_SERIALIZER(double);
+
 #undef INTEGER_SERIALIZER
 
 template <class T>
 struct Serializer<std::vector<T>> {
-    void serialize(ao::pack::byte::WriteStream& stream,
-                   std::vector<T> const& v) {
+    template <class Stream>
+    void serialize(Stream& stream, std::vector<T> const& v) {
         uint64_t size = v.size();
         stream.bytes(ao::utils::makeByteSpan(size), sizeof(size));
         for (auto const& item : v) {
             Serializer<T>{}.serialize(stream, item);
         }
     }
-    void deserialize(ao::pack::byte::ReadStream& stream, std::vector<T>& v) {
+    template <class Stream>
+    void deserialize(Stream& stream, std::vector<T>& v) {
         uint64_t size = 0;
         stream.bytes(ao::utils::makeByteSpan(size), sizeof(size));
         if (!stream.ok())
@@ -89,8 +98,8 @@ struct Serializer<std::vector<T>> {
 
 template <class... Args>
 struct Serializer<std::variant<Args...>> {
-    void serialize(ao::pack::byte::WriteStream& stream,
-                   std::variant<Args...> const& v) {
+    template <class Stream>
+    void serialize(Stream& stream, std::variant<Args...> const& v) {
         uint64_t index = v.index();
         stream.bytes(ao::utils::makeByteSpan(index), sizeof(index));
         std::visit(
@@ -100,8 +109,8 @@ struct Serializer<std::variant<Args...>> {
             },
             v);
     }
-    void deserialize(ao::pack::byte::ReadStream& stream,
-                     std::variant<Args...>& v) {
+    template <class Stream>
+    void deserialize(Stream& stream, std::variant<Args...>& v) {
         uint64_t index = 0;
         stream.bytes(ao::utils::makeByteSpan(index), sizeof(index));
         if (!stream.ok())
@@ -122,16 +131,17 @@ struct Serializer<std::variant<Args...>> {
 
 template <class T>
 struct Serializer<std::optional<T>> {
-    void serialize(ao::pack::byte::WriteStream& stream,
-                   std::optional<T> const& v) {
+    template <class Stream>
+    void serialize(Stream& stream, std::optional<T> const& v) {
         bool present = v.has_value();
         stream.bytes(ao::utils::makeByteSpan(present), 1);
         if (present) {
             Serializer<T>{}.serialize(stream, *v);
         }
     }
-    void deserialize(ao::pack::byte::ReadStream& stream, std::optional<T>& v) {
-        v.clear();
+    template <class Stream>
+    void deserialize(Stream& stream, std::optional<T>& v) {
+        v.reset();
 
         bool present = false;
         Serializer<bool>{}.deserialize(stream, present);
@@ -149,16 +159,19 @@ struct Serializer<std::optional<T>> {
 
 template <ao::meta::Reflectable T>
 struct Serializer<T> {
-    void serialize(ao::pack::byte::WriteStream& stream, T const& v) {
+    template <class Stream>
+    void serialize(Stream& stream, T const& v) {
         ao::meta::visit(
             [&stream](auto const& value, auto memberInfo) {
                 if (!stream.ok())
                     return;
-                Serializer<T>{}.serialize(stream, value);
+                using S = Serializer<std::decay_t<decltype(value)>>;
+                S{}.serialize(stream, value);
             },
             v);
     }
-    void deserialize(ao::pack::byte::ReadStream& stream, T& v) {
+    template <class Stream>
+    void deserialize(Stream& stream, T& v) {
         // Default construct/wipe the value
         v = {};
 
@@ -166,18 +179,40 @@ struct Serializer<T> {
             [&stream](auto& value, auto memberInfo) {
                 if (!stream.ok())
                     return;
-                Serializer<T>{}.deserialize(stream, value);
+                using S = Serializer<std::decay_t<decltype(value)>>;
+                S{}.deserialize(stream, value);
             },
             v);
     }
 };
 
-template <class EnumType, size_t MaxEnumValue, class Wire = size_t>
+template <>
+struct Serializer<std::string> {
+    template <class Stream>
+    void serialize(Stream& stream, std::string const& v) {
+        uint64_t size = v.size();
+        stream.bytes(ao::utils::makeByteSpan(size), sizeof(size));
+        stream.bytes(ao::utils::makeByteSpan(v), v.size());
+    }
+    template <class Stream>
+    void deserialize(Stream& stream, std::string& v) {
+        uint64_t size = 0;
+        stream.bytes(ao::utils::makeByteSpan(size), sizeof(size));
+        if (!stream.ok())
+            return;
+        v.resize(size);
+        stream.bytes(ao::utils::makeByteSpan(v), size);
+    }
+};
+
+template <class EnumType, size_t MaxEnumValue, class Wire = uint64_t>
 struct EnumSerializer {
-    void serialize(ao::pack::byte::WriteStream& stream, EnumType v) {
+    template <class Stream>
+    void serialize(Stream& stream, EnumType v) {
         Serializer<Wire>{}.serialize(stream, (Wire)v);
     }
-    void deserialize(ao::pack::byte::ReadStream& stream, EnumType& v) {
+    template <class Stream>
+    void deserialize(Stream& stream, EnumType& v) {
         Wire wireValue;
         Serializer<Wire>{}.deserialize(stream, wireValue);
         if (wireValue >= MaxEnumValue) {

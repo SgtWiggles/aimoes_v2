@@ -9,9 +9,10 @@ bool emplaceIndex(size_t index, Variant& variant, std::index_sequence<Idx...>) {
     if (index >= sizeof...(Idx))
         return false;
 
-    using Fn = bool (*)(Variant&);
-    static constexpr Fn fns[] = {+[]() { return variant.emplace<Idx>(); }...};
-    fns[index]();
+    using Fn = void (*)(Variant&);
+    static constexpr Fn fns[] = {
+        +[](Variant& variant) { variant.emplace<Idx>(); }...};
+    fns[index](variant);
     return true;
 }
 

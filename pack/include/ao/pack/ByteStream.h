@@ -35,7 +35,7 @@ class ReadStream {
 
 class SizeWriteStream {
    public:
-    SizeWriteStream& bytes(std::span<std::byte> data, size_t count) {
+    SizeWriteStream& bytes(std::span<std::byte const> data, size_t count) {
         if (!ok())
             return *this;
         if (remainingBytes() < count) {
@@ -71,7 +71,7 @@ class SizeWriteStream {
 class WriteStream {
    public:
     WriteStream(std::span<std::byte> data) : m_data(data) {}
-    WriteStream& bytes(std::span<std::byte> data, size_t count);
+    WriteStream& bytes(std::span<std::byte const> data, size_t count);
     WriteStream& require(bool condition, Error err);
 
     size_t remainingBytes() const { return m_data.size() - m_position; }

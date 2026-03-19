@@ -71,5 +71,6 @@ add_executable(CompilerTests
  "tests/CodecHelpers.h"
  "tests/DiskCodecTests.cpp"
  "tests/CppBackendTests.cpp"
+ "tests/IRSerializeTests.cpp"
 )
  target_link_libraries(CompilerTests PRIVATE compiler Catch2::Catch2WithMain)

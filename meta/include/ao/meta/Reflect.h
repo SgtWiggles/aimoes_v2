@@ -102,10 +102,25 @@ template <class Func, Reflectable T, size_t... Idx>
 constexpr void visit(Func f, T& value, ::std::index_sequence<Idx...>) {
     (visitSingle<Idx>(f, value), ...);
 }
+
+template <size_t Idx, class Func, Reflectable T>
+constexpr void visitSingle(Func f, T const& value) {
+    using Member = MemberInfo_t<T, Idx>;
+    f(value.*Member::template dataOffset<std::decay_t<T>>, Member{});
+}
+template <class Func, Reflectable T, size_t... Idx>
+constexpr void visit(Func f, T const& value, ::std::index_sequence<Idx...>) {
+    (visitSingle<Idx>(f, value), ...);
+}
 }  // namespace detail
 
 template <class Func, Reflectable T>
 constexpr void visit(Func f, T& value) {
+    detail::visit(std::move(f), value,
+                  std::make_index_sequence<MemberCount_v<T>>());
+}
+template <class Func, Reflectable T>
+constexpr void visit(Func f, T const& value) {
     detail::visit(std::move(f), value,
                   std::make_index_sequence<MemberCount_v<T>>());
 }

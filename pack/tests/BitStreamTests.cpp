@@ -101,7 +101,7 @@ TEST_CASE("ReadStream bytes() fails when unaligned",
     rs.bits(oneBit, 1);  // now unaligned
 
     std::array<std::byte, 2> out{};
-    auto outSpan = std::span<std::byte const>(out);
+    auto outSpan = std::span<std::byte>(out.data(), out.size());
     rs.bytes(outSpan, 2);
 
     REQUIRE_FALSE(rs.ok());

@@ -22,15 +22,15 @@ TEST_CASE("ReadStream: Eof when requesting beyond remaining, and error is sticky
     std::array<std::uint8_t, 4> raw{10,11,12,13};
     ReadStream rs(asConstBytes(std::span{raw}));
 
-    std::span<std::byte const> view{};
+    std::array<std::byte, 10> out{};
 
-    rs.bytes(view, 5);
+    rs.bytes(std::span{out.data(), out.size()}, 5);
     REQUIRE_FALSE(rs.ok());
     REQUIRE(rs.error() == Error::Eof);
 
     // Sticky: further ops do nothing / don't overwrite error
     const auto rem = rs.remainingBytes();
-    rs.bytes(view, 1);
+    rs.bytes(std::span{out.data(), out.size()}, 1);
     REQUIRE(rs.error() == Error::Eof);
     REQUIRE(rs.remainingBytes() == rem);
 

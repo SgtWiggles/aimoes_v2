@@ -34,7 +34,7 @@ ReadStream& ReadStream::require(bool condition, Error err) {
     return *this;
 }
 
-WriteStream& WriteStream::bytes(std::span<std::byte> out, size_t count) {
+WriteStream& WriteStream::bytes(std::span<std::byte const> out, size_t count) {
     if (!ok())
         return *this;
     if (remainingBytes() < count)
