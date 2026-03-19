@@ -23,10 +23,10 @@ set(BOOST_ENABLE_CMAKE ON)
 
 FetchContent_Declare(
   Boost
-  GIT_REPOSITORY https://github.com/boostorg/boost.git
-  GIT_TAG boost-1.90.0
-  GIT_SHALLOW ON
+  URL https://github.com/boostorg/boost/releases/download/boost-1.90.0/boost-1.90.0-cmake.tar.xz
+  DOWNLOAD_EXTRACT_TIMESTAMP ON
 )
+
 FetchContent_MakeAvailable(Boost)
 
 FetchContent_Declare(nlohmann_json URL https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz)
