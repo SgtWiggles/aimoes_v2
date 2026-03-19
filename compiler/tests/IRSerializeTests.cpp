@@ -1,6 +1,7 @@
 #include <catch2/catch_all.hpp>
 
 #include <vector>
+#include <limits>
 
 #include "ao/pack/ByteStream.h"
 #include "ao/schema/IR.h"
@@ -230,3 +231,121 @@ TEST_CASE("Serialize/Deserialize Module and IR", "[serialize]") {
         FAIL("expected scalar type in ir.types[0]");
     }
 }
+
+// Additional thorough edge-case tests
+TEST_CASE("DirectiveValue variant extremes and numeric edges", "[serialize][edges]") {
+    DirectiveValue v1; v1.value = false;
+    DirectiveValue v2; v2.value = true;
+    DirectiveValue v3; v3.value = double(0.0);
+    DirectiveValue v4; v4.value = double(-12345.6789);
+    DirectiveValue v5; v5.value = int64_t(std::numeric_limits<int64_t>::min());
+    DirectiveValue v6; v6.value = int64_t(std::numeric_limits<int64_t>::max());
+    DirectiveValue v7; v7.value = uint64_t(std::numeric_limits<uint64_t>::max());
+    DirectiveValue v8; v8.value = IdFor<std::string>{42};
+
+    auto r1 = roundtrip(v1); REQUIRE(std::holds_alternative<bool>(r1.value));
+    auto r2 = roundtrip(v2); REQUIRE(std::holds_alternative<bool>(r2.value));
+    auto r3 = roundtrip(v3); REQUIRE(std::holds_alternative<double>(r3.value));
+    auto r4 = roundtrip(v4); REQUIRE(std::holds_alternative<double>(r4.value));
+    auto r5 = roundtrip(v5); REQUIRE(std::holds_alternative<int64_t>(r5.value));
+    auto r6 = roundtrip(v6); REQUIRE(std::holds_alternative<int64_t>(r6.value));
+    auto r7 = roundtrip(v7); REQUIRE(std::holds_alternative<uint64_t>(r7.value));
+    auto r8 = roundtrip(v8); REQUIRE(std::holds_alternative<IdFor<std::string>>(r8.value));
+
+    REQUIRE(std::get<bool>(r1.value) == false);
+    REQUIRE(std::get<bool>(r2.value) == true);
+    REQUIRE(std::get<double>(r3.value) == Catch::Approx(0.0));
+    REQUIRE(std::get<double>(r4.value) == Catch::Approx(-12345.6789));
+    REQUIRE(std::get<int64_t>(r5.value) == std::numeric_limits<int64_t>::min());
+    REQUIRE(std::get<int64_t>(r6.value) == std::numeric_limits<int64_t>::max());
+    REQUIRE(std::get<uint64_t>(r7.value) == std::numeric_limits<uint64_t>::max());
+    REQUIRE(std::get<IdFor<std::string>>(r8.value).idx == 42);
+}
+
+TEST_CASE("Empty and large containers in IR", "[serialize][containers]") {
+    IR empty;
+    auto e2 = roundtrip(empty);
+    REQUIRE(e2.strings.empty());
+    REQUIRE(e2.directiveProperties.empty());
+
+    IR big;
+    // create many strings
+    for (int i = 0; i < 300; ++i) big.strings.push_back(std::string(i % 10, 'a' + (i % 26)));
+    // create many fields/messages/types/modules
+    for (int i = 0; i < 200; ++i) {
+        Field f; f.name = IdFor<std::string>{(uint64_t)(i % big.strings.size())}; f.fieldNumber = (uint64_t)i; f.type = IdFor<Type>{0}; f.directives = IdFor<DirectiveSet>{0};
+        big.fields.push_back(f);
+        Message m; m.name = IdFor<std::string>{(uint64_t)(i % big.strings.size())}; m.symbolId = (uint64_t)i; big.messages.push_back(m);
+        Type t; t.payload = Scalar{.kind = Scalar::UINT, .width = 8}; big.types.push_back(t);
+        Module mod; mod.moduleName = IdFor<std::string>{(uint64_t)(i % big.strings.size())}; big.modules.push_back(mod);
+    }
+    auto b2 = roundtrip(big);
+    REQUIRE(b2.strings.size() == big.strings.size());
+    REQUIRE(b2.fields.size() == big.fields.size());
+    REQUIRE(b2.messages.size() == big.messages.size());
+    REQUIRE(b2.types.size() == big.types.size());
+}
+
+TEST_CASE("Optionals presence/absence and nested optionals", "[serialize][optionals]") {
+    // Optional fields inside containers should roundtrip correctly
+    Optional o1; o1.type = IdFor<Type>{7};
+    auto oo1 = roundtrip(o1); REQUIRE(oo1.type.idx == 7);
+
+    Message m; m.name = IdFor<std::string>{9}; m.symbolId = 1; m.messageNumber = std::nullopt;
+    auto mm = roundtrip(m);
+    REQUIRE(mm.messageNumber.has_value() == false);
+
+    // Test optional min/max values in Array
+    Array a; a.type = IdFor<Type>{1}; a.minSize = std::optional<uint64_t>(0); a.maxSize = std::optional<uint64_t>(0);
+    auto aa = roundtrip(a);
+    REQUIRE(aa.minSize.has_value()); REQUIRE(aa.maxSize.has_value());
+    REQUIRE(aa.minSize.value() == 0); REQUIRE(aa.maxSize.value() == 0);
+}
+
+TEST_CASE("Type payload variants coverage", "[serialize][type-variants]") {
+    Type ts;
+    ts.payload = Scalar{.kind = Scalar::BOOL, .width = 0};
+    auto r_ts = roundtrip(ts);
+    REQUIRE(std::get_if<Scalar>(&r_ts.payload));
+
+    Type ta; ta.payload = Array{.type = IdFor<Type>{2}, .minSize = std::optional<uint64_t>(1), .maxSize = std::optional<uint64_t>(5)};
+    auto r_ta = roundtrip(ta);
+    REQUIRE(std::get_if<Array>(&r_ta.payload));
+
+    Type to; to.payload = Optional{.type = IdFor<Type>{3}};
+    auto r_to = roundtrip(to);
+    REQUIRE(std::get_if<Optional>(&r_to.payload));
+
+    Type ton; ton.payload = IdFor<OneOf>{0};
+    auto r_ton = roundtrip(ton);
+    REQUIRE(std::get_if<IdFor<OneOf>>(&r_ton.payload));
+
+    Type tm; tm.payload = IdFor<Message>{1};
+    auto r_tm = roundtrip(tm);
+    REQUIRE(std::get_if<IdFor<Message>>(&r_tm.payload));
+}
+
+TEST_CASE("IR with very long strings and special characters", "[serialize][strings]") {
+    IR ir;
+    std::string longStr(10000, 'x');
+    ir.strings.push_back(std::string()); // empty
+    ir.strings.push_back(longStr);
+    ir.strings.push_back(std::string("\n\t\0\xff", 4));
+
+    auto r = roundtrip(ir);
+    REQUIRE(r.strings.size() == 3);
+    REQUIRE(r.strings[0].empty());
+    REQUIRE(r.strings[1] == longStr);
+    REQUIRE(r.strings[2].size() == 4);
+}
+
+TEST_CASE("Fields with extreme numbers and duplicates", "[serialize][numbers]") {
+    Field f1; f1.name = IdFor<std::string>{1}; f1.fieldNumber = std::numeric_limits<uint64_t>::max(); f1.type = IdFor<Type>{0};
+    Field f2; f2.name = IdFor<std::string>{2}; f2.fieldNumber = 0; f2.type = IdFor<Type>{0};
+
+    auto rf1 = roundtrip(f1); auto rf2 = roundtrip(f2);
+    REQUIRE(rf1.fieldNumber == std::numeric_limits<uint64_t>::max());
+    REQUIRE(rf2.fieldNumber == 0);
+}
+
+// End of tests
