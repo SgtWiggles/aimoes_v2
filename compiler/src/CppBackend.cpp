@@ -160,7 +160,7 @@ static std::optional<std::string> generateTypeDef(CppCodeGenContext& ctx,
                 for (auto const& armField : ctx.ir.oneOfs[v.idx].arms) {
                     ss << ", ";
                     auto const& arm = ctx.ir.fields[armField.idx];
-                    ss << "\n    " << ctx.generatedTypeNames[arm.type.idx];
+                    ss << "\n " << ctx.generatedTypeNames[arm.type.idx];
                 }
                 ss << "\n>";
                 return ss.str();
@@ -175,7 +175,7 @@ static std::optional<std::string> generateTypeDef(CppCodeGenContext& ctx,
                     auto const& fieldName = ctx.ir.strings[field.name.idx];
                     auto const& fieldTypeName =
                         ctx.generatedTypeNames[field.type.idx];
-                    ss << std::format("    {} {};\n", fieldTypeName, fieldName);
+                    ss << std::format(" {} {};\n", fieldTypeName, fieldName);
                 }
                 ss << "};";
                 return ss.str();
@@ -258,92 +258,92 @@ std::string replaceMany(
 
 static std::string const optionalStringTemplate = R"(
 static bool encodeOptionalHasValue(
-    ao::schema::cpp::CppEncodeRuntime& runtime,
-    ao::schema::cpp::AnyPtr ptr) {
-    return ptr.as<@TYPE_NAME>().has_value();
+ ao::schema::cpp::CppEncodeRuntime& runtime,
+ ao::schema::cpp::AnyPtr ptr) {
+ return ptr.as<@TYPE_NAME>().has_value();
 }
 static void encodeOptionalEnter(
-    ao::schema::cpp::CppEncodeRuntime& runtime,
-    ao::schema::cpp::AnyPtr ptr) {
+ ao::schema::cpp::CppEncodeRuntime& runtime,
+ ao::schema::cpp::AnyPtr ptr) {
 }
 static void encodeOptionalExit(
-    ao::schema::cpp::CppEncodeRuntime& runtime,
-    ao::schema::cpp::AnyPtr ptr) {
+ ao::schema::cpp::CppEncodeRuntime& runtime,
+ ao::schema::cpp::AnyPtr ptr) {
 }
 static void encodeOptionalEnterValue(
-    ao::schema::cpp::CppEncodeRuntime& runtime,
-    ao::schema::cpp::AnyPtr ptr) {
-    auto& v = ptr.as<@TYPE_NAME>();
-    if (!v.has_value()) {
-        ao::schema::cpp::cppRuntimeFail(runtime, ao::pack::Error::BadData);
-        return;
-    }
-    runtime.encodeStack.emplace_back({
-        .kind = ao::schema::cpp::FrameKind::OptionalValue,
-        .ops = &(CppAccessor<@SUBTYPE_ID>::encode),
-        .data = AnyPtr{(void*)&v.value()},
-    });
+ ao::schema::cpp::CppEncodeRuntime& runtime,
+ ao::schema::cpp::AnyPtr ptr) {
+ auto& v = ptr.as<@TYPE_NAME>();
+ if (!v.has_value()) {
+ ao::schema::cpp::cppRuntimeFail(runtime, ao::pack::Error::BadData);
+ return;
+ }
+ runtime.encodeStack.emplace_back({
+ .kind = ao::schema::cpp::FrameKind::OptionalValue,
+ .ops = &(CppAccessor<@SUBTYPE_ID>::encode),
+ .data = AnyPtr{(void*)&v.value()},
+ });
 }
 static void encodeOptionalExitValue(ao::schema::cpp::CppEncodeRuntime& runtime, ao::schema::cpp::AnyPtr ptr) {
-    runtime.encodeStack.pop_back();
+ runtime.encodeStack.pop_back();
 }
 static auto encode = ao::schema::cpp::EncodeTypeOps{
-    .optionalHasValue = &encodeOptionalHasValue,
-    .optionalEnter = &encodeOptionalEnter,
-    .optionalExit = &encodeOptionalExit,
-    .optionalEnterValue = &encodeOptionalEnterValue,
-    .optionalExitValue = &encodeOptionalExitValue,
+ .optionalHasValue = &encodeOptionalHasValue,
+ .optionalEnter = &encodeOptionalEnter,
+ .optionalExit = &encodeOptionalExit,
+ .optionalEnterValue = &encodeOptionalEnterValue,
+ .optionalExitValue = &encodeOptionalExitValue,
 };
 
 
 static void decodeOptionalEnter(
-    ao::schema::cpp::CppDecodeRuntime& runtime,
-    ao::schema::cpp::MutPtr ptr) {
-    auto& data = ptr.as<@TYPE_NAME>();
-    data.clear();
+ ao::schema::cpp::CppDecodeRuntime& runtime,
+ ao::schema::cpp::MutPtr ptr) {
+ auto& data = ptr.as<@TYPE_NAME>();
+ data.clear();
 }
 static void decodeOptionalExit(
-    ao::schema::cpp::CppDecodeRuntime& runtime,
-    ao::schema::cpp::MutPtr ptr) {
-    // Do nothing
+ ao::schema::cpp::CppDecodeRuntime& runtime,
+ ao::schema::cpp::MutPtr ptr) {
+ // Do nothing
 }
 static void decodeOptionalSetPresent(
-    ao::schema::cpp::CppDecodeRuntime& runtime,
-    ao::schema::cpp::MutPtr ptr,
-    bool present) {
-    auto& data = ptr.as<@TYPE_NAME>();
-    if (present) {
-        data.emplace();
-    } else {
-        data.clear();
-    }
+ ao::schema::cpp::CppDecodeRuntime& runtime,
+ ao::schema::cpp::MutPtr ptr,
+ bool present) {
+ auto& data = ptr.as<@TYPE_NAME>();
+ if (present) {
+ data.emplace();
+ } else {
+ data.clear();
+ }
 }
 
 static void decodeOptionalEnterValue(
-    ao::schema::cpp::CppDecodeRuntime& runtime,
-    ao::schema::cpp::MutPtr ptr) {
-    auto& data = ptr.as<@TYPE_NAME>();
-    if (!data.has_value()) {
-        ao::schema::cpp::cppRuntimeFail(runtime, ao::pack::Error::BadData);
-        return;
-    }
-    runtime.encodeStack.emplace_back({
-        .kind = ao::schema::cpp::FrameKind::OptionalValue,
-        .ops = &(CppAccessor<@SUBTYPE_ID>::decode),
-        .data = MutPtr{(void*)&data.value()},
-    });
+ ao::schema::cpp::CppDecodeRuntime& runtime,
+ ao::schema::cpp::MutPtr ptr) {
+ auto& data = ptr.as<@TYPE_NAME>();
+ if (!data.has_value()) {
+ ao::schema::cpp::cppRuntimeFail(runtime, ao::pack::Error::BadData);
+ return;
+ }
+ runtime.encodeStack.emplace_back({
+ .kind = ao::schema::cpp::FrameKind::OptionalValue,
+ .ops = &(CppAccessor<@SUBTYPE_ID>::decode),
+ .data = MutPtr{(void*)&data.value()},
+ });
 }
 static void decodeOptionalExitValue(
-    ao::schema::cpp::CppDecodeRuntime& runtime,
-    ao::schema::cpp::MutPtr ptr) {
-    runtime.encodeStack.pop_back();
+ ao::schema::cpp::CppDecodeRuntime& runtime,
+ ao::schema::cpp::MutPtr ptr) {
+ runtime.encodeStack.pop_back();
 }
 static auto decode = ao::schema::cpp::DecodeTypeOps{
-    .optionalEnter = &decodeOptionalEnter,
-    .optionalExit = &decodeOptionalExit,
-    .optionalSetPresent = &decodeOptionalSetPresent,
-    .optionalEnterValue = &decodeOptionalEnterValue,
-    .optionalExitValue = &decodeOptionalExitValue,
+ .optionalEnter = &decodeOptionalEnter,
+ .optionalExit = &decodeOptionalExit,
+ .optionalSetPresent = &decodeOptionalSetPresent,
+ .optionalEnterValue = &decodeOptionalEnterValue,
+ .optionalExitValue = &decodeOptionalExitValue,
 };
 
 )";
@@ -375,17 +375,17 @@ static void generateTypeAccessorsOneof(CppCodeGenContext& ctx,
     std::string encodeOneofEnterArm = replaceMany(
         R"(
 static void encodeOneofEnterArm(
-    ao::schema::cpp::CppEncodeRuntime& runtime,
-    ao::schema::cpp::AnyPtr ptr,
+ ao::schema::cpp::CppEncodeRuntime& runtime,
+ ao::schema::cpp::AnyPtr ptr,
 	uint32_t oneofId,
 	uint32_t armId) {
-    auto const& data = ptr.as<@TYPE_NAME>();
-    if (data.index() != armId + 1) {
-        ao::schema::cpp::cppRuntimeFail(runtime, ao::pack::Error::BadData)
-        return;
-    }
+ auto const& data = ptr.as<@TYPE_NAME>();
+ if (data.index() != armId +1) {
+ ao::schema::cpp::cppRuntimeFail(runtime, ao::pack::Error::BadData)
+ return;
+ }
 
-    switch (armId) {
+ switch (armId) {
 )",
         {
             {"@TYPE_NAME", typeName},
@@ -396,7 +396,7 @@ static void encodeOneofEnterArm(
             replaceMany(R"(
 		case @FIELD_ID: {
 			auto encodePtr = &CppAccessor<@SUBTYPE_ID>::encode;
-			auto dataPtr = (void const*)(&std::get<@FIELD_ID + 1>(data));
+			auto dataPtr = (void const*)(&std::get<@FIELD_ID +1>(data));
 			runtime.encodeStack.emplace_back({
 				.kind = ao::schema::cpp::FrameKind::OneofArm,
 				.ops = encodePtr,
@@ -415,17 +415,17 @@ static void encodeOneofEnterArm(
 			ao::schema::cpp::cppRuntimeFail(runtime, ao::pack::Error::BadData)
 			return;
 		} break;
-    }
+ }
 })";
 
     std::string decodeOneofIndex = replaceMany(R"(
 static void decodeOneofIndex(
-    ao::schema::cpp::CppDecodeRuntime& runtime,
-    ao::schema::cpp::MutPtr ptr,
-    uint32_t oneofId,
-    uint32_t armId) {
-    auto& data = ptr.as<@TYPE_NAME>();
-    switch(armId) {
+ ao::schema::cpp::CppDecodeRuntime& runtime,
+ ao::schema::cpp::MutPtr ptr,
+ uint32_t oneofId,
+ uint32_t armId) {
+ auto& data = ptr.as<@TYPE_NAME>();
+ switch(armId) {
 )",
                                                {{"@TYPE_NAME", typeName}});
 
@@ -435,7 +435,7 @@ static void decodeOneofIndex(
             replaceMany(R"(
 		case @FIELD_ID: {
 			auto ops = &CppAccessor<@SUBTYPE_ID>::decode;
-            data.emplace<@FIELD_ID + 1>();
+ data.emplace<@FIELD_ID +1>();
 		} break;
 )",
                         {
@@ -448,17 +448,17 @@ static void decodeOneofIndex(
 			ao::schema::cpp::cppRuntimeFail(runtime, ao::pack::Error::BadData)
 			return;
 		} break;
-    }
+ }
 }
 )";
     std::string decodeOneofEnterArm = replaceMany(R"(
 static void decodeOneofEnterArm(
-    ao::schema::cpp::CppDecodeRuntime& runtime,
+ ao::schema::cpp::CppDecodeRuntime& runtime,
 	ao::schema::cpp::MutPtr ptr,
 	uint32_t oneofId,
 	uint32_t armId) {
-    auto& data = ptr.as<@TYPE_NAME>();
-    switch(armId) {
+ auto& data = ptr.as<@TYPE_NAME>();
+ switch(armId) {
 )",
                                                   {
                                                       {"@TYPE_NAME", typeName},
@@ -470,7 +470,7 @@ static void decodeOneofEnterArm(
             R"(
 		case @FIELD_ID: {
 			auto ops = &CppAccessor<@SUBTYPE_ID>::decode;
-            auto value = std::get_if<@FIELD_ID + 1>(&data);
+ auto value = std::get_if<@FIELD_ID +1>(&data);
 			runtime.encodeStack.emplace_back({
 				.kind = ao::schema::cpp::FrameKind::OneofArm,
 				.ops = ops,
@@ -489,59 +489,59 @@ static void decodeOneofEnterArm(
 			ao::schema::cpp::cppRuntimeFail(runtime, ao::pack::Error::BadData)
 			return;
 		} break;
-    }
+ }
 }
 )";
 
     ss << replaceMany(R"(
 static uint32_t encodeOneofIndex(
-    ao::schema::cpp::CppEncodeRuntime& runtime,
-    ao::schema::cpp::AnyPtr ptr,
-    uint32_t oneofId,
-    uint32_t width) {
-    auto& data = ptr.as<@TYPE_NAME>();
-    auto idx = data.index();
-    if (idx == 0)
-        return std::numeric_limits<uint32_t>::max();
-    return idx - 1;
+ ao::schema::cpp::CppEncodeRuntime& runtime,
+ ao::schema::cpp::AnyPtr ptr,
+ uint32_t oneofId,
+ uint32_t width) {
+ auto& data = ptr.as<@TYPE_NAME>();
+ auto idx = data.index();
+ if (idx ==0)
+ return std::numeric_limits<uint32_t>::max();
+ return idx -1;
 }
 static void encodeOneofEnter(
-    ao::schema::cpp::CppEncodeRuntime& runtime,
-    ao::schema::cpp::AnyPtr ptr,
-    uint32_t oneofId) {
-    // do nothing
+ ao::schema::cpp::CppEncodeRuntime& runtime,
+ ao::schema::cpp::AnyPtr ptr,
+ uint32_t oneofId) {
+ // do nothing
 }
 static void encodeOneofExit(
-    ao::schema::cpp::CppEncodeRuntime& runtime,
-    ao::schema::cpp::AnyPtr ptr) {
-    // do nothing
+ ao::schema::cpp::CppEncodeRuntime& runtime,
+ ao::schema::cpp::AnyPtr ptr) {
+ // do nothing
 }
 
 @ENTER_ENCODE_ARM
 
 static void encodeOneofExitArm(
-    ao::schema::cpp::CppEncodeRuntime& runtime,
-    ao::schema::cpp::AnyPtr ptr) {
-    runtime.encodeStack.pop_back();
+ ao::schema::cpp::CppEncodeRuntime& runtime,
+ ao::schema::cpp::AnyPtr ptr) {
+ runtime.encodeStack.pop_back();
 }
 
 static auto encode = ao::schema::cpp::EncodeTypeOps{
-    .oneofIndex = &encodeOneofIndex,
-    .oneofEnter = &encodeOneofEnter,
-    .oneofExit  = &encodeOneofEnter,
-    .oneofEnterArm = &encodeOneofEnterArm,
-    .oneofExitArm = &encodeOneofExitArm,
+ .oneofIndex = &encodeOneofIndex,
+ .oneofEnter = &encodeOneofEnter,
+ .oneofExit = &encodeOneofEnter,
+ .oneofEnterArm = &encodeOneofEnterArm,
+ .oneofExitArm = &encodeOneofExitArm,
 };
 
 static void decodeOneofEnter(
-    ao::schema::cpp::CppDecodeRuntime& runtime,
-    ao::dschema::cpp::MutPtr ptr,
-    uint32_t oneofId) {
-    
+ ao::schema::cpp::CppDecodeRuntime& runtime,
+ ao::schema::cpp::MutPtr ptr,
+ uint32_t oneofId) {
+ 
 }
 static void decodeOneofExit(
-    ao::schema::cpp::CppDecodeRuntime& runtime,
-    ao::schema::cpp::MutPtr ptr) {
+ ao::schema::cpp::CppDecodeRuntime& runtime,
+ ao::schema::cpp::MutPtr ptr) {
 
 }
 
@@ -550,9 +550,9 @@ static void decodeOneofExit(
 @DECODE_ENTER_ARM
 
 static void decodeOneofExitArm(
-    ao::schema::cpp::CppDecodeRuntime& runtime,
-    ao::schema::cpp::MutPtr ptr) {
-    runtime.encodeStack.pop_back();
+ ao::schema::cpp::CppDecodeRuntime& runtime,
+ ao::schema::cpp::MutPtr ptr) {
+ runtime.encodeStack.pop_back();
 }
 static auto decode = ao::schema::cpp::DecodeTypeOps{
 	.oneofEnter = &decodeOneofEnter,
@@ -577,14 +577,14 @@ static std::string generateScalarAccessor(std::string_view internalType,
     return replaceMany(
         R"(
 static @INTERNAL_TYPE encode_@OP_NAME(ao::schema::cpp::CppEncodeRuntime& runtime,
-		ao::schema::cpp::AnyPtr ptr @NEEDS_WIDTH) {
-    return (@INTERNAL_TYPE)ptr.as<@GENERATED_TYPE>();
+					ao::schema::cpp::AnyPtr ptr @NEEDS_WIDTH) {
+ return (@INTERNAL_TYPE)ptr.as<@GENERATED_TYPE>();
 }
 
 static void decode_@OP_NAME(
-	ao::schema::cpp::CppEncodeRuntime& runtime,
-	ao::schema::cpp::AnyPtr ptr @NEEDS_WIDTH ,@INTERNAL_TYPE v) {
-    ptr.as<@GENERATED_TYPE>() = (@GENERATED_TYPE)v;
+		ao::schema::cpp::CppEncodeRuntime& runtime,
+		ao::schema::cpp::AnyPtr ptr @NEEDS_WIDTH ,@INTERNAL_TYPE v) {
+ ptr.as<@GENERATED_TYPE>() = (@GENERATED_TYPE)v;
 }
 
 static ao::schema::cpp::EncodeTypeOps encode{
@@ -648,97 +648,97 @@ static void generateTypeAccessorArray(CppCodeGenContext& ctx,
     auto const& typeName = ctx.generatedTypeNames[typeId];
     ss << replaceMany(R"(
 static void encodeArrayEnter(
-    ao::schema::cpp::CppEncodeRuntime& runtime,
-    ao::schema::cpp::AnyPtr ptr,
-    uint32_t typeId) {
-    // Do nothing
+ ao::schema::cpp::CppEncodeRuntime& runtime,
+ ao::schema::cpp::AnyPtr ptr,
+ uint32_t typeId) {
+ // Do nothing
 }
 static void encodeArrayExit(
-    ao::schema::cpp::CppEncodeRuntime& runtime,
-    ao::schema::cpp::AnyPtr ptr) {
-    // Do nothing
+ ao::schema::cpp::CppEncodeRuntime& runtime,
+ ao::schema::cpp::AnyPtr ptr) {
+ // Do nothing
 }
 static uint32_t encodeArrayLen(
-    ao::schema::cpp::CppEncodeRuntime& runtime,
-    ao::schema::cpp::AnyPtr ptr) {
-    auto const& data = ptr.as<@TYPE_NAME>();
-    return data.size();
+ ao::schema::cpp::CppEncodeRuntime& runtime,
+ ao::schema::cpp::AnyPtr ptr) {
+ auto const& data = ptr.as<@TYPE_NAME>();
+ return data.size();
 }
 static void encodeArrayEnterElem(
-    ao::schema::cpp::CppEncodeRuntime& runtime,
-    ao::schema::cpp::AnyPtr ptr,
-    uint32_t i) {
-    auto const& data = ptr.as<@TYPE_NAME>():
-    if (i >= data.size()) {
-        ao::schema::cpp::cppRuntimeFail(runtime, ao::pack::Error::BadData);
-        return;
-    }
-    runtime.encodeStack.emplace_back({
-        .kind = ao::schema::cpp::FrameKind::ArrayElement,
-        .ops = &(@SUBTYPE_ACCESSOR::encode),
-        .data = AnyPtr{(void const*)&data[i]},
-    });
+ ao::schema::cpp::CppEncodeRuntime& runtime,
+ ao::schema::cpp::AnyPtr ptr,
+ uint32_t i) {
+ auto const& data = ptr.as<@TYPE_NAME>();
+ if (i >= data.size()) {
+ ao::schema::cpp::cppRuntimeFail(runtime, ao::pack::Error::BadData);
+ return;
+ }
+ runtime.encodeStack.emplace_back({
+ .kind = ao::schema::cpp::FrameKind::ArrayElement,
+ .ops = &(@SUBTYPE_ACCESSOR::encode),
+ .data = AnyPtr{(void const*)&data[i]},
+ });
 }
 static void encodeArrayExitElem(
-    ao::schema::cpp::CppEncodeRuntime& runtime,
-    ao::schema::cpp::AnyPtr ptr) {
-    if (runtime.encodeStack.empty()) {
-        ao::schema::cpp::cppRuntimeFail(runtime, ao::pack::Error::BadData)
-        return;
-    }
-    runtime.encodeStack.pop_back();
+ ao::schema::cpp::CppEncodeRuntime& runtime,
+ ao::schema::cpp::AnyPtr ptr) {
+ if (runtime.encodeStack.empty()) {
+ ao::schema::cpp::cppRuntimeFail(runtime, ao::pack::Error::BadData)
+ return;
+ }
+ runtime.encodeStack.pop_back();
 }
 
 static auto encode = ao::schema::cpp::EncodeTypeOps{
-    .arrayEnter = &encodeArrayEnter,
-    .arrayExit = &encodeArrayExit,
-    .arrayLen = &encodeArrayLen,
-    .arrayEnterElem = &encodeArrayEnterElem,
-    .arrayExitElem = &encodeArrayExitElem, 
+ .arrayEnter = &encodeArrayEnter,
+ .arrayExit = &encodeArrayExit,
+ .arrayLen = &encodeArrayLen,
+ .arrayEnterElem = &encodeArrayEnterElem,
+ .arrayExitElem = &encodeArrayExitElem, 
 };
 
 static void decodeArrayEnter(CppDecodeRuntime& runtime,
-				      MutPtr ptr,
-				      uint32_t typeId) {
-    // Do nothing
+				 MutPtr ptr,
+				 uint32_t typeId) {
+ // Do nothing
 }
 static void decodeArrayExit(CppDecodeRuntime& runtime, MutPtr ptr) {
-    // Do nothing
+ // Do nothing
 }
 static void decodeArrayPrepare(CppDecodeRuntime& runtime,
-					    MutPtr ptr,
-					    uint32_t len) {
-    auto& data = ptr.as<@TYPE_NAME>();
-    data.resize(len);
+				 MutPtr ptr,
+				 uint32_t len) {
+ auto& data = ptr.as<@TYPE_NAME>();
+ data.resize(len);
 }
 static void decodeArrayEnterElem(CppDecodeRuntime& runtime,
-					      MutPtr ptr,
-					      uint32_t i) {
-    auto& data = ptr.as<@TYPE_NAME>();
-    if (i >= data.size()) {
-        ao::schema::cpp::cppRuntimeFail(runtime, ao::pack::Error::BadData);
-        return;
-    }
-    runtime.encodeStack.emplace_back({
-        .kind = ao::schema::cpp::FrameKind::ArrayElement,
-        .ops = &(@SUBTYPE_ACCESSOR::decode),
-        .data = MutPtr{(void*)&data[i]},
-    });
+				 MutPtr ptr,
+				 uint32_t i) {
+ auto& data = ptr.as<@TYPE_NAME>();
+ if (i >= data.size()) {
+ ao::schema::cpp::cppRuntimeFail(runtime, ao::pack::Error::BadData);
+ return;
+ }
+ runtime.encodeStack.emplace_back({
+ .kind = ao::schema::cpp::FrameKind::ArrayElement,
+ .ops = &(@SUBTYPE_ACCESSOR::decode),
+ .data = MutPtr{(void*)&data[i]},
+ });
 }
 static void decodeArrayExitElem(CppDecodeRuntime& runtime, MutPtr ptr) {
-    if (runtime.encodeStack.empty()) {
-        ao::schema::cpp::cppRuntimeFail(runtime, ao::pack::Error::BadData)
-        return;
-    }
-    runtime.encodeStack.pop_back();
+ if (runtime.encodeStack.empty()) {
+ ao::schema::cpp::cppRuntimeFail(runtime, ao::pack::Error::BadData)
+ return;
+ }
+ runtime.encodeStack.pop_back();
 }
 
 static auto decode = ao::schema::cpp::DecodeTypeOps{
-    .arrayEnter = &decodeArrayEnter,
-    .arrayExit = &decodeArrayExit,
-    .arrayPrepare = &decodeArrayPrepare,
-    .arayEnterElem = &decodeArrayEnterElem,
-    .arrayExitElem = &decodeArrayExitElem
+ .arrayEnter = &decodeArrayEnter,
+ .arrayExit = &decodeArrayExit,
+ .arrayPrepare = &decodeArrayPrepare,
+ .arayEnterElem = &decodeArrayEnterElem,
+ .arrayExitElem = &decodeArrayExitElem
 };
 )",
                       {
@@ -748,11 +748,11 @@ static auto decode = ao::schema::cpp::DecodeTypeOps{
 }
 
 static const std::string_view encodeRuntime =
-    "ao::schema::cpp:CppEncodeRuntime";
-static const std::string_view anyPtr = "ao::schema::cpp:CppEncodeRuntime";
+    "ao::schema::cpp::CppEncodeRuntime";
+static const std::string_view anyPtr = "ao::schema::cpp::AnyPtr";
 static const std::string_view decodeRuntime =
-    "ao::schema::cpp:CppDecodeRuntime";
-static const std::string_view mutPtr = "ao::schema::cpp:CppEncodeRuntime";
+    "ao::schema::cpp::CppDecodeRuntime";
+static const std::string_view mutPtr = "ao::schema::cpp::MutPtr";
 
 template <class... T>
 std::string funcSig(std::string_view sig,
@@ -772,8 +772,8 @@ static void encodeFieldBegin(CppCodeGenContext& ctx,
                              size_t typeId,
                              IdFor<ir::Message> v) {
     auto signature = funcSig("void", "encodeFieldBegin",
-                             std::string{encodeRuntime} + "runtime",
-                             std::string{anyPtr} + "ptr", "uint32_t fieldId");
+                             std::string{encodeRuntime} + "& runtime",
+                             std::string{anyPtr} + " ptr", "uint32_t fieldId");
     auto const& typeName = ctx.generatedTypeNames[typeId];
     ss << replaceMany(R"(@FUNC_SIG {
 auto const& data = ptr.as<@TYPE_NAME>();
@@ -789,7 +789,7 @@ switch (fieldId) {
                   ss << replaceMany(
                       R"(
 case @FIELD_ID: {
-    auto fieldPtr = &data.@FIELD_NAME;
+ auto fieldPtr = &data.@FIELD_NAME;
 	runtime.encodeStack.emplace_back({
 		.kind = ao::schema::cpp::FrameKind::Field,
 		.ops = &CppAccessor<@SUBTYPE_ID>::encode,
@@ -817,10 +817,10 @@ static void decodeFieldBegin(CppCodeGenContext& ctx,
                              size_t typeId,
                              IdFor<ir::Message> v) {
     ss << funcSig("void", "decodeFieldBegin",
-                  std::string{decodeRuntime} + "runtime",
-                  std::string{mutPtr} + "ptr", "uint32_t fieldId")
+                  std::string{decodeRuntime} + "& runtime",
+                  std::string{mutPtr} + " ptr", "uint32_t fieldId")
        << " {\n";
-    ss << std::format("auto const& data = ptr.as<{}>()\n",
+    ss << std::format("auto const& data = ptr.as<{}>();\n",
                       ctx.generatedTypeNames[typeId]);
     ss << "switch (fieldId) {\n";
 
@@ -830,13 +830,13 @@ static void decodeFieldBegin(CppCodeGenContext& ctx,
         ss << replaceMany(
             R"(
 case @FIELD_ID: {
-    auto* fieldPtr = &data.@FIELD_NAME;
+ auto* fieldPtr = &data.@FIELD_NAME;
 	runtime.encodeStack.emplace_back({
 		.kind = ao::schema::cpp::FrameKind::Field,
-		.ops = &(CppAccessor<@SUBTYPE_ID>::decode)
+		.ops = &(CppAccessor<@SUBTYPE_ID>::decode),
 		.data = {fieldPtr},
 	});
-    
+ 
 } break;
 )",
             {
@@ -861,32 +861,32 @@ static void generateTypeAccessorMessage(CppCodeGenContext& ctx,
     auto const& msgDesc = ctx.ir.messages[v.idx];
     auto const& typeName = ctx.generatedTypeNames[typeId];
     ss << funcSig("void", "encodeMsgBegin",
-                  std::string{encodeRuntime} + "runtime",
-                  std::string{anyPtr} + "ptr", "uint32_t msgId")
+                  std::string{encodeRuntime} + "& runtime",
+                  std::string{anyPtr} + " ptr", "uint32_t msgId")
        << " {}\n";
     ss << funcSig("void", "encodeMsgEnd",
-                  std::string{encodeRuntime} + "runtime",
-                  std::string{anyPtr} + "ptr", "uint32_t msgId")
+                  std::string{encodeRuntime} + "& runtime",
+                  std::string{anyPtr} + " ptr", "uint32_t msgId")
        << " {}\n";
     ss << funcSig("void", "decodeMsgBegin",
-                  std::string{decodeRuntime} + "runtime",
-                  std::string{mutPtr} + "ptr", "uint32_t msgId")
+                  std::string{decodeRuntime} + "& runtime",
+                  std::string{mutPtr} + " ptr", "uint32_t msgId")
        << " {}\n";
     ss << funcSig("void", "decodeMsgEnd",
-                  std::string{decodeRuntime} + "runtime",
-                  std::string{mutPtr} + "ptr", "uint32_t msgId")
+                  std::string{decodeRuntime} + "& runtime",
+                  std::string{mutPtr} + " ptr", "uint32_t msgId")
        << " {}\n";
 
     encodeFieldBegin(ctx, ss, typeId, v);
     ss << funcSig("void", "encodeFieldEnd",
-                  std::string{encodeRuntime} + "runtime",
-                  std::string{anyPtr} + "ptr")
+                  std::string{encodeRuntime} + "& runtime",
+                  std::string{anyPtr} + " ptr")
        << "{ runtime.encodeStack.pop_back(); }\n";
 
     decodeFieldBegin(ctx, ss, typeId, v);
     ss << funcSig("void", "decodeFieldEnd",
-                  std::string{decodeRuntime} + "runtime",
-                  std::string{mutPtr} + "ptr")
+                  std::string{decodeRuntime} + "& runtime",
+                  std::string{mutPtr} + " ptr")
        << "{ runtime.encodeStack.pop_back(); }\n";
 }
 
@@ -928,17 +928,17 @@ void generateCppCode(CppCodeGenContext& ctx, std::ostream& out) {
 #include <cstdint>
 
 #include <ao/schema/CppAdapter.h>
-#incldue <ao/schema/IR.h>
+#include <ao/schema/IR.h>
 
 namespace aosl_detail {
 )";
 
     out << replaceMany(R"(
 constexpr inline ir::IRHeader getCompiledHeader() {
-    return ir::IRHeader{
-        .magic = @MAGIC,
-        .version = @VERSION,
-    };
+ return ir::IRHeader{
+ .magic = @MAGIC,
+ .version = @VERSION,
+ };
 };
 static_assert(getCompiledHeader() == ir::IRHeader{}, "Generated code was not the same as current code, regenerate the schema");
 )",
@@ -999,7 +999,7 @@ bool generateCppCode(ir::IR const& ir, ErrorContext& errs, OutputFiles& files) {
     });
 
     generateCppCode(ctx, files.header);
-    
+
     ao::pack::byte::OStreamWriteStream irWs(files.ir);
     ir::serializeIRFile(irWs, ir);
     return errs.ok();

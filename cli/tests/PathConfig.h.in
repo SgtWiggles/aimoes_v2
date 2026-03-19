@@ -1,0 +1,5 @@
+#pragma once
+
+#define AOSL_COMPILER_EXE "@CMAKE_BINARY_DIR@/cli/aosl-compiler"
+#define AOSL_SOURCE_DIR "@CMAKE_SOURCE_DIR@"
+#define AOSL_BINARY_DIR "@CMAKE_BINARY_DIR@"
