@@ -42,7 +42,9 @@ add_library(compiler OBJECT
  "include/ao/schema/Serializer.h"
  "src/Serializer.cpp"
  "include/ao/utils/Span.h"
- "include/ao/utils/Variant.h")
+ "include/ao/utils/Variant.h"
+ "include/ao/utils/Blake3Hasher.h"
+)
 target_include_directories(compiler PUBLIC include)
 target_link_libraries(compiler PUBLIC
 	Boost::container_hash
@@ -50,7 +52,8 @@ target_link_libraries(compiler PUBLIC
 	pack
 	meta
 	$<TARGET_OBJECTS:pack>
-	nlohmann_json)
+	nlohmann_json
+	BLAKE3::blake3)
 
 add_executable(CompilerTests
  "tests/AstTests.cpp"
@@ -72,5 +75,6 @@ add_executable(CompilerTests
  "tests/DiskCodecTests.cpp"
  "tests/CppBackendTests.cpp"
  "tests/IRSerializeTests.cpp"
+ "tests/IRFileSerializeTests.cpp"
 )
  target_link_libraries(CompilerTests PRIVATE compiler Catch2::Catch2WithMain)

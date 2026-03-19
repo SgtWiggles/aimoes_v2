@@ -14,16 +14,28 @@
 #include "ao/schema/SemanticContext.h"
 #include "ao/schema/Serializer.h"
 
+#include <ao/pack/HashingStream.h>
+
 #include "ao/meta/Reflect.h"
+
+#include "ao/utils/Blake3Hasher.h"
 
 // We need to maybe make this incremental?
 // That means the IR generate context needs to be there
 // Given a base IR, add new types from an AST
 namespace ao::schema::ir {
 struct Type;
+struct IRHeader {
+    // aosl in hex
+    uint64_t magic = 0x616f736c;
+    uint64_t version = 1;
+
+    auto operator<=>(IRHeader const& other) const = default;
+};
 
 struct DirectiveValue {
-    using Value = std::variant<bool, double, int64_t, uint64_t, IdFor<std::string>>;
+    using Value =
+        std::variant<bool, double, int64_t, uint64_t, IdFor<std::string>>;
     AO_MEMBER(Value, value);
     auto operator<=>(DirectiveValue const& other) const = default;
 };
@@ -205,7 +217,6 @@ inline size_t hash_value(Module const& m) {
     return ret;
 }
 
-// TODO serialize this
 struct IR {
     AO_MEMBER(std::vector<std::string>, strings);
     AO_MEMBER(std::vector<DirectiveProperty>, directiveProperties);
@@ -222,9 +233,67 @@ IR generateIR(
     std::unordered_map<std::string, ao::schema::SemanticContext::Module> const&
         modules,
     ErrorContext& errors);
+
+template <class Stream>
+bool serializeIRFile(Stream& stream, IR const& ir) {
+    IRHeader header{};
+    ao::schema::serialize(stream, header);
+    if (!stream.ok())
+        return false;
+    ao::pack::HashingStream<Stream, utils::hash::Blake3Hasher> hashingStream(
+        stream);
+    hashingStream.enableHashing();
+    ao::schema::serialize(hashingStream, ir);
+    if (!stream.ok())
+        return false;
+    auto computedHash = hashingStream.digest();
+    ao::schema::serialize(stream, computedHash);
+    return stream.ok();
+}
+
+template <class Stream>
+bool deserializeIRFile(Stream& stream, IR& out) {
+    IRHeader header;
+    ao::schema::deserialize(stream, header);
+    if (!stream.ok())
+        return false;
+
+    out = IR{};
+
+    ao::pack::HashingStream<Stream, utils::hash::Blake3Hasher> hashingStream(
+        stream);
+    hashingStream.enableHashing();
+    ao::schema::deserialize(hashingStream, out);
+    if (!stream.ok())
+        return false;
+    auto computedHash = hashingStream.digest();
+
+    utils::hash::Blake3Hasher::Hash expectedHash = {};
+    ao::schema::deserialize(stream, expectedHash);
+    if (!stream.ok())
+        return false;
+
+    stream.require(computedHash == expectedHash, ao::pack::Error::BadData);
+    return stream.ok();
+}
+
 }  // namespace ao::schema::ir
 
 namespace ao::schema {
+template <>
+struct Serializer<ir::IRHeader> {
+    template <class Stream>
+    void serialize(Stream& stream, ir::IRHeader const& prop) {
+        Serializer<uint64_t>{}.serialize(stream, prop.magic);
+        Serializer<uint64_t>{}.serialize(stream, prop.version);
+    }
+    template <class Stream>
+    void deserialize(Stream& stream, ir::IRHeader& prop) {
+        Serializer<uint64_t>{}.deserialize(stream, prop.magic);
+        Serializer<uint64_t>{}.deserialize(stream, prop.version);
+        stream.require(prop == ir::IRHeader{}, ao::pack::Error::BadData);
+    }
+};
 template <>
 struct Serializer<ir::DirectiveProfile::ProfileKind>
     : public EnumSerializer<ir::DirectiveProfile::ProfileKind,

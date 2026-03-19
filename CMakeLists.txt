@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.31)
-project(AOIDL CXX)
+project(AOIDL LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 23)
 
 # Force utf-8 on all source files
@@ -32,6 +32,14 @@ FetchContent_MakeAvailable(Boost)
 FetchContent_Declare(nlohmann_json URL https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz)
 FetchContent_MakeAvailable(nlohmann_json)
 
+FetchContent_Declare(
+  blake3
+  GIT_REPOSITORY https://github.com/BLAKE3-team/BLAKE3.git
+  GIT_TAG        1.8.3
+  SOURCE_SUBDIR  c
+)
+
+FetchContent_MakeAvailable(blake3)
 
 # Packing helpers
 add_subdirectory(pack)

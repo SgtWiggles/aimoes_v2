@@ -1,11 +1,10 @@
 #pragma once
-
-#include <vector>
-
 #include <ao/pack/ByteStream.h>
 #include <ao/utils/Span.h>
 #include <ao/utils/Variant.h>
 
+#include <array>
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <variant>
@@ -55,6 +54,8 @@ struct Serializer<bool> {
             stream.bytes(ao::utils::makeByteSpan(v), sizeof(Type)); \
         }                                                           \
     };
+
+INTEGRAL_TYPE_SERIALIZER(std::byte);
 
 INTEGRAL_TYPE_SERIALIZER(uint8_t);
 INTEGRAL_TYPE_SERIALIZER(uint16_t);
@@ -202,6 +203,24 @@ struct Serializer<std::string> {
             return;
         v.resize(size);
         stream.bytes(ao::utils::makeByteSpan(v), size);
+    }
+};
+
+template <class T, size_t Size>
+struct Serializer<std::array<T, Size>> {
+    template <class Stream>
+    void serialize(Stream& stream, std::array<T, Size> const& v) {
+        for (auto const& item : v) {
+            Serializer<T>{}.serialize(stream, item);
+        }
+    }
+    template <class Stream>
+    void deserialize(Stream& stream, std::array<T, Size>& v) {
+        for (auto& item : v) {
+            Serializer<T>{}.deserialize(stream, item);
+            if (!stream.ok())
+                return;
+        }
     }
 };
 
