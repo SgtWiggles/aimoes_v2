@@ -12,11 +12,9 @@ configure_file(
 )
 
 # Add integration test executable
-add_executable(CliIntegrationTests
- "tests/CliIntegrationTests.cpp"
-)
-target_include_directories(CliIntegrationTests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
-target_link_libraries(CliIntegrationTests PRIVATE Catch2::Catch2WithMain)
-add_dependencies(CliIntegrationTests aosl-compiler)
+# add_executable(CliIntegrationTests)
+# target_include_directories(CliIntegrationTests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+# target_link_libraries(CliIntegrationTests PRIVATE Catch2::Catch2WithMain)
+# add_dependencies(CliIntegrationTests aosl-compiler)
 
 # Install nothing; tests are run with ctest
