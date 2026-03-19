@@ -1,10 +1,15 @@
 #pragma once
 
-#include "IR.h"
 #include "Error.h"
+#include "IR.h"
 
+#include <filesystem>
 #include <iostream>
 
 namespace ao::schema::cpp {
-bool generateCppCode(ir::IR const& ir, ErrorContext& errs, std::ostream& out);
-}
+struct OutputFiles {
+    std::ostream& header;
+    std::ostream& ir;
+};
+bool generateCppCode(ir::IR const& ir, ErrorContext& errs, OutputFiles& files);
+}  // namespace ao::schema::cpp

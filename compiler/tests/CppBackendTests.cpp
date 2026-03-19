@@ -26,7 +26,12 @@ message 42 test{
     REQUIRE(ir.has_value());
 
     ao::schema::ErrorContext errs;
-    std::stringstream ss;
-    auto success = cpp::generateCppCode(*ir, errs, ss);
+    std::stringstream header;
+    std::stringstream irOut;
+    auto outFiles = cpp::OutputFiles{
+        .header = header,
+        .ir = irOut,
+    };
+    auto success = cpp::generateCppCode(*ir, errs, outFiles);
     REQUIRE(success);
 }

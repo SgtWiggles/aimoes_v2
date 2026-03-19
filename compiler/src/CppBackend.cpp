@@ -2,10 +2,13 @@
 
 #include "ao/schema/CppAdapter.h"
 
+#include <fstream>
 #include <sstream>
 
 #include "ao/utils/Array.h"
 #include "ao/utils/Overloaded.h"
+
+#include "ao/pack/OStreamWriteStream.h"
 
 namespace ao::schema::cpp {
 struct CppCodeGenContext {
@@ -361,9 +364,9 @@ static std::string generateTypeAccessorsOptional(CppCodeGenContext& ctx,
 }
 
 static void generateTypeAccessorsOneof(CppCodeGenContext& ctx,
-                                              std::stringstream& ss,
-                                              size_t typeId,
-                                              ir::OneOf const& oneofDesc) {
+                                       std::stringstream& ss,
+                                       size_t typeId,
+                                       ir::OneOf const& oneofDesc) {
     auto const& typeName = ctx.generatedTypeNames[typeId];
 
     // TODO abstract this armid into another lamba.
@@ -923,10 +926,26 @@ void generateCppCode(CppCodeGenContext& ctx, std::ostream& out) {
 #include <vector>
 #include <variant>
 #include <cstdint>
+
 #include <ao/schema/CppAdapter.h>
+#incldue <ao/schema/IR.h>
 
 namespace aosl_detail {
 )";
+
+    out << replaceMany(R"(
+constexpr inline ir::IRHeader getCompiledHeader() {
+    return ir::IRHeader{
+        .magic = @MAGIC,
+        .version = @VERSION,
+    };
+};
+static_assert(getCompiledHeader() == ir::IRHeader{}, "Generated code was not the same as current code, regenerate the schema");
+)",
+                       {
+                           {"@MAGIC", std::to_string(ir::IRHeader{}.magic)},
+                           {"@VERSION", std::to_string(ir::IRHeader{}.version)},
+                       });
 
     for (auto const& def : ctx.generatedTypeDecls) {
         out << def << "\n";
@@ -948,7 +967,7 @@ namespace aosl_detail {
     }
 }
 
-bool generateCppCode(ir::IR const& ir, ErrorContext& errs, std::ostream& out) {
+bool generateCppCode(ir::IR const& ir, ErrorContext& errs, OutputFiles& files) {
     if (!errs.ok())
         return false;
 
@@ -979,7 +998,10 @@ bool generateCppCode(ir::IR const& ir, ErrorContext& errs, std::ostream& out) {
         ctx.generatedMessages.emplace_back(std::move(*msgForward));
     });
 
-    generateCppCode(ctx, out);
+    generateCppCode(ctx, files.header);
+    
+    ao::pack::byte::OStreamWriteStream irWs(files.ir);
+    ir::serializeIRFile(irWs, ir);
     return errs.ok();
 }
 }  // namespace ao::schema::cpp
