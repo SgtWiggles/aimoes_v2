@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "ao/pack/Error.h"
+#include "ao/schema/VM.h"
 
 namespace ao::schema::cpp {
 struct AnyPtr {
@@ -20,27 +21,11 @@ struct MutPtr {
     }
 };
 
-enum class FrameKind {
-    Message,
-    Field,
-    Optional,
-    OptionalValue,
-    Array,
-    ArrayElement,
-    Oneof,
-    OneofArm,
-};
-
-struct TypeOps;
-
-template <class Ptr>
+template <class Ops, class Ptr>
 struct Frame {
-    FrameKind kind;
-    TypeOps const* ops;
+    Ops const* ops;
     Ptr data;
 };
-using EncodeFrame = Frame<AnyPtr>;
-using DecodeFrame = Frame<MutPtr>;
 
 enum class TypeKind : uint8_t {
     Bool,
@@ -55,21 +40,8 @@ enum class TypeKind : uint8_t {
     OneOf,
     Message,
 };
-
-struct TypeDesc {
-    TypeKind kind = TypeKind::UInt;
-    uint16_t width = 0;  // for scalars
-    uint32_t aux = 0;    // Do we even need these?
-};
-
-struct CppEncodeRuntime {
-    ao::pack::Error error = ao::pack::Error::Ok;
-    std::vector<EncodeFrame> encodeStack;
-};
-struct CppDecodeRuntime {
-    ao::pack::Error error = ao::pack::Error::Ok;
-    std::vector<DecodeFrame> encodeStack;
-};
+struct CppEncodeRuntime;
+struct CppDecodeRuntime;
 
 // Dispatches to one of the above _or_ operates on scalars directly
 struct EncodeTypeOps {
@@ -77,9 +49,7 @@ struct EncodeTypeOps {
     void (*msgBegin)(CppEncodeRuntime& runtime,
                      AnyPtr ptr,
                      uint32_t msgId) = nullptr;
-    void (*msgEnd)(CppEncodeRuntime& runtime,
-                   AnyPtr ptr,
-                   uint32_t msgId) = nullptr;
+    void (*msgEnd)(CppEncodeRuntime& runtime, AnyPtr ptr) = nullptr;
 
     void (*fieldBegin)(CppEncodeRuntime& runtime,
                        AnyPtr ptr,
@@ -182,28 +152,171 @@ struct DecodeTypeOps {
     void (*f64)(CppDecodeRuntime& runtime, MutPtr ptr, double v) = nullptr;
 };
 
-// Each type generates this
-struct TypeOps {
-    TypeDesc desc = {};
-    EncodeTypeOps const* encodeOps = nullptr;
-    DecodeTypeOps const* decodeOps = nullptr;
+using EncodeFrame = Frame<EncodeTypeOps, AnyPtr>;
+using DecodeFrame = Frame<DecodeTypeOps, MutPtr>;
+
+struct CppEncodeRuntime {
+    ao::pack::Error error = ao::pack::Error::Ok;
+    std::vector<EncodeFrame> stack;
+};
+struct CppDecodeRuntime {
+    ao::pack::Error error = ao::pack::Error::Ok;
+    std::vector<DecodeFrame> stack;
 };
 
-template <size_t T>
-struct EncodeAccessor;
+void cppRuntimeFail(CppEncodeRuntime& runtime, ao::pack::Error err);
+void cppRuntimeFail(CppDecodeRuntime& runtime, ao::pack::Error err);
 
-template <size_t T>
-struct DecodeAccessor;
+class CppEncodeAdapter {
+   public:
+    void msgBegin(uint32_t msgId);
+    void msgEnd();
 
-void cppRuntimeFail(CppEncodeRuntime& runtime, ao::pack::Error err) {
-    if (runtime.error != ao::pack::Error::Ok)
-        return;
-    runtime.error = err;
-}
-void cppRuntimeFail(CppDecodeRuntime& runtime, ao::pack::Error err) {
-    if (runtime.error != ao::pack::Error::Ok)
-        return;
-    runtime.error = err;
-}
+    void fieldBegin(uint32_t fieldId);
+    void fieldEnd();
 
+    bool optPresent();
+    void optEnter();
+    void optExit();
+    void optEnterValue();
+    void optExitValue();
+
+    void arrayEnter(uint32_t typeId);
+    void arrayExit();
+    uint32_t arrayLen();
+    void arrayEnterElem(uint32_t i);
+    void arrayExitElem();
+
+    // chosen arm index (or -1)
+    uint32_t oneofIndex(uint32_t oneofId, uint32_t width);
+
+    void oneofEnter(uint32_t oneofId);
+    void oneofExit();
+    void oneofEnterArm(uint32_t oneofId, uint32_t armId);
+    void oneofExitArm();
+
+    bool boolean();
+    uint64_t u64(uint16_t width);
+    int64_t i64(uint16_t width);
+    float f32();
+    double f64();
+
+    bool ok() const { return m_runtime.error == pack::Error::Ok; }
+    ao::pack::Error error() const { return m_runtime.error; }
+
+    template <class T>
+    void setRoot(T& data) {
+        m_runtime.error = ao::pack::Error::Ok;
+        m_runtime.stack.clear();
+        m_runtime.stack.emplace_back({
+            .ops = &T::Accessor::encode,
+            .data = AnyPtr{data},
+        });
+    }
+
+   private:
+    bool require(bool condition);
+    EncodeFrame* stackBack(size_t offset);
+    template <class InvokeType, class InvokeMember, class... Args>
+    auto stackInvoke(size_t offset,
+                     InvokeType InvokeMember::* member,
+                     Args&&... args) {
+        auto frame = stackBack(offset);
+        using Ret = decltype((frame->ops->*member)(
+            m_runtime, frame->data, std::forward<Args>(args)...));
+
+        if (!frame)
+            return Ret{};
+        auto fnPtr = frame->ops->*member;
+        if (!require(fnPtr != nullptr && frame->data.ptr != nullptr))
+            return Ret{};
+        return (fnPtr)(m_runtime, frame->data, std::forward<Args>(args)...);
+    }
+    CppEncodeRuntime m_runtime;
+};
+
+class CppDecodeAdapter {
+   public:
+    // Message navigation:
+    void msgBegin(uint32_t msgId);
+    void msgEnd();
+
+    // Field navigation:
+    void fieldBegin(uint32_t fieldId);
+    void fieldEnd();
+
+    // Optional:
+    // For optional decode, codec typically reads "present bit" and VM branches;
+    // object adapter must allocate/set the optional storage before decoding
+    // inner value.
+    // prepare optional storage (e.g., emplace or reset)
+    void optEnter();
+    void optExit();
+
+    void optSetPresent(bool present);
+    // enter optional's value storage (must be present)
+
+    void optEnterValue();
+    void optExitValue();
+
+    // Array:
+    // For decode, codec provides length; object adapter must resize/prepare
+    // container.
+    void arrayEnter(uint32_t typeId);
+    void arrayExit();
+    void arrayPrepare(uint32_t len);
+    void arrayEnterElem(uint32_t i);
+    void arrayExitElem();
+
+    // Oneof:
+    // For decode, codec selects arm; object adapter must set discriminant and
+    // prepare arm storage.
+    void oneofEnter(uint32_t oneofId);
+    void oneofExit();
+    void oneofIndex(uint32_t oneofId, uint32_t armId);
+
+    void oneofEnterArm(uint32_t oneofId, uint32_t armId);
+    void oneofExitArm();
+
+    // Scalars (write into current storage):
+    void boolean(bool v);
+    void u64(uint16_t width, uint64_t v);
+    void i64(uint16_t width, int64_t v);
+    void f32(float v);
+    void f64(double v);
+
+    // Status:
+    bool ok() const { return m_runtime.error == pack::Error::Ok; }
+    ao::pack::Error error() const { return m_runtime.error; }
+
+    template <class T>
+    void setRoot(T& data) {
+        m_runtime.error = ao::pack::Error::Ok;
+        m_runtime.stack.clear();
+        m_runtime.stack.emplace_back({
+            .ops = &T::Accessor::decode,
+            .data = MutPtr{data},
+        });
+    }
+
+   private:
+    bool require(bool condition);
+    DecodeFrame* stackBack(size_t offset);
+    template <class InvokeType, class InvokeMember, class... Args>
+    auto stackInvoke(size_t offset,
+                     InvokeType InvokeMember::* member,
+                     Args&&... args) {
+        auto frame = stackBack(offset);
+        using Ret = decltype((frame->ops->*member)(
+            m_runtime, frame->data, std::forward<Args>(args)...));
+
+        if (!frame)
+            return Ret{};
+        auto fnPtr = frame->ops->*member;
+        if (!require(fnPtr != nullptr && frame->data.ptr != nullptr))
+            return Ret{};
+        return (fnPtr)(m_runtime, frame->data, std::forward<Args>(args)...);
+    }
+    CppDecodeRuntime m_runtime;
+};
 }  // namespace ao::schema::cpp

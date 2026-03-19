@@ -44,6 +44,7 @@ add_library(compiler OBJECT
  "include/ao/utils/Span.h"
  "include/ao/utils/Variant.h"
  "include/ao/utils/Blake3Hasher.h"
+ "src/CppAdapter.cpp"
 )
 target_include_directories(compiler PUBLIC include)
 target_link_libraries(compiler PUBLIC

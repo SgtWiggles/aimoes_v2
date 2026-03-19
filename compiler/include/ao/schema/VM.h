@@ -9,7 +9,6 @@
 #include "ao/schema/IR.h"
 
 namespace ao::schema::vm {
-
 // ------------------------------------------------------------
 // Small enums
 // ------------------------------------------------------------
@@ -700,5 +699,4 @@ bool decode(VM& vm,
             uint64_t typeId) {
     return detail::runVM<false>(vm, object, codec, typeId);
 }
-
 }  // namespace ao::schema::vm
