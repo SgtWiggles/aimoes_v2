@@ -18,7 +18,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(Catch2)
 
-set(BOOST_INCLUDE_LIBRARIES container_hash)
+set(BOOST_INCLUDE_LIBRARIES container_hash program_options)
 set(BOOST_ENABLE_CMAKE ON)
 
 FetchContent_Declare(
@@ -45,3 +45,4 @@ FetchContent_MakeAvailable(blake3)
 add_subdirectory(pack)
 add_subdirectory(meta)
 add_subdirectory(compiler)
+add_subdirectory(cli)
