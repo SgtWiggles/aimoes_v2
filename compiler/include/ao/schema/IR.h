@@ -27,7 +27,7 @@ namespace ao::schema::ir {
 struct Type;
 struct IRHeader {
     // aosl in hex
-    uint64_t magic = 0x616f736c;
+    uint32_t magic = 0x616f736c;
     uint64_t version = 1;
 
     auto operator<=>(IRHeader const& other) const = default;
@@ -284,12 +284,12 @@ template <>
 struct Serializer<ir::IRHeader> {
     template <class Stream>
     void serialize(Stream& stream, ir::IRHeader const& prop) {
-        Serializer<uint64_t>{}.serialize(stream, prop.magic);
+        Serializer<uint32_t>{}.serialize(stream, prop.magic);
         Serializer<uint64_t>{}.serialize(stream, prop.version);
     }
     template <class Stream>
     void deserialize(Stream& stream, ir::IRHeader& prop) {
-        Serializer<uint64_t>{}.deserialize(stream, prop.magic);
+        Serializer<uint32_t>{}.deserialize(stream, prop.magic);
         Serializer<uint64_t>{}.deserialize(stream, prop.version);
         stream.require(prop == ir::IRHeader{}, ao::pack::Error::BadData);
     }
