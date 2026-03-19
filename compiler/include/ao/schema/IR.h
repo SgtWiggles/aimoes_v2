@@ -12,6 +12,9 @@
 #include "ao/schema/Ast.h"
 #include "ao/schema/ResourceCache.h"
 #include "ao/schema/SemanticContext.h"
+#include "ao/schema/Serializer.h"
+
+#include "ao/meta/Reflect.h"
 
 // We need to maybe make this incremental?
 // That means the IR generate context needs to be there
@@ -20,7 +23,8 @@ namespace ao::schema::ir {
 struct Type;
 
 struct DirectiveValue {
-    std::variant<bool, double, int64_t, uint64_t, IdFor<std::string>> value;
+    using Value = std::variant<bool, double, int64_t, uint64_t, IdFor<std::string>>;
+    AO_MEMBER(Value, value);
     auto operator<=>(DirectiveValue const& other) const = default;
 };
 inline size_t hash_value(DirectiveValue const& value) {
@@ -30,8 +34,8 @@ inline size_t hash_value(DirectiveValue const& value) {
 }
 
 struct DirectiveProperty {
-    IdFor<std::string> name;
-    DirectiveValue value;
+    AO_MEMBER(IdFor<std::string>, name);
+    AO_MEMBER(DirectiveValue, value);
     auto operator<=>(DirectiveProperty const& other) const = default;
 };
 inline size_t hash_value(DirectiveProperty const& prop) {
@@ -50,17 +54,21 @@ struct DirectiveProfile {
         Field,
         Message,
         Custom,
+
+        ProfileKindCount,
     };
-    ProfileKind domain;
-    IdFor<std::string> profileName = {};  // disk, net, cpp, lua, etc
+    AO_MEMBER(ProfileKind, domain);
+    AO_MEMBER(IdFor<std::string>, profileName) = {
+    };  // disk, net, cpp, lua, etc
 
     // key value pairs for the directives themselves
     // namespace=xyz for example
     // For consistency these should be sorted!!
     // These should be sorted by directive name
-    std::vector<IdFor<DirectiveProperty>> properties = {};
+    AO_MEMBER(std::vector<IdFor<DirectiveProperty>>, properties) = {};
     auto operator<=>(DirectiveProfile const& other) const = default;
 };
+
 inline size_t hash_value(DirectiveProfile const& profile) {
     size_t base = 0;
     boost::hash_combine(base, (size_t)profile.domain);
@@ -71,7 +79,7 @@ inline size_t hash_value(DirectiveProfile const& profile) {
 
 struct DirectiveSet {
     // Sort by domain!
-    std::vector<IdFor<DirectiveProfile>> directives;
+    AO_MEMBER(std::vector<IdFor<DirectiveProfile>>, directives);
     auto operator<=>(DirectiveSet const& other) const = default;
 };
 inline size_t hash_value(DirectiveSet const& set) {
@@ -81,11 +89,10 @@ inline size_t hash_value(DirectiveSet const& set) {
 }
 
 struct Field {
-    IdFor<std::string> name;
-    uint64_t fieldNumber;
-    IdFor<Type> type;
-
-    IdFor<DirectiveSet> directives;
+    AO_MEMBER(IdFor<std::string>, name);
+    AO_MEMBER(uint64_t, fieldNumber);
+    AO_MEMBER(IdFor<Type>, type);
+    AO_MEMBER(IdFor<DirectiveSet>, directives);
     auto operator<=>(Field const& other) const = default;
 };
 inline size_t hash_value(Field const& field) {
@@ -98,7 +105,7 @@ inline size_t hash_value(Field const& field) {
 }
 
 struct OneOf {
-    std::vector<IdFor<Field>> arms;
+    AO_MEMBER(std::vector<IdFor<Field>>, arms);
     auto operator<=>(OneOf const& other) const = default;
 };
 inline size_t hash_value(OneOf const& field) {
@@ -109,16 +116,16 @@ inline size_t hash_value(OneOf const& field) {
 
 struct Message {
     // Qualified name
-    IdFor<std::string> name;
+    AO_MEMBER(IdFor<std::string>, name);
 
     // Idempotency key for this symbol, already used everywhere!
-    uint64_t symbolId;
+    AO_MEMBER(uint64_t, symbolId);
 
     // Root level message id, these must be unique as per other passes
-    std::optional<uint64_t> messageNumber;
-    std::vector<IdFor<Field>> fields;
+    AO_MEMBER(std::optional<uint64_t>, messageNumber);
+    AO_MEMBER(std::vector<IdFor<Field>>, fields);
 
-    IdFor<DirectiveSet> directives;
+    AO_MEMBER(IdFor<DirectiveSet>, directives);
 
     // Compare by symbol id only, the rest are just properties we are passing
     // through
@@ -138,11 +145,13 @@ struct Scalar {
         // Special types for bytes/strings
         CHAR,
         BYTE,
+
+        ScalarMax,
     };
     // TODO maybe change this to a variant? nothing directly consumes it other
     // than the compiler itself
-    ScalarKind kind;
-    size_t width = 0;
+    AO_MEMBER(ScalarKind, kind);
+    AO_MEMBER(size_t, width) = 0;
     auto operator<=>(Scalar const& other) const = default;
 };
 inline size_t hash_value(Scalar const& scalar) {
@@ -153,9 +162,9 @@ inline size_t hash_value(Scalar const& scalar) {
 }
 
 struct Array {
-    IdFor<Type> type;
-    std::optional<uint64_t> minSize;
-    std::optional<uint64_t> maxSize;
+    AO_MEMBER(IdFor<Type>, type);
+    AO_MEMBER(std::optional<uint64_t>, minSize);
+    AO_MEMBER(std::optional<uint64_t>, maxSize);
 
     auto operator<=>(Array const& other) const = default;
 };
@@ -167,7 +176,7 @@ inline size_t hash_value(Array const& scalar) {
 }
 
 struct Optional {
-    IdFor<Type> type;
+    AO_MEMBER(IdFor<Type>, type);
     auto operator<=>(Optional const& other) const = default;
 };
 inline size_t hash_value(Optional const& scalar) {
@@ -175,7 +184,9 @@ inline size_t hash_value(Optional const& scalar) {
 }
 
 struct Type {
-    std::variant<Scalar, Array, Optional, IdFor<OneOf>, IdFor<Message>> payload;
+    using Value =
+        std::variant<Scalar, Array, Optional, IdFor<OneOf>, IdFor<Message>>;
+    AO_MEMBER(Value, payload);
     auto operator<=>(Type const& other) const = default;
 };
 inline size_t hash_value(Type const& type) {
@@ -183,8 +194,8 @@ inline size_t hash_value(Type const& type) {
 }
 
 struct Module {
-    IdFor<std::string> moduleName;
-    std::vector<IdFor<Message>> messages;
+    AO_MEMBER(IdFor<std::string>, moduleName);
+    AO_MEMBER(std::vector<IdFor<Message>>, messages);
     auto operator<=>(Module const& other) const = default;
 };
 inline size_t hash_value(Module const& m) {
@@ -196,15 +207,15 @@ inline size_t hash_value(Module const& m) {
 
 // TODO serialize this
 struct IR {
-    std::vector<std::string> strings;
-    std::vector<DirectiveProperty> directiveProperties;
-    std::vector<DirectiveProfile> directiveProfiles;
-    std::vector<DirectiveSet> directiveSets;
-    std::vector<OneOf> oneOfs;
-    std::vector<Field> fields;
-    std::vector<Message> messages;
-    std::vector<Type> types;
-    std::vector<Module> modules;
+    AO_MEMBER(std::vector<std::string>, strings);
+    AO_MEMBER(std::vector<DirectiveProperty>, directiveProperties);
+    AO_MEMBER(std::vector<DirectiveProfile>, directiveProfiles);
+    AO_MEMBER(std::vector<DirectiveSet>, directiveSets);
+    AO_MEMBER(std::vector<OneOf>, oneOfs);
+    AO_MEMBER(std::vector<Field>, fields);
+    AO_MEMBER(std::vector<Message>, messages);
+    AO_MEMBER(std::vector<Type>, types);
+    AO_MEMBER(std::vector<Module>, modules);
 };
 
 IR generateIR(
@@ -212,3 +223,17 @@ IR generateIR(
         modules,
     ErrorContext& errors);
 }  // namespace ao::schema::ir
+
+namespace ao::schema {
+template <>
+struct Serializer<ir::DirectiveProfile::ProfileKind>
+    : public EnumSerializer<ir::DirectiveProfile::ProfileKind,
+                            ir::DirectiveProfile::ProfileKindCount> {
+    using EnumSerializer::EnumSerializer;
+};
+template <>
+struct Serializer<ir::Scalar::ScalarKind>
+    : public EnumSerializer<ir::Scalar::ScalarKind, ir::Scalar::ScalarMax> {
+    using EnumSerializer::EnumSerializer;
+};
+}  // namespace ao::schema

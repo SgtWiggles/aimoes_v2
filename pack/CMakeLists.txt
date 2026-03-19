@@ -2,7 +2,10 @@ add_library(pack OBJECT
 	"src/BitStream.cpp"
 	"src/ByteStream.cpp"
 )
-target_include_directories(pack PUBLIC include)
+target_include_directories(pack PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> 
+    $<INSTALL_INTERFACE:include>
+)
 
 add_executable(PackTests
 	"tests/BitStreamTests.cpp"

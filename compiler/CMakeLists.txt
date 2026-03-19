@@ -38,12 +38,17 @@ add_library(compiler OBJECT
  "include/ao/schema/CodecCommon.h"
  "src/CodecCommon.cpp"
  "include/ao/schema/CppAdapter.h"
- "include/ao/utils/Array.h")
+ "include/ao/utils/Array.h"
+ "include/ao/schema/Serializer.h"
+ "src/Serializer.cpp"
+ "include/ao/utils/Span.h"
+ "include/ao/utils/Variant.h")
 target_include_directories(compiler PUBLIC include)
 target_link_libraries(compiler PUBLIC
 	Boost::container_hash
 	foonathan::lexy
 	pack
+	meta
 	$<TARGET_OBJECTS:pack>
 	nlohmann_json)
 

@@ -35,4 +35,5 @@ FetchContent_MakeAvailable(nlohmann_json)
 
 # Packing helpers
 add_subdirectory(pack)
+add_subdirectory(meta)
 add_subdirectory(compiler)

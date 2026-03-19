@@ -7,10 +7,12 @@
 
 #include <format>
 
+#include "ao/meta/Reflect.h"
+
 namespace ao::schema {
 template <class T>
 struct IdFor {
-    uint64_t idx = std::numeric_limits<uint64_t>::max();
+    AO_MEMBER(uint64_t, idx) = std::numeric_limits<uint64_t>::max();
 
     auto operator<=>(IdFor<T> const& other) const = default;
     explicit operator bool() const { return this->valid(); }
