@@ -205,12 +205,12 @@ class CppEncodeAdapter {
     ao::pack::Error error() const { return m_runtime.error; }
 
     template <class T>
-    void setRoot(T& data) {
+    void setRoot(T const& data) {
         m_runtime.error = ao::pack::Error::Ok;
         m_runtime.stack.clear();
-        m_runtime.stack.emplace_back({
+        m_runtime.stack.emplace_back(EncodeFrame{
             .ops = &T::Accessor::encode,
-            .data = AnyPtr{data},
+            .data = AnyPtr{&data},
         });
     }
 
@@ -293,9 +293,9 @@ class CppDecodeAdapter {
     void setRoot(T& data) {
         m_runtime.error = ao::pack::Error::Ok;
         m_runtime.stack.clear();
-        m_runtime.stack.emplace_back({
+        m_runtime.stack.emplace_back(DecodeFrame{
             .ops = &T::Accessor::decode,
-            .data = MutPtr{data},
+            .data = MutPtr{(void*)&data},
         });
     }
 

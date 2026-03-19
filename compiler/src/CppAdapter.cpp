@@ -103,7 +103,7 @@ EncodeFrame* CppEncodeAdapter::stackBack(size_t offset) {
     if (!ok())
         return nullptr;
 
-    if (m_runtime.stack.size() <= offset + 1) {
+    if (m_runtime.stack.size() < offset + 1) {
         cppRuntimeFail(m_runtime, ao::pack::Error::BadData);
         return nullptr;
     }
@@ -216,7 +216,7 @@ DecodeFrame* CppDecodeAdapter::stackBack(size_t offset) {
     if (!ok())
         return nullptr;
 
-    if (m_runtime.stack.size() <= offset + 1) {
+    if (m_runtime.stack.size() < offset + 1) {
         cppRuntimeFail(m_runtime, ao::pack::Error::BadData);
         return nullptr;
     }

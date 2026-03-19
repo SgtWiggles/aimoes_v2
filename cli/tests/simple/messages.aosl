@@ -1,3 +1,5 @@
+package messages;
+
 message 1 TestMessage {
 	1 value int;
 }

@@ -3,47 +3,45 @@ add_executable(aosl-compiler
 )
 target_link_libraries(aosl-compiler PUBLIC compiler Boost::program_options)
 
-# Function to generate sources from .aosl files
 function(aosl_generate TARGET_NAME OUT_DIR)
-	set(options)
-	set(oneValArgs FILE_ROOT_DIR)
-	set(multiValArgs INPUTS)
-	cmake_parse_arguments(AG "${options}" "${oneValArgs}" "${multiValArgs}" ${ARGN})
+    set(options)
+    set(oneValArgs FILE_ROOT_DIR)
+    set(multiValArgs INPUTS)
+    cmake_parse_arguments(AG "${options}" "${oneValArgs}" "${multiValArgs}" ${ARGN})
 
-	file(MAKE_DIRECTORY "${OUT_DIR}")
+    cmake_path(ABSOLUTE_PATH OUT_DIR NORMALIZE OUTPUT_VARIABLE OUT_DIR_ABS)
+    cmake_path(ABSOLUTE_PATH AG_FILE_ROOT_DIR NORMALIZE OUTPUT_VARIABLE FILE_ROOT_DIR_ABS)
 
-	set(GEN_FILES)
-	# Build lists of generated files and prepare compiler argument list
-	set(COMPILER_ARGS)
+    set(INPUTS_ABS)
+    foreach(SRC IN LISTS AG_INPUTS)
+        cmake_path(ABSOLUTE_PATH SRC NORMALIZE OUTPUT_VARIABLE SRC_ABS)
+        message(STATUS "aosl input = ${SRC_ABS}")
+        if(NOT EXISTS "${SRC_ABS}")
+            message(FATAL_ERROR "Missing AOSL input: ${SRC_ABS}")
+        endif()
+        list(APPEND INPUTS_ABS "${SRC_ABS}")
+    endforeach()
 
-	set(OUT_H "${OUT_DIR}/messages.h")
-	set(OUT_IR "${OUT_DIR}/messages.aoir")
-	list(APPEND COMPILER_ARGS "--include=${AG_FILE_ROOT_DIR}")
-	list(APPEND COMPILER_ARGS "--out-header=${OUT_H}")
-	list(APPEND COMPILER_ARGS "--out-ir=${OUT_IR}")
+    set(OUT_H  "${OUT_DIR_ABS}/${TARGET_NAME}_messages.h")
+    set(OUT_IR "${OUT_DIR_ABS}/${TARGET_NAME}_messages.aoir")
 
-	list(APPEND GEN_FILES "${OUT_H}" "${OUT_IR}")
+    add_custom_command(
+        OUTPUT "${OUT_H}" "${OUT_IR}" "${OUT_IR}.h"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${OUT_DIR_ABS}"
+        COMMAND "$<TARGET_FILE:aosl-compiler>"
+            "--include=${FILE_ROOT_DIR_ABS}"
+            "--out-header=${OUT_H}"
+            "--out-ir=${OUT_IR}"
+            ${INPUTS_ABS}
+        DEPENDS
+            aosl-compiler
+            ${INPUTS_ABS}
+        VERBATIM
+        COMMENT "Generating AOSL outputs in ${OUT_DIR_ABS}"
+    )
 
-	foreach(SRC ${AG_INPUTS})
-		get_filename_component(BNAME ${SRC} NAME_WE)
-		# Append per-file arguments to the single compiler invocation
-		list(APPEND COMPILER_ARGS "${SRC}")
-	endforeach()
-
-	if(GEN_FILES)
-		add_custom_command(
-		OUTPUT ${GEN_FILES}
-		COMMAND ${CMAKE_COMMAND} -E make_directory "${OUT_DIR}"
-		# Single invocation of the compiler with all per-file args appended
-		COMMAND $<TARGET_FILE:aosl-compiler> ${COMPILER_ARGS}
-		DEPENDS ${AG_INPUTS} aosl-compiler
-		COMMENT "Generating AOSL outputs in ${OUT_DIR}"
-		VERBATIM
-	)
-		add_custom_target(${TARGET_NAME}_aosl_gen DEPENDS ${GEN_FILES})
-		set(GENERATED_${TARGET_NAME} ${GEN_FILES} PARENT_SCOPE)
-	else()
-		message(WARNING "aosl_generate called with no inputs for ${TARGET_NAME}")
-		set(GENERATED_${TARGET_NAME} "" PARENT_SCOPE)
-	endif()
+    target_sources(${TARGET_NAME} PRIVATE "${OUT_H}" "${OUT_IR}" "${OUT_IR}.h")
+    target_include_directories(${TARGET_NAME} PRIVATE "${OUT_DIR_ABS}")
 endfunction()
+
+add_subdirectory(tests)

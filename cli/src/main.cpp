@@ -233,8 +233,13 @@ int main(int argc, char** argv) {
             std::cerr << "Failed to open output IR file: " << outIr << "\n";
             return 7;
         }
+        std::ofstream irHeaderStream(outIr + ".h", std::ios::out|std::ios::binary);
+        if (!irHeaderStream) {
+            std::cerr << "Failed to open output IR file: " << outIr << "\n";
+            return 7;
+        }
 
-        ao::schema::cpp::OutputFiles outFiles(headerStream, irStream);
+        ao::schema::cpp::OutputFiles outFiles(headerStream, irStream, &irHeaderStream);
         bool ok = ao::schema::cpp::generateCppCode(ir, errs, outFiles);
         if (!ok || !errs.ok()) {
             std::cerr << "Code generation failed:\n" << errs.toString();

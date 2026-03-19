@@ -32,10 +32,21 @@ struct NetEncodeCodec {
     void fieldId(uint32_t fieldId) { (void)fieldId; }
 
     void boolean(bool v) { out.bits(v ? 1u : 0u, 1); }
-    void u64(uint32_t bw, uint64_t v) { out.bits(v, bw); }
+    void u64(uint32_t bw, uint64_t v) {
+        if (bw == 0) {
+            ao::pack::encodePrefixInt(out, v);
+        } else {
+            out.bits(v, bw);
+        }
+    }
     void i64(uint32_t bw, int64_t v) {
-        // Common choice: two's complement in bw bits.
-        out.bits(static_cast<uint64_t>(v), bw);
+        if (bw == 0) {
+            auto u = ao::pack::encodeZigZag(v);
+            ao::pack::encodePrefixInt(out, u);
+        } else {
+            // Common choice: two's complement in bw bits.
+            out.bits(static_cast<uint64_t>(v), bw);
+        }
     }
     void f32(float f) {
         uint32_t bits = std::bit_cast<uint32_t>(f);
@@ -108,22 +119,32 @@ struct NetDecodeCodec {
 
     uint64_t u64(uint32_t width) {
         uint64_t v = 0;
-        in.bits(v, width);
+        if (width == 0) {
+            ao::pack::decodePrefixInt(in, v);
+        } else {
+            in.bits(v, width);
+        }
         return v;
     }
 
     int64_t i64(uint32_t bw) {
         uint64_t u = 0;
-        in.bits(u, bw);
-        // Sign-extend from bw bits.
-        if (bw > 0 && bw < 64) {
-            uint64_t sign = 1ull << (bw - 1);
-            if (u & sign) {
-                uint64_t mask = ~((1ull << bw) - 1);
-                u |= mask;
+        if (bw > 0) {
+            in.bits(u, bw);
+            // Sign-extend from bw bits.
+            if (bw > 0 && bw < 64) {
+                uint64_t sign = 1ull << (bw - 1);
+                if (u & sign) {
+                    uint64_t mask = ~((1ull << bw) - 1);
+                    u |= mask;
+                }
             }
+            return static_cast<int64_t>(u);
+        } else {
+            if (!ao::pack::decodePrefixInt(in, u))
+                return 0;
+            return ao::pack::decodeZigZag(u);
         }
-        return static_cast<int64_t>(u);
     }
 
     float f32() {
