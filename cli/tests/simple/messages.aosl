@@ -3,3 +3,7 @@ package messages;
 message 1 TestMessage {
 	1 value int;
 }
+
+message 2 TestMessage2 {
+	1 value uint;
+}

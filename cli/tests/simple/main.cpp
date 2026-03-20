@@ -31,3 +31,19 @@ TEMPLATE_LIST_TEST_CASE("Simple message round trip 1",
 
     REQUIRE(input.value == output.value);
 }
+
+TEMPLATE_LIST_TEST_CASE("Simple message 2 round trip 1",
+                        "[simple]",
+                        StreamTypes) {
+    messages::TestMessage2 input{
+        .value = 1234567890123456789,
+    };
+
+    messages::TestMessage2 output;
+
+    using WS = typename TestType::WS;
+    using RS = typename TestType::RS;
+    cppRoundTrip<WS, RS>(irSpan, input, output);
+
+    REQUIRE(input.value == output.value);
+}

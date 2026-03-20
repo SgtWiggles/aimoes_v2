@@ -810,9 +810,9 @@ case @FIELD_ID: {
 
 )",
                       {
-                          {"@FIELD_ID", std::to_string(fieldId)},
+                          {"@FIELD_ID", std::to_string(globalFieldId.idx)},
                           {"@FIELD_NAME", ctx.ir.strings[fieldDesc.name.idx]},
-                          {"@SUBTYPE_ID", std::to_string(fieldId)},
+                          {"@SUBTYPE_ID", std::to_string(fieldDesc.type.idx)},
                       });
               });
     ss << R"(
@@ -850,7 +850,7 @@ case @FIELD_ID: {
 } break;
 )",
             {
-                {"@FIELD_ID", std::to_string(idx)},
+                {"@FIELD_ID", std::to_string(fieldId.idx)},
                 {"@SUBTYPE_ID", std::to_string(fieldDesc.type.idx)},
                 {"@FIELD_NAME", ctx.ir.strings[fieldDesc.name.idx]},
             });
