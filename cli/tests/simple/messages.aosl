@@ -7,3 +7,8 @@ message 1 TestMessage {
 message 2 TestMessage2 {
 	1 value uint;
 }
+
+message 3 TestMessage3 {
+	1 value1 uint;
+	2 value2 int;
+}
