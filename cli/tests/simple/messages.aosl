@@ -15,8 +15,21 @@ message 3 TestMessage3 {
 
 
 message 4 TestMessage4 
-	@cpp(compare="default")
+	@cpp(
+		compare="default"
+	)
 {
 	1 value1 uint;
 	2 value2 int;
+}
+
+message 5 TestMessage5 
+	@cpp(
+		compare="default",
+		define="TestMessage5 add(TestMessage5 const& other)"
+	)
+{
+	1 value1 uint;
+	2 value2 int;
+	3 value3 optional<int>;
 }

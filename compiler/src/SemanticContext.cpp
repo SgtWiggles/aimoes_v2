@@ -46,7 +46,6 @@ struct ModuleLoadContext {
     AstImport import;
 };
 
-
 struct ToResolve {
     std::string moduleName;
     std::string filePath;

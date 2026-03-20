@@ -36,14 +36,60 @@ std::string replaceMany(
     return ret;
 }
 
+std::vector<std::string_view> parsePackageName(std::string_view str) {
+    std::vector<std::string_view> output;
+    size_t lastWindow = 0;
+    for (size_t idx = 0; idx < str.size(); ++idx) {
+        if (str[idx] != '.')
+            continue;
+        auto count = idx - lastWindow;
+        output.emplace_back(str.substr(lastWindow, count));
+        lastWindow = idx + 1;
+    }
+    if (lastWindow < str.size()) {
+        auto finalName = str.substr(lastWindow, str.size() - lastWindow);
+        output.emplace_back(finalName);
+    }
+    return output;
+}
+std::optional<std::string_view> getMessageName(std::string_view name) {
+    auto parts = parsePackageName(name);
+    if (parts.empty())
+        return {};
+    return parts.back();
+}
+std::optional<std::string> getNamespaceName(std::string_view name) {
+    auto packageName = parsePackageName(name);
+    if (packageName.empty())
+        return {};
+
+    auto namespaceName = std::string{};
+    for (size_t idx = 0; idx < packageName.size() - 1; ++idx) {
+        if (!namespaceName.empty())
+            namespaceName += "::";
+        namespaceName += packageName[idx];
+    }
+
+    return namespaceName;
+}
+
+struct TypeName {
+    std::string ns;
+    std::string name;
+    std::string qualifiedName() const {
+        if (ns.empty())
+            return name;
+        return std::format("{}::{}", ns, name);
+    }
+};
+
 struct CppCodeGenContext {
     ir::IR const& ir;
     ErrorContext& errs;
 
-    std::vector<std::string> generatedTypeNames;
+    std::vector<TypeName> generatedTypeNames;
     std::vector<std::string> generatedTypeDecls;
     std::vector<std::string> generatedTypeDefs;
-    std::vector<std::string> generatedMessages;
 };
 
 uint8_t getCppBitWidth(CppCodeGenContext& ctx, uint64_t width) {
@@ -66,28 +112,28 @@ uint8_t getCppBitWidth(CppCodeGenContext& ctx, uint64_t width) {
     return 0;
 }
 
-static std::string generateTypeName(CppCodeGenContext& ctx,
-                                    size_t typeId,
-                                    ir::Type const& type) {
+static TypeName generateTypeName(CppCodeGenContext& ctx,
+                                 size_t typeId,
+                                 ir::Type const& type) {
     return std::visit(
         Overloaded{
-            [&ctx](ir::Scalar const& v) -> std::string {
+            [&ctx](ir::Scalar const& v) -> TypeName {
                 auto cppWidth = getCppBitWidth(ctx, v.width);
                 switch (v.kind) {
                     case ir::Scalar::BOOL:
-                        return "bool";
+                        return {{}, "bool"};
                     case ir::Scalar::INT:
-                        return std::format("int{}_t", cppWidth);
+                        return {{}, std::format("int{}_t", cppWidth)};
                     case ir::Scalar::UINT:
-                        return std::format("uint{}_t", cppWidth);
+                        return {{}, std::format("uint{}_t", cppWidth)};
                     case ir::Scalar::F32:
-                        return "float";
+                        return {{}, "float"};
                     case ir::Scalar::F64:
-                        return "double";
+                        return {{}, "double"};
                     case ir::Scalar::CHAR:
-                        return "char";
+                        return {{}, "char"};
                     case ir::Scalar::BYTE:
-                        return "std::byte";
+                        return {{}, "std::byte"};
                     default:
                         ctx.errs.fail({
                             .code = ErrorCode::INTERNAL,
@@ -98,27 +144,41 @@ static std::string generateTypeName(CppCodeGenContext& ctx,
                         break;
                 }
 
-                return "<error>";
+                return {{}, "<error>"};
             },
-            [typeId, &ctx](ir::Array const& v) -> std::string {
+            [typeId, &ctx](ir::Array const& v) -> TypeName {
                 auto scalar =
                     std::get_if<ir::Scalar>(&ctx.ir.types[v.type.idx].payload);
                 if (scalar) {
                     if (scalar->kind == ir::Scalar::CHAR)
-                        return "std::string";
+                        return {{}, "std::string"};
                     if (scalar->kind == ir::Scalar::BYTE)
-                        return "std::vector<std::byte>";
+                        return {{}, "std::vector<std::byte>"};
                 }
-                return std::format("Type_{}_Arr", typeId);
+                return {"aosl_detail", std::format("Type_{}_Arr", typeId)};
             },
-            [typeId](ir::Optional const& v) -> std::string {
-                return std::format("Type_{}_Opt", typeId);
+            [typeId](ir::Optional const& v) -> TypeName {
+                return {"aosl_detail", std::format("Type_{}_Opt", typeId)};
             },
-            [typeId](IdFor<ir::OneOf> const& v) -> std::string {
-                return std::format("Type_{}_Oneof", typeId);
+            [typeId](IdFor<ir::OneOf> const& v) -> TypeName {
+                return {"aosl_detail", std::format("Type_{}_Oneof", typeId)};
             },
-            [typeId](IdFor<ir::Message> const& v) -> std::string {
-                return std::format("Type_{}_Msg", typeId);
+            [&ctx, typeId](IdFor<ir::Message> const& v) -> TypeName {
+                auto const& fqn =
+                    ctx.ir.strings[ctx.ir.messages[v.idx].name.idx];
+                auto messageName = getMessageName(fqn);
+                auto namespaceName = getNamespaceName(fqn);
+                if (!messageName)
+                    ctx.errs.fail({
+                        .code = ao::schema::ErrorCode::INTERNAL,
+                        .message = std::format(
+                            "Got message '{}' with namespace '{}' with empty "
+                            "name!",
+                            fqn, namespaceName.value_or(std::string{""})),
+                        .loc = {},
+                    });
+                return {namespaceName.value_or(std::string{}),
+                        std::string{messageName.value_or(std::string_view{})}};
             },
         },
         type.payload);
@@ -143,8 +203,20 @@ static std::optional<std::string> generateTypeDecl(CppCodeGenContext& ctx,
             },
             [&ctx, typeId](
                 IdFor<ir::Message> const& v) -> std::optional<std::string> {
-                return std::format("struct {};",
-                                   ctx.generatedTypeNames[typeId]);
+                auto const& fqn =
+                    ctx.ir.strings[ctx.ir.messages[v.idx].name.idx];
+                auto messageName = getMessageName(fqn);
+                auto namespaceName = getNamespaceName(fqn);
+
+                return replaceMany(
+                    R"(namespace @NAMESPACE {
+    struct @MSG;
+}
+)",
+                    {
+                        {"@NAMESPACE", *namespaceName},
+                        {"@MSG", *messageName},
+                    });
             },
         },
         type.payload);
@@ -175,26 +247,33 @@ static void generateMessageDirectives(CppCodeGenContext& ctx,
             if (!value)
                 continue;
             auto const& compareMode = ctx.ir.strings[value->idx];
+            auto const& selfTypeName = ctx.generatedTypeNames[typeId].name;
             if (compareMode == "none") {
                 continue;
             } else if (compareMode == "default") {
                 ss << std::format(
                     "friend auto "
-                    "operator<=>(Type_{0}_Msg "
-                    "const&, Type_{0}_Msg const&) "
+                    "operator<=>({0} "
+                    "const&, {0} const&) "
                     " = "
                     "default",
-                    typeId);
+                    selfTypeName);
             } else if (compareMode == "define") {
                 ss << std::format(
                     "friend auto "
-                    "operator<=>(Type_{0}_Msg "
-                    "const&, Type_{0}_Msg const&) ",
-                    typeId);
+                    "operator<=>({0} "
+                    "const&, {0} const&) ",
+                    selfTypeName);
             } else {
                 continue;
             }
-            ss << "\n;";
+            ss << ";\n";
+        } else if (name == "define") {
+            auto value = std::get_if<IdFor<std::string>>(&property.value.value);
+            if (!value)
+                continue;
+            auto const& definition = ctx.ir.strings[value->idx];
+            ss << definition << ";\n";
         }
     }
 }
@@ -216,43 +295,53 @@ static std::optional<std::string> generateTypeDef(CppCodeGenContext& ctx,
                     if (scalar->kind == ir::Scalar::BYTE)
                         return {};
                 }
-                return std::format("using {} = std::vector<{}>",
-                                   ctx.generatedTypeNames[typeId],
-                                   ctx.generatedTypeNames[v.type.idx]);
+                return std::format(
+                    "namespace aosl_detail {{ using {} = std::vector<{}>; }}",
+                    ctx.generatedTypeNames[typeId].name,
+                    ctx.generatedTypeNames[v.type.idx].qualifiedName());
             },
             [&ctx,
              typeId](ir::Optional const& v) -> std::optional<std::string> {
-                return std::format("using {} = std::optional<{}>",
-                                   ctx.generatedTypeNames[typeId],
-                                   ctx.generatedTypeNames[v.type.idx]);
+                return std::format(
+                    "namespace aosl_detail {{ using {} = std::optional<{}>; }}",
+                    ctx.generatedTypeNames[typeId].name,
+                    ctx.generatedTypeNames[v.type.idx].qualifiedName());
             },
             [&ctx,
              typeId](IdFor<ir::OneOf> const& v) -> std::optional<std::string> {
                 std::stringstream ss;
-                ss << std::format("using {} = std::variant<std::monostate",
-                                  ctx.generatedTypeNames[typeId]);
+                ss << std::format(
+                    "namespace aosl_detail {{ using {} = "
+                    "std::variant<std::monostate",
+                    ctx.generatedTypeNames[typeId].name);
                 for (auto const& armField : ctx.ir.oneOfs[v.idx].arms) {
                     ss << ", ";
                     auto const& arm = ctx.ir.fields[armField.idx];
-                    ss << "\n " << ctx.generatedTypeNames[arm.type.idx];
+                    ss << "\n "
+                       << ctx.generatedTypeNames[arm.type.idx].qualifiedName();
                 }
-                ss << "\n>";
+                ss << "\n>; }\n";
                 return ss.str();
             },
             [&ctx, typeId](
                 IdFor<ir::Message> const& v) -> std::optional<std::string> {
                 auto const& msg = ctx.ir.messages[v.idx];
+                auto const& typeName = ctx.generatedTypeNames[typeId];
                 std::stringstream ss;
-                ss << std::format("struct Type_{}_Msg {{\n", typeId);
+                if (!typeName.ns.empty())
+                    ss << "namespace " << typeName.ns << "{";
+
+                ss << std::format("struct {} {{\n", typeName.name);
                 for (auto const& fieldId : msg.fields) {
                     auto const& field = ctx.ir.fields[fieldId.idx];
                     auto const& fieldName = ctx.ir.strings[field.name.idx];
                     auto const& fieldTypeName =
                         ctx.generatedTypeNames[field.type.idx];
-                    ss << std::format(" {} {};\n", fieldTypeName, fieldName);
+                    ss << std::format(" {} {};\n",
+                                      fieldTypeName.qualifiedName(), fieldName);
                 }
-                ss << std::format("using Accessor = CppAccessor<{}>;\n",
-                                  typeId);
+                ss << std::format(
+                    "using Accessor = aosl_detail::CppAccessor<{}>;\n", typeId);
                 ss << std::format(
                     "static constexpr uint32_t AOSL_MESSAGE_ID = {};\n", v.idx);
                 ss << std::format(
@@ -261,59 +350,13 @@ static std::optional<std::string> generateTypeDef(CppCodeGenContext& ctx,
                 generateMessageDirectives(ctx, ss, typeId, v);
 
                 ss << "};";
+
+                if (!typeName.ns.empty())
+                    ss << "}";
                 return ss.str();
             },
         },
         type.payload);
-}
-
-std::vector<std::string_view> parsePackageName(std::string_view str) {
-    std::vector<std::string_view> output;
-    size_t lastWindow = 0;
-    for (size_t idx = 0; idx < str.size(); ++idx) {
-        if (str[idx] != '.')
-            continue;
-        auto count = idx - lastWindow;
-        output.emplace_back(str.substr(lastWindow, count));
-        lastWindow = idx + 1;
-    }
-    if (lastWindow < str.size()) {
-        auto finalName = str.substr(lastWindow, str.size() - lastWindow);
-        output.emplace_back(finalName);
-    }
-    return output;
-}
-
-static std::optional<std::string> generateNamespaceForwarding(
-    CppCodeGenContext& ctx,
-    size_t typeId,
-    IdFor<ir::Message> const& msgIdx) {
-    std::stringstream ss;
-    auto const& msg = ctx.ir.messages[msgIdx.idx];
-    auto& name = ctx.ir.strings[msg.name.idx];
-    auto packageName = parsePackageName(name);
-    if (packageName.empty())
-        return {};
-
-    auto namespaceName = std::string{};
-    for (size_t idx = 0; idx < packageName.size() - 1; ++idx) {
-        if (!namespaceName.empty())
-            namespaceName += "::";
-        namespaceName += packageName[idx];
-    }
-
-    if (!namespaceName.empty()) {
-        ss << "namespace " << namespaceName << " {\n";
-    }
-
-    ss << "using " << packageName.back()
-       << " = aosl_detail::" << ctx.generatedTypeNames[typeId] << ";\n";
-
-    if (!namespaceName.empty()) {
-        ss << "}\n";
-    }
-
-    return ss.str();
 }
 
 static std::string const optionalStringTemplate = R"(
@@ -340,7 +383,7 @@ static void encodeOptionalEnterValue(
  }
  runtime.stack.emplace_back(ao::schema::cpp::EncodeFrame{
  .ops = &(CppAccessor<@SUBTYPE_ID>::encode),
- .data = AnyPtr{(void*)&v.value()},
+ .data = ao::schema::cpp::AnyPtr{(void*)&v.value()},
  });
 }
 static void encodeOptionalExitValue(ao::schema::cpp::CppEncodeRuntime& runtime, ao::schema::cpp::AnyPtr ptr) {
@@ -351,7 +394,7 @@ static void decodeOptionalEnter(
  ao::schema::cpp::CppDecodeRuntime& runtime,
  ao::schema::cpp::MutPtr ptr) {
  auto& data = ptr.as<@TYPE_NAME>();
- data.clear();
+ data.reset();
 }
 static void decodeOptionalExit(
  ao::schema::cpp::CppDecodeRuntime& runtime,
@@ -366,7 +409,7 @@ static void decodeOptionalSetPresent(
  if (present) {
  data.emplace();
  } else {
- data.clear();
+ data.reset();
  }
 }
 
@@ -380,7 +423,7 @@ static void decodeOptionalEnterValue(
  }
  runtime.stack.emplace_back(ao::schema::cpp::DecodeFrame{
  .ops = &(CppAccessor<@SUBTYPE_ID>::decode),
- .data = MutPtr{(void*)&data.value()},
+ .data = ao::schema::cpp::MutPtr{(void*)&data.value()},
  });
 }
 static void decodeOptionalExitValue(
@@ -409,25 +452,24 @@ static constexpr auto decode = ao::schema::cpp::DecodeTypeOps{
 
 )";
 
-static std::string generateTypeAccessorsOptional(CppCodeGenContext& ctx,
-                                                 std::stringstream& ss,
-                                                 size_t typeId,
-                                                 ir::Optional const& v) {
+static void generateTypeAccessorOptional(CppCodeGenContext& ctx,
+                                         std::stringstream& ss,
+                                         size_t typeId,
+                                         ir::Optional const& v) {
     auto subtypeId = std::format("{}", v.type.idx);
     auto const& typeName = ctx.generatedTypeNames[typeId];
 
-    std::string ret = optionalStringTemplate;
-    replaceMany(ret, {
-                         {"@TYPE_NAME", typeName},
-                         {"@SUBTYPE_ID", subtypeId},
-                     });
-    return ret;
+    ss << replaceMany(optionalStringTemplate,
+                      {
+                          {"@TYPE_NAME", typeName.qualifiedName()},
+                          {"@SUBTYPE_ID", subtypeId},
+                      });
 }
 
-static void generateTypeAccessorsOneof(CppCodeGenContext& ctx,
-                                       std::stringstream& ss,
-                                       size_t typeId,
-                                       ir::OneOf const& oneofDesc) {
+static void generateTypeAccessorOneof(CppCodeGenContext& ctx,
+                                      std::stringstream& ss,
+                                      size_t typeId,
+                                      ir::OneOf const& oneofDesc) {
     auto const& typeName = ctx.generatedTypeNames[typeId];
 
     // TODO abstract this armid into another lamba.
@@ -449,7 +491,7 @@ static void encodeOneofEnterArm(
  switch (armId) {
 )",
         {
-            {"@TYPE_NAME", typeName},
+            {"@TYPE_NAME", typeName.qualifiedName()},
         });
     enumerate(oneofDesc.arms, [&](size_t idx, IdFor<ir::Field> fieldId) {
         auto const& fieldDesc = ctx.ir.fields[fieldId.idx];
@@ -478,7 +520,8 @@ static void encodeOneofEnterArm(
  }
 })";
 
-    std::string decodeOneofIndex = replaceMany(R"(
+    std::string decodeOneofIndex =
+        replaceMany(R"(
 static void decodeOneofIndex(
  ao::schema::cpp::CppDecodeRuntime& runtime,
  ao::schema::cpp::MutPtr ptr,
@@ -487,7 +530,7 @@ static void decodeOneofIndex(
  auto& data = ptr.as<@TYPE_NAME>();
  switch(armId) {
 )",
-                                               {{"@TYPE_NAME", typeName}});
+                    {{"@TYPE_NAME", typeName.qualifiedName()}});
 
     enumerate(oneofDesc.arms, [&](size_t idx, IdFor<ir::Field> fieldId) {
         auto const& fieldDesc = ctx.ir.fields[fieldId.idx];
@@ -511,7 +554,8 @@ static void decodeOneofIndex(
  }
 }
 )";
-    std::string decodeOneofEnterArm = replaceMany(R"(
+    std::string decodeOneofEnterArm =
+        replaceMany(R"(
 static void decodeOneofEnterArm(
  ao::schema::cpp::CppDecodeRuntime& runtime,
 	ao::schema::cpp::MutPtr ptr,
@@ -520,9 +564,9 @@ static void decodeOneofEnterArm(
  auto& data = ptr.as<@TYPE_NAME>();
  switch(armId) {
 )",
-                                                  {
-                                                      {"@TYPE_NAME", typeName},
-                                                  });
+                    {
+                        {"@TYPE_NAME", typeName.qualifiedName()},
+                    });
 
     enumerate(oneofDesc.arms, [&](size_t idx, IdFor<ir::Field> fieldId) {
         auto const& fieldDesc = ctx.ir.fields[fieldId.idx];
@@ -625,7 +669,7 @@ static constexpr auto decode = ao::schema::cpp::DecodeTypeOps{
 };
 )",
                       {
-                          {"@TYPE_NAME", typeName},
+                          {"@TYPE_NAME", typeName.qualifiedName()},
                           {"@ENCODE_ENTER_ARM", encodeOneofEnterArm},
                           {"@DECODE_INDEX", decodeOneofIndex},
                           {"@DECODE_ENTER_ARM", decodeOneofEnterArm},
@@ -673,25 +717,29 @@ static void generateTypeAccessorScalar(CppCodeGenContext& ctx,
 
     switch (v.kind) {
         case ir::Scalar::BOOL: {
-            ss << generateScalarAccessor("bool", typeName, "boolean", false);
+            ss << generateScalarAccessor("bool", typeName.name, "boolean",
+                                         false);
         } break;
         case ir::Scalar::INT: {
-            ss << generateScalarAccessor("int64_t", typeName, "i64", true);
+            ss << generateScalarAccessor("int64_t", typeName.name, "i64", true);
         } break;
         case ir::Scalar::UINT: {
-            ss << generateScalarAccessor("uint64_t", typeName, "u64", true);
+            ss << generateScalarAccessor("uint64_t", typeName.name, "u64",
+                                         true);
         } break;
         case ir::Scalar::F32: {
-            ss << generateScalarAccessor("float", typeName, "f32", false);
+            ss << generateScalarAccessor("float", typeName.name, "f32", false);
         } break;
         case ir::Scalar::F64: {
-            ss << generateScalarAccessor("double", typeName, "f64", false);
+            ss << generateScalarAccessor("double", typeName.name, "f64", false);
         } break;
         case ir::Scalar::CHAR: {
-            ss << generateScalarAccessor("uint64_t", typeName, "u64", true);
+            ss << generateScalarAccessor("uint64_t", typeName.name, "u64",
+                                         true);
         } break;
         case ir::Scalar::BYTE: {
-            ss << generateScalarAccessor("uint64_t", typeName, "u64", true);
+            ss << generateScalarAccessor("uint64_t", typeName.name, "u64",
+                                         true);
         } break;
         default:
             ctx.errs.fail({
@@ -805,7 +853,7 @@ static constexpr auto decode = ao::schema::cpp::DecodeTypeOps{
 };
 )",
                       {
-                          {"@TYPE_NAME", typeName},
+                          {"@TYPE_NAME", typeName.qualifiedName()},
                           {"@SUBTYPE_ACCESSOR", subtypeAccessor},
                       });
 }
@@ -844,7 +892,7 @@ switch (fieldId) {
 )",
                       {
                           {"@FUNC_SIG", signature},
-                          {"@TYPE_NAME", typeName},
+                          {"@TYPE_NAME", typeName.qualifiedName()},
                       });
     enumerate(ctx.ir.messages[v.idx].fields,
               [&](size_t fieldId, IdFor<ir::Field> const& globalFieldId) {
@@ -883,7 +931,7 @@ static void decodeFieldBegin(CppCodeGenContext& ctx,
                   std::string{mutPtr} + " ptr", "uint32_t fieldId")
        << " {\n";
     ss << std::format("auto& data = ptr.as<{}>();\n",
-                      ctx.generatedTypeNames[typeId]);
+                      ctx.generatedTypeNames[typeId].qualifiedName());
     ss << "switch (fieldId) {\n";
 
     auto const& msgDesc = ctx.ir.messages[v.idx];
@@ -982,11 +1030,11 @@ static std::string generateTypeAccessors(CppCodeGenContext& ctx,
                        generateTypeAccessorArray(ctx, ss, typeId, v);
                    },
                    [&](ir::Optional const& v) {
-                       generateTypeAccessorsOptional(ctx, ss, typeId, v);
+                       generateTypeAccessorOptional(ctx, ss, typeId, v);
                    },
                    [&](IdFor<ir::OneOf> const& v) {
-                       generateTypeAccessorsOneof(ctx, ss, typeId,
-                                                  ctx.ir.oneOfs[v.idx]);
+                       generateTypeAccessorOneof(ctx, ss, typeId,
+                                                 ctx.ir.oneOfs[v.idx]);
                    },
                    [&](IdFor<ir::Message> const& v) {
                        generateTypeAccessorMessage(ctx, ss, typeId, v);
@@ -1009,6 +1057,9 @@ void generateCppCode(CppCodeGenContext& ctx, std::ostream& out) {
 #include <ao/schema/IR.h>
 
 namespace aosl_detail {
+template<size_t> class CppAccessor;
+}
+
 )";
 
     out << replaceMany(R"(
@@ -1025,7 +1076,6 @@ static_assert(getCompiledHeader() == ao::schema::ir::IRHeader{}, "Generated code
                            {"@VERSION", std::to_string(ir::IRHeader{}.version)},
                        });
 
-    out << "template<size_t> struct CppAccessor;";
     for (auto const& def : ctx.generatedTypeDecls) {
         out << def << "\n";
     }
@@ -1034,15 +1084,12 @@ static_assert(getCompiledHeader() == ao::schema::ir::IRHeader{}, "Generated code
         out << def << "\n";
     }
 
+    out << "namespace aosl_detail {\n";
+    out << "template<size_t> struct CppAccessor;\n";
     enumerate(ctx.ir.types, [&](size_t typeId, auto const& type) {
         out << generateTypeAccessors(ctx, typeId, type) << "\n";
     });
-
     out << "\n}\n";
-
-    for (auto const& def : ctx.generatedMessages) {
-        out << def << "\n";
-    }
 }
 
 bool generateCppCode(ir::IR const& ir, ErrorContext& errs, OutputFiles& files) {
@@ -1065,15 +1112,6 @@ bool generateCppCode(ir::IR const& ir, ErrorContext& errs, OutputFiles& files) {
         if (!typeDecl)
             return;
         ctx.generatedTypeDecls.emplace_back(std::move(*typeDecl));
-    });
-    enumerate(ir.types, [&ctx](size_t i, auto const& type) {
-        auto msg = std::get_if<IdFor<ir::Message>>(&type.payload);
-        if (!msg)
-            return;
-        auto msgForward = generateNamespaceForwarding(ctx, i, *msg);
-        if (!msgForward)
-            return;
-        ctx.generatedMessages.emplace_back(std::move(*msgForward));
     });
 
     generateCppCode(ctx, files.header);
