@@ -273,9 +273,9 @@ TEST_CASE("generateIR retains types, messages, fields and directives", "[ir]") {
             auto pname = ir.strings[profile.profileName.idx];
             if (pname == "prof") {
                 foundProf = true;
-                // profile should have one property (tag="fieldVal")
-                REQUIRE(profile.properties.size() == 1);
-                auto propId = profile.properties[0];
+                // profile should have two property (tag="global", tag="fieldVal")
+                REQUIRE(profile.properties.size() == 2);
+                auto propId = profile.properties[1];
                 auto const& prop = ir.directiveProperties[propId.idx];
                 // property name should be "tag"
                 CHECK(ir.strings[prop.name.idx] == "tag");
@@ -427,8 +427,8 @@ message 43 B {
             auto pname = ir.strings[profile.profileName.idx];
             if (pname == "prof") {
                 foundProf = true;
-                REQUIRE(profile.properties.size() == 1);
-                auto prop = ir.directiveProperties[profile.properties[0].idx];
+                REQUIRE(profile.properties.size() == 2);
+                auto prop = ir.directiveProperties[profile.properties[1].idx];
                 CHECK(ir.strings[prop.name.idx] == "tag");
                 auto const& val = prop.value.value;
                 if (auto pstr = std::get_if<IdFor<std::string>>(&val)) {

@@ -102,14 +102,14 @@ struct AstType {
 struct AstDirective {
     AstFieldDirectiveType type;
     std::string directiveName;
-    std::unordered_map<std::string, AstValueLiteral> properties;
+    std::vector<std::pair<std::string, AstValueLiteral>> properties;
     SourceLocation loc;
 };
 
 struct AstDirectiveBlock {
     std::vector<AstDirective> directives;
     std::unordered_map<std::string,
-                       std::unordered_map<std::string, AstValueLiteral>>
+                       std::vector<std::pair<std::string, AstValueLiteral>>>
         effectiveDirectives;
 };
 

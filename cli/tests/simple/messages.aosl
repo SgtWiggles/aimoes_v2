@@ -26,10 +26,17 @@ message 4 TestMessage4
 message 5 TestMessage5 
 	@cpp(
 		compare="default",
-		define="TestMessage5 add(TestMessage5 const& other)"
+		define="TestMessage5 add(TestMessage5 const& other)",
+		define="TestMessage5 sub(TestMessage5 const& other)",
 	)
 {
 	1 value1 uint;
 	2 value2 int;
 	3 value3 optional<int>;
+}
+
+message 6 TestMessage6
+	@cpp(compare="default")
+{
+	
 }

@@ -223,7 +223,7 @@ struct DirectiveProfile {
                 .loc = ctx.getSourceLocation(input),
             };
             for (auto& [name, literal] : directives)
-                ret.properties[name] = std::move(literal);
+                ret.properties.emplace_back(std::move(name), std::move(literal));
             return ret;
         });
 };
@@ -516,8 +516,10 @@ struct MessageDecl {
 struct ImportDecl {
     static constexpr auto rule = dsl::position(
         LEXY_LIT("import") >> dsl::p<QualifiedSymbol> + LEXY_LIT(";"));
-    static constexpr auto value = lexy::callback_with_state<AstDecl>(
-        [](ParsingContext const& ctx, auto input, std::vector<std::string> path) {
+    static constexpr auto value =
+        lexy::callback_with_state<AstDecl>([](ParsingContext const& ctx,
+                                              auto input,
+                                              std::vector<std::string> path) {
             return AstDecl{
                 AstImport{
                     .moduleName = AstQualifiedName{std::move(path)},
