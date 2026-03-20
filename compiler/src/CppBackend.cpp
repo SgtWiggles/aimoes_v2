@@ -150,6 +150,55 @@ static std::optional<std::string> generateTypeDecl(CppCodeGenContext& ctx,
         type.payload);
 }
 
+static void generateMessageDirectives(CppCodeGenContext& ctx,
+                                      std::stringstream& ss,
+                                      size_t typeId,
+                                      IdFor<ir::Message> const& msgIdx) {
+    auto const& msg = ctx.ir.messages[msgIdx.idx];
+    auto const& directiveSet = ctx.ir.directiveSets[msg.directives.idx];
+    ir::DirectiveProfile const* directiveProfile = nullptr;
+    for (auto const& profileIdx : directiveSet.directives) {
+        auto const& profile = ctx.ir.directiveProfiles[profileIdx.idx];
+        if (profile.domain != ir::DirectiveProfile::Cpp)
+            continue;
+        directiveProfile = &profile;
+        break;
+    }
+    if (!directiveProfile)
+        return;
+
+    for (auto const& propertyIdx : directiveProfile->properties) {
+        auto const& property = ctx.ir.directiveProperties[propertyIdx.idx];
+        auto const& name = ctx.ir.strings[property.name.idx];
+        if (name == "compare") {
+            auto value = std::get_if<IdFor<std::string>>(&property.value.value);
+            if (!value)
+                continue;
+            auto const& compareMode = ctx.ir.strings[value->idx];
+            if (compareMode == "none") {
+                continue;
+            } else if (compareMode == "default") {
+                ss << std::format(
+                    "friend auto "
+                    "operator<=>(Type_{0}_Msg "
+                    "const&, Type_{0}_Msg const&) "
+                    " = "
+                    "default",
+                    typeId);
+            } else if (compareMode == "define") {
+                ss << std::format(
+                    "friend auto "
+                    "operator<=>(Type_{0}_Msg "
+                    "const&, Type_{0}_Msg const&) ",
+                    typeId);
+            } else {
+                continue;
+            }
+            ss << "\n;";
+        }
+    }
+}
+
 static std::optional<std::string> generateTypeDef(CppCodeGenContext& ctx,
                                                   size_t typeId,
                                                   ir::Type const& type) {
@@ -204,12 +253,14 @@ static std::optional<std::string> generateTypeDef(CppCodeGenContext& ctx,
                 }
                 ss << std::format("using Accessor = CppAccessor<{}>;\n",
                                   typeId);
-                ss << std::format("static constexpr uint32_t AOSL_MESSAGE_ID = {};\n",
-                                  v.idx);
-                ss << std::format("static constexpr uint32_t AOSL_TYPE_ID = {};\n",
-                                  typeId);
-                ss
-                   << "};";
+                ss << std::format(
+                    "static constexpr uint32_t AOSL_MESSAGE_ID = {};\n", v.idx);
+                ss << std::format(
+                    "static constexpr uint32_t AOSL_TYPE_ID = {};\n", typeId);
+
+                generateMessageDirectives(ctx, ss, typeId, v);
+
+                ss << "};";
                 return ss.str();
             },
         },

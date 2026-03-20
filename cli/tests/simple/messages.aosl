@@ -12,3 +12,11 @@ message 3 TestMessage3 {
 	1 value1 uint;
 	2 value2 int;
 }
+
+
+message 4 TestMessage4 
+	@cpp(compare="default")
+{
+	1 value1 uint;
+	2 value2 int;
+}
