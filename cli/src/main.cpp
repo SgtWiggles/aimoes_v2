@@ -117,13 +117,16 @@ class FileFrontend : public CompilerFrontend {
 int main(int argc, char** argv) {
     try {
         po::options_description desc("Allowed options");
-        desc.add_options()("help,h", "Show this help message")(
-            "include,I", po::value<std::vector<std::string>>()->composing(),
-            "Add include path")("out-header", po::value<std::string>(),
-                                "Output header file path")(
-            "out-ir", po::value<std::string>(), "Output IR file path")(
-            "pos", po::value<std::vector<std::string>>(),
-            "Positional arguments: <inputs...>");
+        // clang-format off
+        desc.add_options()
+		("help,h", "Show this help message")
+		("include,I", po::value<std::vector<std::string>>()->composing(), "Add include path")
+		("out-root", po::value<std::string>(), "Output root directory")
+		("out-dir", po::value<std::string>(), "Output directory relative to root")
+		("project", po::value<std::string>(), "Name of the project")
+		("pos", po::value<std::vector<std::string>>(),"Positional arguments: <inputs...>")
+        ;
+        // clang-format on
 
         po::positional_options_description pod;
         pod.add("pos", -1);
@@ -153,13 +156,16 @@ int main(int argc, char** argv) {
             return 2;
         }
 
-        if (!vm.count("out-header") || !vm.count("out-ir")) {
-            std::cerr << "Both --out-header and --out-ir must be provided\n";
+        if (!vm.count("out-root") || !vm.count("out-dir") ||
+            !vm.count("project")) {
+            std::cerr << "All of --out-root, --out-dir and --project must be "
+                         "provided\n";
             return 2;
         }
 
-        std::string outHeader = vm["out-header"].as<std::string>();
-        std::string outIr = vm["out-ir"].as<std::string>();
+        std::string outRoot = vm["out-root"].as<std::string>();
+        std::string outDir = vm["out-dir"].as<std::string>();
+        std::string outProject = vm["out-project"].as<std::string>();
 
         // Inputs are all positional arguments
         std::vector<std::string> inputs = posArgs;
@@ -223,30 +229,33 @@ int main(int argc, char** argv) {
             return 5;
         }
 
-        std::ofstream headerStream(outHeader, std::ios::out);
-        if (!headerStream) {
-            std::cerr << "Failed to open output header: " << outHeader << "\n";
-            return 6;
-        }
-        std::ofstream irStream(outIr, std::ios::out | std::ios::binary);
-        if (!irStream) {
-            std::cerr << "Failed to open output IR file: " << outIr << "\n";
-            return 7;
-        }
-        std::ofstream irHeaderStream(outIr + ".h", std::ios::out|std::ios::binary);
-        if (!irHeaderStream) {
-            std::cerr << "Failed to open output IR file: " << outIr << "\n";
-            return 7;
-        }
-
-        ao::schema::cpp::OutputFiles outFiles(headerStream, irStream, &irHeaderStream);
+        ao::schema::cpp::OutputFiles outFiles{
+            .projectName = outProject,
+            .outDir = outDir,
+            .root = outRoot,
+            .loader = [](std::filesystem::path path,
+                         std::ios_base::openmode mode,
+                         ao::schema::ErrorContext& errs)
+                -> std::unique_ptr<std::ostream> {
+                auto ret = std::make_unique<std::fstream>(path.string(), mode);
+                if (!ret->is_open()) {
+                    errs.fail({
+                        .code = ao::schema::ErrorCode::OTHER,
+                        .message =
+                            std::format("Failed to open file at path '{}': {}",
+                                        path.string(), strerror(errno)),
+                        .loc = {},
+                    });
+                    return nullptr;
+                }
+                return std::move(ret);
+            },
+        };
         bool ok = ao::schema::cpp::generateCppCode(ir, errs, outFiles);
         if (!ok || !errs.ok()) {
             std::cerr << "Code generation failed:\n" << errs.toString();
             return 8;
         }
-
-        std::cout << "Generated " << outHeader << " and " << outIr << "\n";
         return 0;
     } catch (const po::error& e) {
         std::cerr << "Argument error: " << e.what() << "\n";

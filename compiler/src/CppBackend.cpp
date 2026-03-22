@@ -10,108 +10,9 @@
 
 #include "ao/pack/OStreamWriteStream.h"
 
+#include "CppBackendHelpers.h"
+
 namespace ao::schema::cpp {
-
-void replaceAll(std::string& str,
-                std::string_view key,
-                std::string_view value) {
-    if (key.empty())
-        return;  // avoid infinite loop
-
-    size_t pos = 0;
-    while ((pos = str.find(key, pos)) != std::string::npos) {
-        str.replace(pos, key.length(), value);
-        pos += value.length();  // advance past the replacement
-    }
-}
-
-std::string replaceMany(
-    std::string_view str,
-    std::initializer_list<std::pair<std::string_view, std::string_view>>
-        replacements) {
-    auto ret = std::string{str};
-    for (const auto& [key, value] : replacements) {
-        replaceAll(ret, key, value);
-    }
-    return ret;
-}
-
-std::vector<std::string_view> parsePackageName(std::string_view str) {
-    std::vector<std::string_view> output;
-    size_t lastWindow = 0;
-    for (size_t idx = 0; idx < str.size(); ++idx) {
-        if (str[idx] != '.')
-            continue;
-        auto count = idx - lastWindow;
-        output.emplace_back(str.substr(lastWindow, count));
-        lastWindow = idx + 1;
-    }
-    if (lastWindow < str.size()) {
-        auto finalName = str.substr(lastWindow, str.size() - lastWindow);
-        output.emplace_back(finalName);
-    }
-    return output;
-}
-std::optional<std::string_view> getMessageName(std::string_view name) {
-    auto parts = parsePackageName(name);
-    if (parts.empty())
-        return {};
-    return parts.back();
-}
-std::optional<std::string> getNamespaceName(std::string_view name) {
-    auto packageName = parsePackageName(name);
-    if (packageName.empty())
-        return {};
-
-    auto namespaceName = std::string{};
-    for (size_t idx = 0; idx < packageName.size() - 1; ++idx) {
-        if (!namespaceName.empty())
-            namespaceName += "::";
-        namespaceName += packageName[idx];
-    }
-
-    return namespaceName;
-}
-
-struct TypeName {
-    std::string ns;
-    std::string name;
-    std::string qualifiedName() const {
-        if (ns.empty())
-            return name;
-        return std::format("{}::{}", ns, name);
-    }
-};
-
-struct CppCodeGenContext {
-    ir::IR const& ir;
-    ErrorContext& errs;
-
-    std::vector<TypeName> generatedTypeNames;
-    std::vector<std::string> generatedTypeDecls;
-    std::vector<std::string> generatedTypeDefs;
-};
-
-uint8_t getCppBitWidth(CppCodeGenContext& ctx, uint64_t width) {
-    // default to uint64_t if no width specified, this is
-    // consistent with the codec table generation
-    if (width == 0)
-        return 64;
-
-    static constexpr auto items = makeArray<int>(8, 16, 32, 64);
-    for (auto item : items) {
-        if (width <= item)
-            return static_cast<uint8_t>(item);
-    }
-
-    ctx.errs.fail({
-        .code = ErrorCode::INTERNAL,
-        .message = std::format("Unsupported bit width for C++: {}", width),
-        .loc = {},
-    });
-    return 0;
-}
-
 static TypeName generateTypeName(CppCodeGenContext& ctx,
                                  size_t typeId,
                                  ir::Type const& type) {
@@ -341,7 +242,8 @@ static std::optional<std::string> generateTypeDef(CppCodeGenContext& ctx,
                                       fieldTypeName.qualifiedName(), fieldName);
                 }
                 ss << std::format(
-                    "using Accessor = aosl_detail::CppAccessor<{}>;\n", typeId);
+                    "using Accessor = {};\n",
+                    ctx.generatedAccessors[typeId].name.qualifiedName());
                 ss << std::format(
                     "static constexpr uint32_t AOSL_MESSAGE_ID = {};\n", v.idx);
                 ss << std::format(
@@ -1021,7 +923,7 @@ static std::string generateTypeAccessors(CppCodeGenContext& ctx,
     std::stringstream ss;
     auto const& typeName = ctx.generatedTypeNames[typeId];
 
-    ss << "template<> class CppAccessor<" << typeId << "> {\n";
+    ss << "struct " << ctx.generatedAccessors[typeId].name.name << " {\n";
     std::visit(Overloaded{
                    [&](ir::Scalar const& v) {
                        generateTypeAccessorScalar(ctx, ss, typeId, v);
@@ -1056,10 +958,6 @@ void generateCppCode(CppCodeGenContext& ctx, std::ostream& out) {
 #include <ao/schema/CppAdapter.h>
 #include <ao/schema/IR.h>
 
-namespace aosl_detail {
-template<size_t> class CppAccessor;
-}
-
 )";
 
     out << replaceMany(R"(
@@ -1080,12 +978,17 @@ static_assert(getCompiledHeader() == ao::schema::ir::IRHeader{}, "Generated code
         out << def << "\n";
     }
 
+    out << "namespace aosl_detail {\n";
+    for (auto const& def : ctx.generatedAccessors) {
+        out << def.decl << "\n";
+    }
+    out << "}";
+
     for (auto const& def : ctx.generatedTypeDefs) {
         out << def << "\n";
     }
 
     out << "namespace aosl_detail {\n";
-    out << "template<size_t> struct CppAccessor;\n";
     enumerate(ctx.ir.types, [&](size_t typeId, auto const& type) {
         out << generateTypeAccessors(ctx, typeId, type) << "\n";
     });
@@ -1102,6 +1005,10 @@ bool generateCppCode(ir::IR const& ir, ErrorContext& errs, OutputFiles& files) {
         ctx.generatedTypeNames.emplace_back(std::move(typeName));
     });
     enumerate(ir.types, [&ctx](size_t i, auto const& type) {
+        auto accessor = generateAccessorDecl(ctx, i, type);
+        ctx.generatedAccessors.emplace_back(std::move(accessor));
+    });
+    enumerate(ir.types, [&ctx](size_t i, auto const& type) {
         auto typeDef = generateTypeDef(ctx, i, type);
         if (!typeDef)
             return;
@@ -1114,25 +1021,46 @@ bool generateCppCode(ir::IR const& ir, ErrorContext& errs, OutputFiles& files) {
         ctx.generatedTypeDecls.emplace_back(std::move(*typeDecl));
     });
 
-    generateCppCode(ctx, files.header);
+    auto makePath = [&files](std::string const& ext) {
+        return files.outDir / (files.projectName + std::string{ext});
+    };
 
-    ao::pack::byte::OStreamWriteStream irWs(files.ir);
+    std::filesystem::path headerPath = makePath(".h");
+    std::filesystem::path cppPath = makePath(".cpp");
+    std::filesystem::path irPath = makePath(".aoir");
+    std::filesystem::path irHeaderPath = makePath(".aoir.h");
+
+    auto headerStream = files.loader(headerPath, std::ios_base::out, errs);
+    auto cppStream = files.loader(cppPath, std::ios_base::out, errs);
+    auto irStream =
+        files.loader(irPath, std::ios_base::out | std::ios_base::binary, errs);
+    auto irHeaderStream = files.loader(irHeaderPath, std::ios_base::out, errs);
+
+    if (!errs.ok())
+        return errs.ok();
+    if (!headerStream || !cppStream || !irStream || !irHeaderStream)
+        return false;
+
+    generateCppCode(ctx, *headerStream);
+    // TODO we need to change this
+    *cppStream << "#include <string>\n";
+
+    ao::pack::byte::OStreamWriteStream irWs(*irStream);
     ir::serializeIRFile(irWs, ir);
-    if (files.irHeader) {
-        std::vector<std::byte> bytes;
-        bytes.resize(irWs.byteSize());
-        ao::pack::byte::WriteStream ws{std::span{bytes.data(), bytes.size()}};
-        ir::serializeIRFile(ws, ir);
-        (*files.irHeader) << "{";
-        size_t i = 0;
-        for (auto const& b : bytes) {
-            if (i % 256 == 0)
-                (*files.irHeader) << "\n";
-            (*files.irHeader)
-                << std::format("'\\x{:02x}', ", static_cast<uint8_t>(b));
-        }
-        (*files.irHeader) << "}";
+
+    std::vector<std::byte> bytes;
+    bytes.resize(irWs.byteSize());
+    ao::pack::byte::WriteStream ws{std::span{bytes.data(), bytes.size()}};
+    ir::serializeIRFile(ws, ir);
+    (*irHeaderStream) << "{";
+    size_t i = 0;
+    for (auto const& b : bytes) {
+        if (i % 256 == 0)
+            (*irHeaderStream) << "\n";
+        (*irHeaderStream) << std::format("'\\x{:02x}', ",
+                                         static_cast<uint8_t>(b));
     }
+    (*irHeaderStream) << "}";
 
     return errs.ok();
 }

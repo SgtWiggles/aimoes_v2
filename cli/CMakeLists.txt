@@ -23,6 +23,7 @@ function(aosl_generate TARGET_NAME OUT_DIR)
     endforeach()
 
     set(OUT_H  "${OUT_DIR_ABS}/${TARGET_NAME}_messages.h")
+    set(OUT_CPP "${OUT_DIR_ABS}/${TARGET_NAME}_messages.cpp")
     set(OUT_IR "${OUT_DIR_ABS}/${TARGET_NAME}_messages.aoir")
 
     add_custom_command(
@@ -31,6 +32,7 @@ function(aosl_generate TARGET_NAME OUT_DIR)
         COMMAND "$<TARGET_FILE:aosl-compiler>"
             "--include=${FILE_ROOT_DIR_ABS}"
             "--out-header=${OUT_H}"
+            "--out-cpp=${OUT_CPP}"
             "--out-ir=${OUT_IR}"
             ${INPUTS_ABS}
         DEPENDS
@@ -40,7 +42,7 @@ function(aosl_generate TARGET_NAME OUT_DIR)
         COMMENT "Generating AOSL outputs in ${OUT_DIR_ABS}"
     )
 
-    target_sources(${TARGET_NAME} PRIVATE "${OUT_H}" "${OUT_IR}" "${OUT_IR}.h")
+    # target_sources(${TARGET_NAME} PRIVATE "${OUT_H}" "${OUT_CPP}" "${OUT_IR}" "${OUT_IR}.h")
     target_include_directories(${TARGET_NAME} PRIVATE "${OUT_DIR_ABS}")
 endfunction()
 
