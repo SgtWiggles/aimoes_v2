@@ -80,6 +80,7 @@ struct TypeName {
 
 struct GeneratedObject {
     TypeName name;
+    std::string fwdDecl;
     std::string decl;
     std::string impl;
 };
@@ -119,3 +120,7 @@ inline uint8_t getCppBitWidth(CppCodeGenContext& ctx, uint64_t width) {
 GeneratedObject generateAccessorDecl(CppCodeGenContext& ctx,
                                  size_t typeId,
                                  ao::schema::ir::Type const& type);
+
+std::string generateTypeAccessors(CppCodeGenContext& ctx,
+                                  size_t typeId,
+                                  ao::schema::ir::Type const& type);

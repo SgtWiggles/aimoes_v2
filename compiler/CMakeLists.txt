@@ -45,7 +45,7 @@ add_library(compiler OBJECT
  "include/ao/utils/Variant.h"
  "include/ao/utils/Blake3Hasher.h"
  "src/CppAdapter.cpp"
- "src/CppBackendHelpers.cpp" "src/CppBackendHelpers.h")
+ "src/CppBackendHelpers.cpp" "src/CppBackendHelpers.h" "src/CppBackendTypeAccessors.cpp")
 target_include_directories(compiler PUBLIC include)
 target_link_libraries(compiler PUBLIC
 	Boost::container_hash
