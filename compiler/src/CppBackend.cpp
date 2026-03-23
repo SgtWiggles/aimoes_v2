@@ -1029,6 +1029,9 @@ bool generateCppCode(ir::IR const& ir, ErrorContext& errs, OutputFiles& files) {
     std::filesystem::path cppPath = makePath(".cpp");
     std::filesystem::path irPath = makePath(".aoir");
     std::filesystem::path irHeaderPath = makePath(".aoir.h");
+    std::cout << std::format("Outputting to files: {}\n {}\n {}\n {}\n",
+                             headerPath.string(), cppPath.string(),
+                             irPath.string(), irHeaderPath.string());
 
     auto headerStream = files.loader(headerPath, std::ios_base::out, errs);
     auto cppStream = files.loader(cppPath, std::ios_base::out, errs);
@@ -1038,8 +1041,14 @@ bool generateCppCode(ir::IR const& ir, ErrorContext& errs, OutputFiles& files) {
 
     if (!errs.ok())
         return errs.ok();
-    if (!headerStream || !cppStream || !irStream || !irHeaderStream)
+    if (!headerStream || !cppStream || !irStream || !irHeaderStream) {
+        errs.fail({
+            .code = ErrorCode::INTERNAL,
+            .message = "Got stream which was null!",
+            .loc = {},
+        });
         return false;
+    }
 
     generateCppCode(ctx, *headerStream);
     // TODO we need to change this

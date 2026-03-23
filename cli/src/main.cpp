@@ -165,7 +165,7 @@ int main(int argc, char** argv) {
 
         std::string outRoot = vm["out-root"].as<std::string>();
         std::string outDir = vm["out-dir"].as<std::string>();
-        std::string outProject = vm["out-project"].as<std::string>();
+        std::string outProject = vm["project"].as<std::string>();
 
         // Inputs are all positional arguments
         std::vector<std::string> inputs = posArgs;
@@ -228,12 +228,12 @@ int main(int argc, char** argv) {
             std::cerr << "IR generation failed:\n" << errs.toString();
             return 5;
         }
-
+        std::vector<std::string> generatedFiles;
         ao::schema::cpp::OutputFiles outFiles{
             .projectName = outProject,
             .outDir = outDir,
             .root = outRoot,
-            .loader = [](std::filesystem::path path,
+            .loader = [&](std::filesystem::path path,
                          std::ios_base::openmode mode,
                          ao::schema::ErrorContext& errs)
                 -> std::unique_ptr<std::ostream> {
@@ -248,6 +248,7 @@ int main(int argc, char** argv) {
                     });
                     return nullptr;
                 }
+                generatedFiles.emplace_back(path.string());
                 return std::move(ret);
             },
         };
@@ -256,6 +257,12 @@ int main(int argc, char** argv) {
             std::cerr << "Code generation failed:\n" << errs.toString();
             return 8;
         }
+
+        std::cout << "Generated files: ";
+        for (auto const& file : generatedFiles) {
+            std::cout << "\n\t" << file;
+        }
+        std::cout << "\n";
         return 0;
     } catch (const po::error& e) {
         std::cerr << "Argument error: " << e.what() << "\n";
