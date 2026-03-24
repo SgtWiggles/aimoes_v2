@@ -11,6 +11,7 @@
 #include "ao/pack/OStreamWriteStream.h"
 
 #include "CppBackendHelpers.h"
+#include "CppTypeAccessor.h"
 
 namespace ao::schema::cpp {
 static TypeName generateTypeName(CppCodeGenContext& ctx,
@@ -230,7 +231,7 @@ static std::optional<std::string> generateTypeDef(CppCodeGenContext& ctx,
                 auto const& typeName = ctx.generatedTypeNames[typeId];
                 std::stringstream ss;
                 if (!typeName.ns.empty())
-                    ss << "namespace " << typeName.ns << "{";
+                    ss << "namespace " << typeName.ns << "{\n";
 
                 ss << std::format("struct {} {{\n", typeName.name);
                 for (auto const& fieldId : msg.fields) {
@@ -261,8 +262,7 @@ static std::optional<std::string> generateTypeDef(CppCodeGenContext& ctx,
         type.payload);
 }
 
-
-void generateCppCode(CppCodeGenContext& ctx, std::ostream& out) {
+void generateHeader(CppCodeGenContext& ctx, std::ostream& out) {
     out << R"(
 #pragma once
 #include <vector>
@@ -303,10 +303,26 @@ static_assert(getCompiledHeader() == ao::schema::ir::IRHeader{}, "Generated code
     }
 
     out << "namespace aosl_detail {\n";
-    enumerate(ctx.ir.types, [&](size_t typeId, auto const& type) {
-        out << generateTypeAccessors(ctx, typeId, type) << "\n";
-    });
-    out << "\n}\n";
+    for (auto const& accessor : ctx.generatedAccessors) {
+        out << accessor.decl << "\n";
+    }
+    out << "}\n";
+}
+
+void generateCppImpl(CppCodeGenContext& ctx,
+                     std::ostream& os,
+                     std::string headerPath) {
+    os << std::format(R"(
+#include <ao/schema/CppAdapter.h>
+#include <ao/schema/IR.h>
+
+#include "{}"
+)", headerPath);
+    os << "namespace aosl_detail {\n";
+    for (auto const& accessor : ctx.generatedAccessors) {
+        os << accessor.impl << "\n";
+    }
+    os << "}\n";
 }
 
 bool generateCppCode(ir::IR const& ir, ErrorContext& errs, OutputFiles& files) {
@@ -321,6 +337,9 @@ bool generateCppCode(ir::IR const& ir, ErrorContext& errs, OutputFiles& files) {
     enumerate(ir.types, [&ctx](size_t i, auto const& type) {
         auto accessor = generateAccessorDecl(ctx, i, type);
         ctx.generatedAccessors.emplace_back(std::move(accessor));
+    });
+    enumerate(ir.types, [&ctx](size_t i, auto const& type) {
+        generateTypeAccessor(ctx, i, type);
     });
     enumerate(ir.types, [&ctx](size_t i, auto const& type) {
         auto typeDef = generateTypeDef(ctx, i, type);
@@ -343,9 +362,6 @@ bool generateCppCode(ir::IR const& ir, ErrorContext& errs, OutputFiles& files) {
     std::filesystem::path cppPath = makePath(".cpp");
     std::filesystem::path irPath = makePath(".aoir");
     std::filesystem::path irHeaderPath = makePath(".aoir.h");
-    std::cout << std::format("Outputting to files: {}\n {}\n {}\n {}\n",
-                             headerPath.string(), cppPath.string(),
-                             irPath.string(), irHeaderPath.string());
 
     auto headerStream = files.loader(headerPath, std::ios_base::out, errs);
     auto cppStream = files.loader(cppPath, std::ios_base::out, errs);
@@ -364,9 +380,8 @@ bool generateCppCode(ir::IR const& ir, ErrorContext& errs, OutputFiles& files) {
         return false;
     }
 
-    generateCppCode(ctx, *headerStream);
-    // TODO we need to change this
-    *cppStream << "#include <string>\n";
+    generateHeader(ctx, *headerStream);
+    generateCppImpl(ctx, *cppStream, (files.projectName + ".h"));
 
     ao::pack::byte::OStreamWriteStream irWs(*irStream);
     ir::serializeIRFile(irWs, ir);

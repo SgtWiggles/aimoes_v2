@@ -9,8 +9,8 @@
 #include <ao/utils/Array.h>
 
 inline void replaceAll(std::string& str,
-                std::string_view key,
-                std::string_view value) {
+                       std::string_view key,
+                       std::string_view value) {
     if (key.empty())
         return;  // avoid infinite loop
 
@@ -67,7 +67,6 @@ inline std::optional<std::string> getNamespaceName(std::string_view name) {
     return namespaceName;
 }
 
-
 struct TypeName {
     std::string ns;
     std::string name;
@@ -81,6 +80,7 @@ struct TypeName {
 struct GeneratedObject {
     TypeName name;
     std::string fwdDecl;
+
     std::string decl;
     std::string impl;
 };
@@ -94,7 +94,6 @@ struct CppCodeGenContext {
     std::vector<std::string> generatedTypeDecls;
     std::vector<std::string> generatedTypeDefs;
 };
-
 
 inline uint8_t getCppBitWidth(CppCodeGenContext& ctx, uint64_t width) {
     // default to uint64_t if no width specified, this is
@@ -115,12 +114,3 @@ inline uint8_t getCppBitWidth(CppCodeGenContext& ctx, uint64_t width) {
     });
     return 0;
 }
-
-
-GeneratedObject generateAccessorDecl(CppCodeGenContext& ctx,
-                                 size_t typeId,
-                                 ao::schema::ir::Type const& type);
-
-std::string generateTypeAccessors(CppCodeGenContext& ctx,
-                                  size_t typeId,
-                                  ao::schema::ir::Type const& type);
