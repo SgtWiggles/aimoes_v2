@@ -407,6 +407,7 @@ bool generateCppCode(ir::IR const& ir, ErrorContext& errs, OutputFiles& files) {
             (*irHeaderStream) << "\n";
         (*irHeaderStream) << std::format("'\\x{:02x}', ",
                                          static_cast<uint8_t>(b));
+        ++i;
     }
     (*irHeaderStream) << "}";
 
