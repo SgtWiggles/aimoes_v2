@@ -275,20 +275,6 @@ void generateHeaders(CppCodeGenContext& ctx, std::ostream& out) {
 
 )";
 
-    out << replaceMany(R"(
-constexpr inline ao::schema::ir::IRHeader getCompiledHeader() {
- return ao::schema::ir::IRHeader{
- .magic = @MAGIC,
- .version = @VERSION,
- };
-};
-static_assert(getCompiledHeader() == ao::schema::ir::IRHeader{}, "Generated code was not the same as current code, regenerate the schema");
-)",
-                       {
-                           {"@MAGIC", std::to_string(ir::IRHeader{}.magic)},
-                           {"@VERSION", std::to_string(ir::IRHeader{}.version)},
-                       });
-
     out << "namespace aosl_detail {\n";
     for (auto const& type : ctx.generatedAccessors) {
         out << type.fwdDecl << "\n";
@@ -325,6 +311,20 @@ void generateCpp(CppCodeGenContext& ctx,
 
 )",
                        headerPath);
+
+    out << replaceMany(R"(
+constexpr inline ao::schema::ir::IRHeader getCompiledHeader() {
+ return ao::schema::ir::IRHeader{
+ .magic = @MAGIC,
+ .version = @VERSION,
+ };
+};
+static_assert(getCompiledHeader() == ao::schema::ir::IRHeader{}, "Generated code was not the same as current code, regenerate the schema");
+)",
+                       {
+                           {"@MAGIC", std::to_string(ir::IRHeader{}.magic)},
+                           {"@VERSION", std::to_string(ir::IRHeader{}.version)},
+                       });
 
     out << "namespace aosl_detail {\n";
     for (auto const& type : ctx.generatedAccessors) {
@@ -378,7 +378,6 @@ bool generateCppCode(ir::IR const& ir, ErrorContext& errs, OutputFiles& files) {
     auto irStream =
         files.loader(irPath, std::ios_base::out | std::ios_base::binary, errs);
     auto irHeaderStream = files.loader(irHeaderPath, std::ios_base::out, errs);
-
 
     if (!errs.ok())
         return false;
