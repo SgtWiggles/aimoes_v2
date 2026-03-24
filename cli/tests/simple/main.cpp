@@ -104,3 +104,47 @@ TEMPLATE_LIST_TEST_CASE("Simple message 5 round trip 1",
     REQUIRE(added.value2 == 4);
     REQUIRE(added.value3 == 3);
 }
+
+TEMPLATE_LIST_TEST_CASE("Simple message 6 round trip 1",
+                        "[simple]",
+                        StreamTypes) {
+    messages::TestMessage6 input{
+        .value1 = {1, 2, 3, 4, 5},
+    };
+    messages::TestMessage6 output{};
+
+    using WS = typename TestType::WS;
+    using RS = typename TestType::RS;
+    cppRoundTrip<WS, RS>(irSpan, input, output);
+
+    REQUIRE(input == output);
+}
+
+TEMPLATE_LIST_TEST_CASE("Simple message 7 round trip 1",
+                        "[simple]",
+                        StreamTypes) {
+    messages::TestMessage7 input{
+        .value = (uint64_t)1,
+    };
+    messages::TestMessage7 output{};
+
+    using WS = typename TestType::WS;
+    using RS = typename TestType::RS;
+    cppRoundTrip<WS, RS>(irSpan, input, output);
+
+    REQUIRE(input == output);
+}
+TEMPLATE_LIST_TEST_CASE("Simple message 7 round trip 2",
+                        "[simple]",
+                        StreamTypes) {
+    messages::TestMessage7 input{
+        .value = (int64_t)1,
+    };
+    messages::TestMessage7 output{};
+
+    using WS = typename TestType::WS;
+    using RS = typename TestType::RS;
+    cppRoundTrip<WS, RS>(irSpan, input, output);
+
+    REQUIRE(input == output);
+}

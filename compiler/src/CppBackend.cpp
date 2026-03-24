@@ -391,7 +391,6 @@ bool generateCppCode(ir::IR const& ir, ErrorContext& errs, OutputFiles& files) {
         return false;
     }
 
-
     generateHeaders(ctx, *headerStream);
     generateCpp(ctx, *cppStream, (files.projectName + ".h"));
 
