@@ -20,7 +20,7 @@ void encodeOneofEnterArm_@TYPE_ID(
 	uint32_t armId) {
  auto const& data = ptr.as<@TYPE_NAME>();
  if (data.index() != armId +1) {
- ao::schema::cpp::cppRuntimeFail(runtime, ao::pack::Error::BadData)
+ ao::schema::cpp::cppRuntimeFail(runtime, ao::pack::Error::BadData);
  return;
  }
 
@@ -39,7 +39,7 @@ void encodeOneofEnterArm_@TYPE_ID(
 		case @FIELD_ID: {
 			auto encodePtr = &@SUBTYPE_ACCESSOR::encode;
 			auto dataPtr = (void const*)(&std::get<@FIELD_ID +1>(data));
-			runtime.stack.emplace_back(ao::schema::encode::EncodeFrame{
+			runtime.stack.emplace_back(ao::schema::cpp::EncodeFrame{
 				.ops = encodePtr,
 				.data = ao::schema::cpp::AnyPtr{dataPtr},
 			});
@@ -82,7 +82,7 @@ void decodeOneofIndex_@TYPE_ID(
         oneofDesc.arms,
         [&](size_t idx, ao::schema::IdFor<ao::schema::ir::Field> fieldId) {
             auto const& fieldDesc = ctx.ir.fields[fieldId.idx];
-            encodeOneofEnterArm += replaceMany(
+            decodeOneofIndex += replaceMany(
                 R"(
 		case @FIELD_ID: {
 			auto ops = &@SUBTYPE_ACCESSOR::decode;
@@ -108,7 +108,7 @@ void decodeOneofIndex_@TYPE_ID(
 )";
     std::string decodeOneofEnterArm =
         replaceMany(R"(
-void decodeOneofEnterArm(
+void decodeOneofEnterArm_@TYPE_ID(
  ao::schema::cpp::CppDecodeRuntime& runtime,
 	ao::schema::cpp::MutPtr ptr,
 	uint32_t oneofId,
@@ -117,6 +117,7 @@ void decodeOneofEnterArm(
  switch(armId) {
 )",
                     {
+                        {"@TYPE_ID", std::to_string(typeId)},
                         {"@TYPE_NAME", typeName.qualifiedName()},
                     });
 
@@ -178,7 +179,7 @@ void encodeOneofExit_@TYPE_ID(
  // do nothing
 }
 
-@ENTER_ENCODE_ARM
+@ENCODE_ENTER_ARM
 
 void encodeOneofExitArm_@TYPE_ID(
  ao::schema::cpp::CppEncodeRuntime& runtime,
@@ -210,19 +211,19 @@ void decodeOneofExitArm_@TYPE_ID(
 }
 
 
-ao::schema::cpp::EncodeTypeOps @QNAME::encode = ao::schema::cpp::EncodeTypeOps{
+ao::schema::cpp::EncodeTypeOps const @QNAME::encode = ao::schema::cpp::EncodeTypeOps{
  .oneofIndex = &encodeOneofIndex_@TYPE_ID,
  .oneofEnter = &encodeOneofEnter_@TYPE_ID,
- .oneofExit = &encodeOneofEnter_@TYPE_ID,
+ .oneofExit = &encodeOneofExit_@TYPE_ID,
  .oneofEnterArm = &encodeOneofEnterArm_@TYPE_ID,
  .oneofExitArm = &encodeOneofExitArm_@TYPE_ID,
 };
-ao::schema::cpp::DecodeTypeOps @QNAME::decode = ao::schema::cpp::DecodeTypeOps{
+ao::schema::cpp::DecodeTypeOps const @QNAME::decode = ao::schema::cpp::DecodeTypeOps{
 	.oneofEnter = &decodeOneofEnter_@TYPE_ID,
 	.oneofExit = &decodeOneofExit_@TYPE_ID,
 	.oneofIndex = &decodeOneofIndex_@TYPE_ID,
 	.oneofEnterArm = &decodeOneofEnterArm_@TYPE_ID,
-	.oneofEnterArm = &decodeOneofExitArm_@TYPE_ID,
+	.oneofExitArm = &decodeOneofExitArm_@TYPE_ID,
 };
 )",
                                 {

@@ -38,5 +38,14 @@ message 5 TestMessage5
 message 6 TestMessage6
 	@cpp(compare="default")
 {
-	
+	1 value1 array<int>;
+}
+
+message 7 TestMessage7
+	@cpp(compare="default")
+{
+	1 value oneof {
+		1 v1 int;
+		2 v2 uint;
+	};
 }

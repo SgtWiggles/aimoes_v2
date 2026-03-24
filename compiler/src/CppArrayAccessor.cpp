@@ -8,24 +8,24 @@ void generateTypeAccessorArray(CppCodeGenContext& ctx,
     auto& accessor = ctx.generatedAccessors[typeId];
     auto const& typeName = ctx.generatedTypeNames[typeId];
     accessor.impl = replaceMany(R"(
-static void encodeArrayEnter_@TYPE_ID(
+void encodeArrayEnter_@TYPE_ID(
  ao::schema::cpp::CppEncodeRuntime& runtime,
  ao::schema::cpp::AnyPtr ptr,
  uint32_t typeId) {
  // Do nothing
 }
-static void encodeArrayExit_@TYPE_ID(
+void encodeArrayExit_@TYPE_ID(
  ao::schema::cpp::CppEncodeRuntime& runtime,
  ao::schema::cpp::AnyPtr ptr) {
  // Do nothing
 }
-static uint32_t encodeArrayLen_@TYPE_ID(
+uint32_t encodeArrayLen_@TYPE_ID(
  ao::schema::cpp::CppEncodeRuntime& runtime,
  ao::schema::cpp::AnyPtr ptr) {
  auto const& data = ptr.as<@TYPE_NAME>();
  return data.size();
 }
-static void encodeArrayEnterElem_@TYPE_ID(
+void encodeArrayEnterElem_@TYPE_ID(
  ao::schema::cpp::CppEncodeRuntime& runtime,
  ao::schema::cpp::AnyPtr ptr,
  uint32_t i) {
@@ -36,36 +36,36 @@ static void encodeArrayEnterElem_@TYPE_ID(
  }
  runtime.stack.emplace_back(ao::schema::cpp::EncodeFrame{
  .ops = &(@SUBTYPE_ACCESSOR::encode),
- .data = AnyPtr{(void const*)&data[i]},
+ .data = ao::schema::cpp::AnyPtr{(void const*)&data[i]},
  });
 }
-static void encodeArrayExitElem_@TYPE_ID(
+void encodeArrayExitElem_@TYPE_ID(
  ao::schema::cpp::CppEncodeRuntime& runtime,
  ao::schema::cpp::AnyPtr ptr) {
  if (runtime.stack.empty()) {
- ao::schema::cpp::cppRuntimeFail(runtime, ao::pack::Error::BadData)
+ ao::schema::cpp::cppRuntimeFail(runtime, ao::pack::Error::BadData);
  return;
  }
  runtime.stack.pop_back();
 }
 
 
-static void decodeArrayEnter_@TYPE_ID(CppDecodeRuntime& runtime,
-				 MutPtr ptr,
+void decodeArrayEnter_@TYPE_ID(ao::schema::cpp::CppDecodeRuntime& runtime,
+				 ao::schema::cpp::MutPtr ptr,
 				 uint32_t typeId) {
  // Do nothing
 }
-static void decodeArrayExit_@TYPE_ID(CppDecodeRuntime& runtime, MutPtr ptr) {
+void decodeArrayExit_@TYPE_ID(ao::schema::cpp::CppDecodeRuntime& runtime, ao::schema::cpp::MutPtr ptr) {
  // Do nothing
 }
-static void decodeArrayPrepare_@TYPE_ID(CppDecodeRuntime& runtime,
-				 MutPtr ptr,
+void decodeArrayPrepare_@TYPE_ID(ao::schema::cpp::CppDecodeRuntime& runtime,
+				 ao::schema::cpp::MutPtr ptr,
 				 uint32_t len) {
  auto& data = ptr.as<@TYPE_NAME>();
  data.resize(len);
 }
-static void decodeArrayEnterElem_@TYPE_ID(CppDecodeRuntime& runtime,
-				 MutPtr ptr,
+void decodeArrayEnterElem_@TYPE_ID(ao::schema::cpp::CppDecodeRuntime& runtime,
+				 ao::schema::cpp::MutPtr ptr,
 				 uint32_t i) {
  auto& data = ptr.as<@TYPE_NAME>();
  if (i >= data.size()) {
@@ -74,12 +74,12 @@ static void decodeArrayEnterElem_@TYPE_ID(CppDecodeRuntime& runtime,
  }
  runtime.stack.emplace_back(ao::schema::cpp::DecodeFrame{
  .ops = &(@SUBTYPE_ACCESSOR::decode),
- .data = MutPtr{(void*)&data[i]},
+ .data = ao::schema::cpp::MutPtr{(void*)&data[i]},
  });
 }
-static void decodeArrayExitElem_@TYPE_ID(CppDecodeRuntime& runtime, MutPtr ptr) {
+void decodeArrayExitElem_@TYPE_ID(ao::schema::cpp::CppDecodeRuntime& runtime, ao::schema::cpp::MutPtr ptr) {
  if (runtime.stack.empty()) {
- ao::schema::cpp::cppRuntimeFail(runtime, ao::pack::Error::BadData)
+ ao::schema::cpp::cppRuntimeFail(runtime, ao::pack::Error::BadData);
  return;
  }
  runtime.stack.pop_back();
@@ -97,7 +97,7 @@ ao::schema::cpp::DecodeTypeOps const @QNAME::decode = ao::schema::cpp::DecodeTyp
  .arrayEnter = &decodeArrayEnter_@TYPE_ID,
  .arrayExit = &decodeArrayExit_@TYPE_ID,
  .arrayPrepare = &decodeArrayPrepare_@TYPE_ID,
- .arayEnterElem = &decodeArrayEnterElem_@TYPE_ID,
+ .arrayEnterElem = &decodeArrayEnterElem_@TYPE_ID,
  .arrayExitElem = &decodeArrayExitElem_@TYPE_ID
 };
 )",
