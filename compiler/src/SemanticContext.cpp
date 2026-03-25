@@ -201,7 +201,10 @@ bool setPackageName(ErrorContext& errors,
                            module.packageName = decl.name;
                            loc = decl.loc;
                        },
-                       [](AstMessage const& message) {
+                       [](AstMessage const&) {
+                           // ignore
+                       },
+                       [](AstEnum const&) {
                            // ignore
                        },
                        [](AstImport const&) {
@@ -232,20 +235,33 @@ void exportSymbols(ErrorContext& errors,
     if (!setPackageName(errors, symbolTable, module))
         return;
 
-    for (auto const& decl : module.ast->decls) {
+    for (auto& decl : module.ast->decls) {
         std::visit(
             Overloaded{
-                [&](AstMessage const& message) {
+                [&](AstMessage& message) {
                     // Add fully resolved name to local definitions
                     auto qualifiedName =
                         module.packageName.qualifyName(message.name);
                     auto entry = symbolTable.populateFromQualifiedId(
                         qualifiedName, message.loc, &decl);
                     if (!entry.has_value()) {
-                        errors.errors.push_back(entry.error());
+                        errors.fail(entry.error());
                     } else {
                         module.exportedSymbols[message.name] = entry.value();
-                        module.messagesBySymbolId[entry->id] = &message;
+                        module.messagesBySymbolId[entry->id] = {&message};
+                        module.symbolInfoBySymbolId[entry->id] = entry.value();
+                    }
+                },
+                [&](AstEnum& message) {
+                    auto qualifiedName =
+                        module.packageName.qualifyName(message.name);
+                    auto entry = symbolTable.populateFromQualifiedId(
+                        qualifiedName, message.loc, &decl);
+                    if (!entry.has_value()) {
+                        errors.fail(entry.error());
+                    } else {
+                        module.exportedSymbols[message.name] = entry.value();
+                        module.messagesBySymbolId[entry->id] = {&message};
                         module.symbolInfoBySymbolId[entry->id] = entry.value();
                     }
                 },
@@ -428,6 +444,7 @@ void resolveModuleSymbols(
                            resolveMessage(errors, ctx, msg.block);
                        },
                        // Ignore the rest of the cases
+                       [](AstEnum const& enm) {},
                        [](AstImport const&) {},
                        [](AstPackageDecl const&) {},
                        [](AstDefault const&) {},

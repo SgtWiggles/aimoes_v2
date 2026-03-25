@@ -17,9 +17,12 @@ struct IRContext {
     ResourceCache<OneOf> oneOfs = {};
     ResourceCache<Field> fields = {};
     ResourceCache<Module> modules = {};
+    ResourceCache<Enum> enums = {};
+    ResourceCache<EnumField> enumFields = {};
 
     // Keyed by symbol ID
     KeyedResourceCache<uint64_t, Message> messages = {};
+    std::unordered_map<uint64_t, IdFor<Enum>> enumSymbolIdToEnumId = {};
     ResourceCache<Type> types = {};
 };
 IdFor<DirectiveSet> generateIR(IRContext& ctx,
@@ -184,9 +187,18 @@ IdFor<Type> generateIR(IRContext& ctx, AstType const& type) {
                     ctx.errors, type.normalizedProperties->props, type.loc,
                     [&](NormalizedTypeProperty<AstBaseType::USER> const&
                             props) {
-                        currentType = Type{
-                            ctx.messages.getId(*type.resolvedDef),
-                        };
+                        auto id = *type.resolvedDef;
+                        // TODO refactor this to better distinguish between
+                        // messages and enums
+                        if (ctx.enumSymbolIdToEnumId.contains(id)) {
+                            currentType = Type{
+                                IdFor<Enum>{ctx.enumSymbolIdToEnumId[id]},
+                            };
+                        } else {
+                            currentType = Type{
+                                ctx.messages.getId(*type.resolvedDef),
+                            };
+                        }
                     });
             } else {
                 ctx.errors.require(false,
@@ -316,22 +328,80 @@ IdFor<Message> generateIR(IRContext& ctx,
     return ret;
 }
 
+IdFor<Enum> generateIR(IRContext& ctx,
+                       AstEnum const& enm,
+                       SymbolInfo const& info) {
+    std::vector<EnumField> names{};
+    for (auto const& c : enm.block.decls) {
+        std::visit(Overloaded{
+                       [&](AstEnumValue const& v) {
+                           names.emplace_back(EnumField{
+                               v.fieldNumber,
+                               ctx.strings.getId(v.name),
+                           });
+                       },
+                       [](AstEnumReserved const&) {},
+                   },
+                   c.entry);
+    }
+
+    std::sort(names.begin(), names.end());
+    Enum e{
+        .name = ctx.strings.getId(info.qualifiedName),
+        .fields = {},
+        .directives = generateIR(ctx, enm.directives),
+    };
+
+    for (auto const& n : names) {
+        auto id = ctx.enumFields.getId(n);
+        e.fields.emplace_back(id);
+    }
+
+    auto ret = ctx.enums.getId(e);
+    ctx.enumSymbolIdToEnumId[info.id] = ret;
+
+    return ret;
+}
+
 void generateIR(IRContext& ctx,
                 ao::schema::SemanticContext::Module const& module) {
     Module irModule{};
     irModule.moduleName = ctx.strings.getId(module.packageName.toString());
 
     for (auto const& [symbolId, message] : module.messagesBySymbolId) {
-        ctx.errors.require(message != nullptr,
-                           {
-                               .code = ErrorCode::INTERNAL,
-                               .message = "invalid message pointer!",
-                               .loc = {},
-                           });
-        if (!message)
-            continue;
-        auto msgId = generateIR(ctx, *message, module.symbolInfoBySymbolId.at(symbolId));
-        irModule.messages.emplace_back(msgId);
+        std::visit(
+            Overloaded{
+                [&](AstMessage* message) {
+                    ctx.errors.require(
+                        message != nullptr,
+                        {
+                            .code = ErrorCode::INTERNAL,
+                            .message = "invalid message pointer!",
+                            .loc = {},
+                        });
+                    if (!message)
+                        return;
+                    auto msgId =
+                        generateIR(ctx, *message,
+                                   module.symbolInfoBySymbolId.at(symbolId));
+                    irModule.messages.emplace_back(msgId);
+                },
+                [&](AstEnum* message) {
+                    ctx.errors.require(message != nullptr,
+                                       {
+                                           .code = ErrorCode::INTERNAL,
+                                           .message = "invalid enum pointer!",
+                                           .loc = {},
+                                       });
+                    if (!message)
+                        return;
+                    auto enumId =
+                        generateIR(ctx, *message,
+                                   module.symbolInfoBySymbolId.at(symbolId));
+                    irModule.enums.emplace_back(enumId);
+                },
+            },
+            message.node);
     }
 
     // Add exports to module
@@ -343,8 +413,17 @@ IR generateIR(
         modules,
     ErrorContext& errors) {
     IRContext ctx{errors};
+
+    std::vector<ao::schema::SemanticContext::Module const*> orderedModules;
     for (auto const& [path, module] : modules) {
-        generateIR(ctx, module);
+        orderedModules.emplace_back(&module);
+    }
+    std::sort(orderedModules.begin(), orderedModules.end(), [](auto l, auto r) {
+        return l->packageName.toString() < r->packageName.toString();
+    });
+
+    for (auto m : orderedModules) {
+        generateIR(ctx, *m);
     }
 
     return IR{
@@ -357,6 +436,8 @@ IR generateIR(
         .messages = ctx.messages.values(),
         .types = ctx.types.values(),
         .modules = ctx.modules.values(),
+        .enums = ctx.enums.values(),
+        .enumFields = ctx.enumFields.values(),
     };
 }
 }  // namespace ao::schema::ir

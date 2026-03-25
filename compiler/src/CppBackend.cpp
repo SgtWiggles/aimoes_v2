@@ -83,8 +83,45 @@ static TypeName generateTypeName(CppCodeGenContext& ctx,
                 return {namespaceName.value_or(std::string{}),
                         std::string{messageName.value_or(std::string_view{})}};
             },
+            [&ctx, typeId](IdFor<ir::Enum> const& v) -> TypeName {
+                auto const& fqn = ctx.ir.strings[ctx.ir.enums[v.idx].name.idx];
+                auto messageName = getMessageName(fqn);
+                auto namespaceName = getNamespaceName(fqn);
+                if (!messageName)
+                    ctx.errs.fail({
+                        .code = ao::schema::ErrorCode::INTERNAL,
+                        .message = std::format(
+                            "Got message '{}' with namespace '{}' with empty "
+                            "name!",
+                            fqn, namespaceName.value_or(std::string{""})),
+                        .loc = {},
+                    });
+                return {namespaceName.value_or(std::string{}),
+                        std::string{messageName.value_or(std::string_view{})}};
+            },
         },
         type.payload);
+}
+
+template <class Func>
+void findAllDirectives(CppCodeGenContext& ctx,
+                       IdFor<ir::DirectiveSet> set,
+                       ir::DirectiveProfile::ProfileKind kind,
+                       std::string_view propertyName,
+                       Func f) {
+    auto const& directiveSet = ctx.ir.directiveSets[set.idx];
+    for (auto const& directiveIdx : directiveSet.directives) {
+        auto const& profileDesc = ctx.ir.directiveProfiles[directiveIdx.idx];
+        if (profileDesc.domain != profileDesc.Cpp)
+            continue;
+        for (auto const& propertyIdx : profileDesc.properties) {
+            auto const& propertyDesc =
+                ctx.ir.directiveProperties[propertyIdx.idx];
+            if (ctx.ir.strings[propertyDesc.name.idx] == propertyName) {
+                f(propertyDesc.value);
+            }
+        }
+    }
 }
 
 static std::optional<std::string> generateTypeDecl(CppCodeGenContext& ctx,
@@ -119,6 +156,35 @@ static std::optional<std::string> generateTypeDecl(CppCodeGenContext& ctx,
                     {
                         {"@NAMESPACE", *namespaceName},
                         {"@MSG", *messageName},
+                    });
+            },
+            [&ctx,
+             typeId](IdFor<ir::Enum> const& v) -> std::optional<std::string> {
+                auto const& desc = ctx.ir.enums[v.idx];
+                auto const& fqn = ctx.ir.strings[desc.name.idx];
+                auto name = getMessageName(fqn);
+                auto namespaceName = getNamespaceName(fqn);
+
+                auto storageClass = std::string{};
+                findAllDirectives(
+                    ctx, desc.directives, ir::DirectiveProfile::Cpp, "storage",
+                    [&](ir::DirectiveValue const& v) {
+                        auto value = std::get_if<IdFor<std::string>>(&v.value);
+                        if (!value)
+                            return;
+                        auto const& storage = ctx.ir.strings[value->idx];
+                        storageClass = std::format(" : {}", storage);
+                    });
+
+                return replaceMany(
+                    R"(namespace @NAMESPACE {
+    enum class @MSG @ENUM_STORAGE_CLASS;
+}
+)",
+                    {
+                        {"@NAMESPACE", *namespaceName},
+                        {"@MSG", *name},
+                        {"@ENUM_STORAGE_CLASS", storageClass},
                     });
             },
         },
@@ -257,6 +323,38 @@ static std::optional<std::string> generateTypeDef(CppCodeGenContext& ctx,
 
                 if (!typeName.ns.empty())
                     ss << "}";
+                return ss.str();
+            },
+            [&ctx,
+             typeId](IdFor<ir::Enum> const& v) -> std::optional<std::string> {
+                auto const& desc = ctx.ir.enums[v.idx];
+                auto const& typeName = ctx.generatedTypeNames[typeId];
+                std::stringstream ss;
+                if (!typeName.ns.empty())
+                    ss << "namespace " << typeName.ns << "{";
+
+                auto storageClass = std::string{};
+                findAllDirectives(
+                    ctx, desc.directives, ir::DirectiveProfile::Cpp, "storage",
+                    [&](ir::DirectiveValue const& v) {
+                        auto value = std::get_if<IdFor<std::string>>(&v.value);
+                        if (!value)
+                            return;
+                        auto const& storage = ctx.ir.strings[value->idx];
+                        storageClass = std::format(" : {}", storage);
+                    });
+
+                ss << std::format("enum class {}{} {{\n", typeName.name,
+                                  storageClass);
+                for (auto const& fieldId : desc.fields) {
+                    auto const& fieldDesc = ctx.ir.enumFields[fieldId.idx];
+                    auto const& fieldName = ctx.ir.strings[fieldDesc.name.idx];
+
+                    ss << std::format("{} = {},\n", fieldName,
+                                      fieldDesc.fieldNumber);
+                }
+
+                ss << "\n};\n}";
                 return ss.str();
             },
         },

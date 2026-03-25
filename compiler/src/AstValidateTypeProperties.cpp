@@ -44,6 +44,7 @@ void validateAstTypeProperties(ErrorContext& err,
                        [&err](AstMessage& msg) {
                            validateAstTypeProperties(err, msg.block);
                        },
+                       [](AstEnum const&) {},
                        [](AstImport const&) {},
                        [](AstPackageDecl const&) {},
                        [](AstDefault const&) {},

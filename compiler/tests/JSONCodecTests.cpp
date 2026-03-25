@@ -801,3 +801,31 @@ message 100 StrBytes {
                           }));
     }
 }
+
+TEMPLATE_LIST_TEST_CASE("Json codec round trips enums",
+                        "[json][codec][diskcodec]",
+                        StreamTypes) {
+    using WS = typename TestType::WS;
+    using RS = typename TestType::RS;
+
+    auto state = buildJsonState(R"(
+package pkg;
+enum CurrentState {
+    reserved 1230;
+    1 hello;
+    2 world;
+}
+message 100 StrBytes {
+    1 a CurrentState;
+    2 b uint;
+}
+)");
+
+    auto input = nlohmann::json::object({
+        {"a", 1},
+        {"b", 2},
+    });
+    auto msgId = requireMessageId(state, 100);
+    auto output = roundTrip<WS, RS>(state, msgId, input);
+    REQUIRE(input == output);
+}

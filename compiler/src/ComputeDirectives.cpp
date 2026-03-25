@@ -114,6 +114,13 @@ bool computeModuleDirectives(ao::schema::ErrorContext& errors,
                            ctx.pop();
                            computeMessageBlockDirectives(ctx, msg.block);
                        },
+                       [&](AstEnum& e) {
+                           auto& localDirectives = ctx.push();
+                           localDirectives.setDirectives(e.directives);
+                           e.directives.effectiveDirectives =
+                               ctx.getCurrentTable().directives;
+                           ctx.pop();
+                       },
                        [&](AstDefault& node) {
                            globalTable.setDirectives(node.directives);
                        },

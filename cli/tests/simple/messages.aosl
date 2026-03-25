@@ -49,3 +49,14 @@ message 7 TestMessage7
 		2 v2 uint;
 	};
 }
+
+enum TestEnum 
+	@cpp(storage="uint32_t")
+{
+	1 hello;
+	2 world;
+}
+
+message 8 TestMessage8 {
+	1 value TestEnum;
+}

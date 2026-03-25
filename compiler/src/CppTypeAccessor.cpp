@@ -29,9 +29,16 @@ GeneratedObject generateAccessorDecl(CppCodeGenContext& ctx,
     };
 }
 
+static void generateTypeAccessorEnum(CppCodeGenContext& ctx,
+                                     size_t typeId,
+                                     IdFor<ir::Enum> const& enumId) {
+    auto const& e = ctx.ir.enums[enumId.idx];
+    // TODO finish this up
+}
+
 static void generateTypeAccessorImpl(CppCodeGenContext& ctx,
-                                      size_t typeId,
-                                      ir::Type const& type) {
+                                     size_t typeId,
+                                     ir::Type const& type) {
     std::stringstream ss;
     auto const& typeName = ctx.generatedTypeNames[typeId];
     std::visit(Overloaded{
@@ -50,6 +57,9 @@ static void generateTypeAccessorImpl(CppCodeGenContext& ctx,
                    },
                    [&](IdFor<ir::Message> const& v) {
                        generateTypeAccessorMessage(ctx, typeId, v);
+                   },
+                   [&](IdFor<ir::Enum> const& v) {
+                       generateTypeAccessorEnum(ctx, typeId, v);
                    },
                },
                type.payload);

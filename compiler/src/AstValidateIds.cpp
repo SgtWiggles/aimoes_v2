@@ -24,6 +24,7 @@ bool validateGlobalMessageIds(
                                msgId = msg.messageId;
                                msgPtr = &msg;
                            },
+                           [&](AstEnum const& msg) {},
                            [](AstDefault const&) {},
                        },
                        decl.decl);
@@ -40,7 +41,7 @@ bool validateGlobalMessageIds(
                                     });
             } else {
                 globalMessages[*msgId] = msgPtr;
-                module.messagesById[*msgId] = msgPtr;
+                module.messagesById[*msgId] = {msgPtr};
             }
         }
     }
@@ -104,6 +105,44 @@ void validateMessageFieldsNumbers(ao::schema::ErrorContext& errs,
     }
 }
 
+void validateMessageFieldsNumbers(ao::schema::ErrorContext& errs,
+                                  AstEnumBlock& block) {
+    auto& idList = block.fieldsByFieldId;
+    for (auto& decl : block.decls) {
+        std::visit(Overloaded{
+                       [&](AstEnumReserved const& reservation) {
+                           for (auto id : reservation.fieldNumbers) {
+                               idList.try_emplace(id, &decl);
+                           }
+                       },
+                       [&](AstEnumValue const&) {},
+                   },
+                   decl.entry);
+    }
+
+    auto insertFieldId = [&](uint64_t id, AstEnumDecl* decl,
+                             SourceLocation loc) {
+        auto [iter, inserted] = idList.try_emplace(id, decl);
+        errs.require(inserted,
+                     {ErrorCode::MULTIPLY_DEFINED_FIELD_ID,
+                      std::format("Field ID {} was already defined at {}", id,
+                                  iter->second->loc),
+                      loc});
+        return inserted;
+    };
+
+    for (auto& fieldDecl : block.decls) {
+        std::visit(Overloaded{
+                       [&](AstEnumValue& field) {
+                           insertFieldId(field.fieldNumber, &fieldDecl,
+                                         field.loc);
+                       },
+                       [](AstEnumReserved const&) {},
+                   },
+                   fieldDecl.entry);
+    }
+}
+
 bool validateFieldNumbers(
     ao::schema::ErrorContext& errs,
     std::unordered_map<std::string, ao::schema::SemanticContext::Module>&
@@ -115,6 +154,9 @@ bool validateFieldNumbers(
                            [](AstPackageDecl const&) {},
                            [&](AstMessage& msg) {
                                validateMessageFieldsNumbers(errs, msg.block);
+                           },
+                           [&](AstEnum& e) {
+                               validateMessageFieldsNumbers(errs, e.block);
                            },
                            [](AstDefault const&) {},
                        },
@@ -169,6 +211,35 @@ void validateFieldNames(ao::schema::ErrorContext& errs,
     }
 }
 
+void validateFieldNames(ao::schema::ErrorContext& errs,
+                        ao::schema::AstEnumBlock const& blk) {
+    std::unordered_map<std::string, SourceLocation> definedFields;
+    auto addFieldName = [&definedFields, &errs](std::string const& str,
+                                                SourceLocation const& loc) {
+        auto [iter, inserted] = definedFields.try_emplace(str, loc);
+        errs.require(inserted,
+                     {
+                         .code = ErrorCode::MULTIPLY_DEFINED_SYMBOL,
+                         .message = std::format(
+                             "Multiple declarations of field with name '{}'. "
+                             "Previously declared at: {}",
+                             str, iter->second),
+                         .loc = loc,
+                     });
+    };
+    for (auto const& fieldDecl : blk.decls) {
+        std::visit(Overloaded{
+                       [&](AstEnumValue const& field) {
+                           addFieldName(field.name, field.loc);
+                       },
+                       // Ignore these cases
+                       [](AstEnumReserved const&) {},
+                   },
+                   fieldDecl.entry);
+    }
+
+}
+
 bool validateFieldNames(
     ao::schema::ErrorContext& errors,
     std::unordered_map<std::string, ao::schema::SemanticContext::Module>&
@@ -180,6 +251,9 @@ bool validateFieldNames(
                            [](AstPackageDecl const&) {},
                            [&](AstMessage& msg) {
                                validateFieldNames(errors, msg.block);
+                           },
+                           [&](AstEnum& enm) {
+                               validateFieldNames(errors, enm.block);
                            },
                            [](AstDefault const&) {},
                        },
