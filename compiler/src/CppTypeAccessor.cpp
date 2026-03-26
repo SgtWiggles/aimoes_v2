@@ -29,13 +29,6 @@ GeneratedObject generateAccessorDecl(CppCodeGenContext& ctx,
     };
 }
 
-static void generateTypeAccessorEnum(CppCodeGenContext& ctx,
-                                     size_t typeId,
-                                     IdFor<ir::Enum> const& enumId) {
-    auto const& e = ctx.ir.enums[enumId.idx];
-    // TODO finish this up
-}
-
 static void generateTypeAccessorImpl(CppCodeGenContext& ctx,
                                      size_t typeId,
                                      ir::Type const& type) {

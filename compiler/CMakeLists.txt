@@ -54,6 +54,7 @@ add_library(compiler OBJECT
  "src/CppOneofAccessor.cpp"
  "src/CppMessageAccessor.cpp"
  "src/CppTypeAccessor.cpp"
+ "src/CppEnumAccessor.cpp"
 )
 target_include_directories(compiler PUBLIC include)
 target_link_libraries(compiler PUBLIC

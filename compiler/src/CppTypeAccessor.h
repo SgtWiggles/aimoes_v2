@@ -32,9 +32,13 @@ void generateTypeAccessorMessage(CppCodeGenContext& ctx,
                                  size_t typeId,
                                  ao::schema::IdFor<ao::schema::ir::Message> v);
 
+void generateTypeAccessorEnum(CppCodeGenContext& ctx,
+                              size_t typeId,
+                              ao::schema::IdFor<ao::schema::ir::Enum> e);
+
 GeneratedObject generateAccessorDecl(CppCodeGenContext& ctx,
                                      size_t typeId,
                                      ao::schema::ir::Type const& type);
 void generateTypeAccessor(CppCodeGenContext& ctx,
-                           size_t typeId,
-                           ao::schema::ir::Type const& type);
+                          size_t typeId,
+                          ao::schema::ir::Type const& type);
