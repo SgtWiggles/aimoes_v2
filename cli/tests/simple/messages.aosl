@@ -3,3 +3,79 @@ package messages;
 message 1 TestMessage {
 	1 value int;
 }
+
+message 2 TestMessage2 
+	@cpp(compare="default")
+{
+	1 value uint;
+}
+
+message 3 TestMessage3 {
+	1 value1 uint;
+	2 value2 int;
+}
+
+
+message 4 TestMessage4 
+	@cpp(
+		compare="default"
+	)
+{
+	1 value1 uint;
+	2 value2 int;
+}
+
+message 5 TestMessage5 
+	@cpp(
+		compare="default",
+		define="TestMessage5 add(TestMessage5 const& other)",
+		define="TestMessage5 sub(TestMessage5 const& other)",
+	)
+{
+	1 value1 uint;
+	2 value2 int;
+	3 value3 optional<int>;
+}
+
+message 6 TestMessage6
+	@cpp(compare="default")
+{
+	1 value1 array<int>;
+}
+
+message 7 TestMessage7
+	@cpp(compare="default")
+{
+	1 value oneof {
+		1 v1 int;
+		2 v2 uint;
+	};
+}
+
+enum TestEnum 
+	@cpp(storage="uint32_t")
+{
+	1 hello;
+	2 world;
+}
+
+message 8 TestMessage8 
+	@cpp(compare="default")
+{
+	1 value TestEnum;
+}
+
+message 9 ComposedMessages 
+	@cpp(compare="default")
+{
+	1 enum1 TestEnum;
+	2 enum2 TestEnum;
+	3 values array<oneof {
+		1 enumValue TestEnum;
+		2 intValue int;
+		3 uintValue uint;
+		4 floatValue float;
+		5 doubleValue double;
+		6 msgValue TestMessage2;
+	}>;
+}

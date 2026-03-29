@@ -131,7 +131,7 @@ AstDirective makeDirective(
     d.directiveName = directiveName;
     d.properties.clear();
     for (auto const& p : properties) {
-        d.properties[p.first] = makeStrLit(p.second);
+        d.properties.emplace_back(p.first, makeStrLit(p.second));
     }
     d.loc = {};
     return d;

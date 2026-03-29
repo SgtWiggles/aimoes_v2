@@ -490,7 +490,7 @@ bool runInstr(VM& vm, Object& object, Codec& codec) {
         } break;
         case Op::ONEOF_ARM_BEGIN: {
             object.oneofEnterArm(vm.oneofStack.back().oneofId,
-                                 (uint32_t)instr.imm);
+                                 (uint32_t)vm.reg);
         } break;
         case Op::ONEOF_ARM_END: {
             object.oneofExitArm();

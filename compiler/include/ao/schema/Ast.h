@@ -9,9 +9,9 @@
 #include <variant>
 #include <vector>
 
-#include "Error.h"
-#include "AstValueLiteral.h"
 #include "AstBaseType.h"
+#include "AstValueLiteral.h"
+#include "Error.h"
 
 namespace ao::schema {
 using ResolvedTypeId = uint64_t;
@@ -62,7 +62,6 @@ struct AstPackageDecl {
     SourceLocation loc;
 };
 
-
 enum class AstFieldDirectiveType {
     NET,
     CPP,
@@ -102,14 +101,14 @@ struct AstType {
 struct AstDirective {
     AstFieldDirectiveType type;
     std::string directiveName;
-    std::unordered_map<std::string, AstValueLiteral> properties;
+    std::vector<std::pair<std::string, AstValueLiteral>> properties;
     SourceLocation loc;
 };
 
 struct AstDirectiveBlock {
     std::vector<AstDirective> directives;
     std::unordered_map<std::string,
-                       std::unordered_map<std::string, AstValueLiteral>>
+                       std::vector<std::pair<std::string, AstValueLiteral>>>
         effectiveDirectives;
 };
 
@@ -144,8 +143,41 @@ struct AstMessage {
     uint64_t symbolId;
 };
 
+struct AstEnumReserved {
+    std::vector<int64_t> fieldNumbers;
+    SourceLocation loc;
+};
+struct AstEnumValue {
+    int64_t fieldNumber;
+    std::string name;
+    SourceLocation loc;
+
+    uint64_t symbolId;
+};
+struct AstEnumDecl {
+    std::variant<AstEnumValue, AstEnumReserved> entry;
+    SourceLocation loc;
+};
+
+struct AstEnumBlock {
+    std::vector<AstEnumDecl> decls;
+    SourceLocation loc;
+
+    std::unordered_map<int64_t, AstEnumDecl*> fieldsByFieldId;
+};
+
+struct AstEnum {
+    std::string name;
+    AstEnumBlock block;
+    AstDirectiveBlock directives;
+
+    SourceLocation loc;
+    uint64_t symbolId;
+};
+
 struct AstDecl {
-    std::variant<AstImport, AstPackageDecl, AstMessage, AstDefault> decl;
+    std::variant<AstImport, AstPackageDecl, AstMessage, AstDefault, AstEnum>
+        decl;
     SourceLocation loc;
 };
 

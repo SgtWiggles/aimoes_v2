@@ -230,6 +230,30 @@ void generateTypeProgram(VMGenerateContext& ctx,
                 }
                 assembler.emit({Op::MSG_END, 0, 0}, {});
             },
+            [&](IdFor<ir::Enum> enumId) {
+                auto const kind = ScalarKind::INT;
+                auto const& desc = irCode.enums[enumId.idx];
+                auto width = std::bit_width(desc.fields.size());
+                if (encodeMode) {
+                    assembler.emit(
+                        {Op::O_READ_SCALAR, static_cast<uint8_t>(kind),
+                         static_cast<uint16_t>(width)},
+                        {});
+                    assembler.emit(
+                        {Op::C_WRITE_SCALAR, static_cast<uint8_t>(kind),
+                         static_cast<uint16_t>(width)},
+                        {});
+                } else {
+                    assembler.emit(
+                        {Op::C_READ_SCALAR, static_cast<uint8_t>(kind),
+                         static_cast<uint16_t>(width)},
+                        {});
+                    assembler.emit(
+                        {Op::O_WRITE_SCALAR, static_cast<uint8_t>(kind),
+                         static_cast<uint16_t>(width)},
+                        {});
+                }
+            },
         },
         type.payload);
 

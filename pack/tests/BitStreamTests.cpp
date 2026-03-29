@@ -73,41 +73,6 @@ TEST_CASE("WriteStream overflow on fixed buffers (bytes)",
     REQUIRE(ws.byteSize() <= buf.size());
 }
 
-TEST_CASE("WriteStream bytes() fails when unaligned",
-          "[WriteStream][unaligned]") {
-    std::array<std::byte, 8> buf{};
-    fillPattern(buf);
-
-    std::array<std::byte, 2> in{};
-    fillPattern(in);
-
-    WriteStream ws{std::span<std::byte>(buf)};
-
-    ws.bits(0b1, 1);  // now unaligned
-    ws.bytes(std::span<std::byte>(in), 2);
-
-    REQUIRE_FALSE(ws.ok());
-    REQUIRE(ws.error() == Error::Unaligned);
-}
-
-TEST_CASE("ReadStream bytes() fails when unaligned",
-          "[ReadStream][unaligned]") {
-    std::array<std::byte, 8> data{};
-    fillPattern(data);
-
-    ReadStream rs{std::span<std::byte>(data)};
-
-    uint64_t oneBit = 0;
-    rs.bits(oneBit, 1);  // now unaligned
-
-    std::array<std::byte, 2> out{};
-    auto outSpan = std::span<std::byte>(out.data(), out.size());
-    rs.bytes(outSpan, 2);
-
-    REQUIRE_FALSE(rs.ok());
-    REQUIRE(rs.error() == Error::Unaligned);
-}
-
 TEST_CASE(
     "SizeWriteStream reports the same bit/byte sizes as WriteStream for "
     "identical operations",

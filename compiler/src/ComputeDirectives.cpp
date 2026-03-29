@@ -10,21 +10,19 @@ using namespace ao::schema;
 
 struct DirectiveTable {
     std::unordered_map<std::string,
-                       std::unordered_map<std::string, AstValueLiteral>>
+                       std::vector<std::pair<std::string, AstValueLiteral>>>
         directives;
 
     void setDirectives(AstDirectiveBlock const& block) {
         for (auto const& dir : block.directives) {
-            for (auto const& [tag, value] : dir.properties) {
-                directives[dir.directiveName][tag] = value;
-            }
+            directives[dir.directiveName] = dir.properties;
         }
     }
 
     void merge(DirectiveTable const& other) {
         for (auto const& [profile, directives] : other.directives) {
             for (auto const& [tag, value] : directives)
-                this->directives[profile][tag] = value;
+                this->directives[profile].emplace_back(tag, value);
         }
     }
 };
@@ -115,6 +113,13 @@ bool computeModuleDirectives(ao::schema::ErrorContext& errors,
                                ctx.getCurrentTable().directives;
                            ctx.pop();
                            computeMessageBlockDirectives(ctx, msg.block);
+                       },
+                       [&](AstEnum& e) {
+                           auto& localDirectives = ctx.push();
+                           localDirectives.setDirectives(e.directives);
+                           e.directives.effectiveDirectives =
+                               ctx.getCurrentTable().directives;
+                           ctx.pop();
                        },
                        [&](AstDefault& node) {
                            globalTable.setDirectives(node.directives);

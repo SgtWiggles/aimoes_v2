@@ -34,6 +34,15 @@ CodecTable generateCodecTable(ir::IR const& ir) {
                     };
                 },
                 [&](IdFor<ir::Message> const& message) { return CodecType{}; },
+                [&](IdFor<ir::Enum> const& e) {
+                    auto const& desc = ir.enums[e.idx];
+                    return CodecType{
+                        .bitWidth = (uint8_t)std::clamp(
+                            1ull, (uint64_t)std::bit_width(desc.fields.size()),
+                            64ull),
+                        .flags = 0,
+                    };
+                },
             },
             type.payload);
         ret.types.emplace_back(entry);

@@ -1,8 +1,8 @@
 #include "AstQueries.h"
 #include "Helpers.h"
 
-#include "ao/schema/SemanticContext.h"
 #include "ao/schema/Error.h"
+#include "ao/schema/SemanticContext.h"
 
 #include <catch2/catch_all.hpp>
 
@@ -15,6 +15,16 @@ static AstMessage* findFirstMessage(std::shared_ptr<AstFile> f) {
             return msg;
     }
     return nullptr;
+}
+
+std::vector<std::string> getDirectiveTag(
+    std::vector<std::pair<std::string, AstValueLiteral>> const& tags,
+    std::string_view targetTag) {
+    std::vector<std::string> ret;
+    for (auto const& [tag, value] : tags) {
+        ret.emplace_back(value.contents);
+    }
+    return ret;
 }
 
 TEST_CASE(
@@ -53,13 +63,14 @@ TEST_CASE(
 
     auto const& eff = field->directives.effectiveDirectives;
     REQUIRE(eff.contains("prof"));
-    REQUIRE(eff.at("prof").contains("tag"));
-    CHECK(eff.at("prof").at("tag").contents == "global");
+    auto tag = getDirectiveTag(eff.at("prof"), "tag");
+    auto expected = std::vector<std::string>{"global"};
+    REQUIRE(tag == expected);
 }
 
 TEST_CASE(
-    "computeDirectives: field-local overrides global default (last write "
-    "wins)") {
+    "computeDirectives: field-local are appended and show up after the global "
+    "tags") {
     SimpleTestFrontend frontend;
 
     // global default
@@ -90,7 +101,9 @@ TEST_CASE(
     auto field = query::findFieldInModule(modules, "A", "M", "f");
     REQUIRE(field);
     REQUIRE(field->directives.effectiveDirectives.contains("prof"));
-    REQUIRE(
-        field->directives.effectiveDirectives.at("prof").at("tag").contents ==
-        "fieldVal");
+
+    auto tags = getDirectiveTag(
+        field->directives.effectiveDirectives.at("prof"), "tag");
+    auto expected = std::vector<std::string>{"global", "fieldVal"};
+    REQUIRE(tags == expected);
 }

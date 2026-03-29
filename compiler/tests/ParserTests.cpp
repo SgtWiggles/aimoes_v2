@@ -132,6 +132,15 @@ message name
         // --- large numbers / long identifiers ---
         "message 999999999999999999 Name123_456 {}",
         "message A { 1 _12382904820j0s9dj0e29ujf09j10fj int; }",
+
+        // --- enums ---
+        "enum test { reserved 1,2,3,4,5; 1 value1; 2 value2; 3 value3; }",
+        "enum test { reserved 1,2,3,4,9999999999999999; }",
+        "enum test { reserved -1234234,2,3,4,9999999999999999; -1 value1; -2 value2; -3 value3; }",
+
+        "enum test @cpp(hello=\"world\") { reserved 1,2,3,4,5; 1 value1; 2 value2; 3 value3; }",
+        "enum test @cpp(hello=123) { reserved 1,2,3,4,9999999999999999; }",
+        "enum test @cpp(hello=456) { reserved -1234234,2,3,4,9999999999999999; -1 value1; -2 value2; -3 value3; }",
     };
 
     for (auto const& fileContents : passingCases) {

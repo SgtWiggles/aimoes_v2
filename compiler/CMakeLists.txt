@@ -45,6 +45,16 @@ add_library(compiler OBJECT
  "include/ao/utils/Variant.h"
  "include/ao/utils/Blake3Hasher.h"
  "src/CppAdapter.cpp"
+ "src/CppBackendHelpers.cpp"
+ "src/CppBackendHelpers.h"
+ "src/CppOptionalAccessor.cpp"
+ "src/CppTypeAccessor.h"
+ "src/CppScalarAccessor.cpp"
+ "src/CppArrayAccessor.cpp"
+ "src/CppOneofAccessor.cpp"
+ "src/CppMessageAccessor.cpp"
+ "src/CppTypeAccessor.cpp"
+ "src/CppEnumAccessor.cpp"
 )
 target_include_directories(compiler PUBLIC include)
 target_link_libraries(compiler PUBLIC

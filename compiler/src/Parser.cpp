@@ -103,6 +103,13 @@ struct StringLiteral : lexy::token_production {
         lexy::as_string<std::string, lexy::utf8_encoding>;
 };
 
+struct SignedIntegerLiteral : lexy::token_production {
+    static constexpr auto rule =
+        dsl::peek(LEXY_LIT("+") / LEXY_LIT("-") / dsl::ascii::digit) >>
+        dsl::sign + dsl::integer<int64_t>;
+    static constexpr auto value = lexy::as_integer<int64_t>;
+};
+
 struct NumberLiteral : lexy::token_production {
     struct IntegerPart {
         static constexpr auto rule = dsl::sign + dsl::integer<int64_t>;
@@ -223,7 +230,8 @@ struct DirectiveProfile {
                 .loc = ctx.getSourceLocation(input),
             };
             for (auto& [name, literal] : directives)
-                ret.properties[name] = std::move(literal);
+                ret.properties.emplace_back(std::move(name),
+                                            std::move(literal));
             return ret;
         });
 };
@@ -434,7 +442,6 @@ struct FieldDef {
                 };
             });
     };
-
     struct ReservedDecl {
         static constexpr auto rule =
             dsl::position(LEXY_LIT("reserved") >>
@@ -452,6 +459,7 @@ struct FieldDef {
                     };
                 });
     };
+
     static constexpr auto rule = dsl::position(
         dsl::p<DefaultDecl> >> LEXY_LIT(";") |
         dsl::p<ReservedDecl> >> LEXY_LIT(";") | dsl::p<Field> >> LEXY_LIT(";"));
@@ -513,11 +521,109 @@ struct MessageDecl {
         });
 };
 
+struct EnumDecl {
+    struct EnumValueDecl {
+        static constexpr auto rule = dsl::position(
+            dsl::p<SignedIntegerLiteral> >> dsl::p<UnqualifiedSymbol>);
+        static constexpr auto value =
+            lexy::callback_with_state<AstEnumDecl>([](ParsingContext const& ctx,
+                                                      auto input,
+                                                      int64_t fieldNum,
+                                                      std::string name) {
+                auto loc = ctx.getSourceLocation(input);
+                return AstEnumDecl{
+                    .entry =
+                        AstEnumValue{
+                            .fieldNumber = fieldNum,
+                            .name = std::move(name),
+                            .loc = loc,
+                        },
+                    .loc = loc,
+                };
+            });
+    };
+
+    struct EnumReservedDecl {
+        static constexpr auto rule = dsl::position(
+            LEXY_LIT("reserved") >>
+            dsl::list(dsl::p<SignedIntegerLiteral>, dsl::sep(LEXY_LIT(","))));
+        static constexpr auto value = lexy::as_list<std::vector<int64_t>> >>
+                                      lexy::callback_with_state<AstEnumDecl>(
+                                          [](ParsingContext const& ctx,
+                                             auto input,
+                                             std::vector<int64_t> fields) {
+                                              auto loc =
+                                                  ctx.getSourceLocation(input);
+                                              return AstEnumDecl{
+                                                  .entry =
+                                                      AstEnumReserved{
+                                                          .fieldNumbers =
+                                                              std::move(fields),
+                                                          .loc = loc,
+                                                      },
+                                                  .loc = loc,
+                                              };
+                                          });
+    };
+
+    struct EnumFieldDecl {
+        static constexpr auto rule =
+            (dsl::p<EnumValueDecl> >> LEXY_LIT(";")) |
+            (dsl::p<EnumReservedDecl> >> LEXY_LIT(";"));
+        static constexpr auto value = lexy::callback_with_state<AstEnumDecl>(
+            [](ParsingContext const& ctx, AstEnumDecl decl) { return decl; });
+    };
+
+    struct EnumBlock {
+        static constexpr auto rule = dsl::position(
+            LEXY_LIT("{") >> dsl::list(dsl::p<EnumFieldDecl>) + LEXY_LIT("}"));
+        static constexpr auto value = lexy::as_list<std::vector<AstEnumDecl>> >>
+                                      lexy::callback_with_state<AstEnumBlock>(
+                                          [](ParsingContext const& ctx,
+                                             auto input,
+                                             std::vector<AstEnumDecl> fields) {
+                                              auto loc =
+                                                  ctx.getSourceLocation(input);
+                                              return AstEnumBlock{
+                                                  .decls = std::move(fields),
+                                                  .loc = loc,
+                                              };
+                                          });
+    };
+    struct OptSemi {
+        static constexpr auto rule = dsl::opt(LEXY_LIT(";"));
+        static constexpr auto value = lexy::noop;
+    };
+    static constexpr auto rule = dsl::position(
+        LEXY_LIT("enum") >> dsl::p<UnqualifiedSymbol> + dsl::p<DirectiveSet> +
+                                dsl::p<EnumBlock> + dsl::p<OptSemi>);
+    static constexpr auto value =
+        lexy::callback_with_state<AstDecl>([](ParsingContext const& ctx,
+                                              auto input,
+                                              std::string name,
+                                              AstDirectiveBlock directives,
+                                              AstEnumBlock block) {
+            auto loc = ctx.getSourceLocation(input);
+            return AstDecl{
+                .decl =
+                    AstEnum{
+                        .name = std::move(name),
+                        .block = std::move(block),
+                        .directives = std::move(directives),
+                        .loc = loc,
+                    },
+                .loc = loc,
+            };
+        });
+};
+
 struct ImportDecl {
     static constexpr auto rule = dsl::position(
         LEXY_LIT("import") >> dsl::p<QualifiedSymbol> + LEXY_LIT(";"));
-    static constexpr auto value = lexy::callback_with_state<AstDecl>(
-        [](ParsingContext const& ctx, auto input, std::vector<std::string> path) {
+    static constexpr auto value =
+        lexy::callback_with_state<AstDecl>([](ParsingContext const& ctx,
+                                              auto input,
+                                              std::vector<std::string> path) {
             return AstDecl{
                 AstImport{
                     .moduleName = AstQualifiedName{std::move(path)},
@@ -544,8 +650,8 @@ struct PackageDecl {
 
 struct FileDecl {
     static constexpr auto rule = dsl::position(
-        dsl::p<MessageDecl> | dsl::p<ImportDecl> | dsl::p<PackageDecl> |
-        dsl::p<DefaultDecl> >> LEXY_LIT(";"));
+        dsl::p<MessageDecl> | dsl::p<EnumDecl> | dsl::p<ImportDecl> |
+        dsl::p<PackageDecl> | dsl::p<DefaultDecl> >> LEXY_LIT(";"));
     static constexpr auto value = lexy::callback_with_state<AstDecl>(
         [](ParsingContext const&, auto, AstDecl decl) {
             return std::move(decl);

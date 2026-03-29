@@ -52,13 +52,18 @@ class SemanticContext {
 
     // AstImport must be resolved here
     struct Module {
+
+        struct ExportedSymbol {
+            std::variant<AstMessage*, AstEnum*> node;
+        };
+
         std::string resolvedPath;
         std::shared_ptr<AstFile> ast;
         std::unordered_set<std::string> dependencies;
         std::unordered_map<std::string, SymbolInfo> exportedSymbols;
-        std::unordered_map<uint64_t, AstMessage*> messagesById;
+        std::unordered_map<uint64_t, ExportedSymbol> messagesById;
 
-        std::unordered_map<uint64_t, AstMessage const*> messagesBySymbolId;
+        std::unordered_map<uint64_t, ExportedSymbol> messagesBySymbolId;
         std::unordered_map<uint64_t, SymbolInfo> symbolInfoBySymbolId;
 
         AstQualifiedName packageName;

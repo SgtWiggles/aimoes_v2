@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.31)
-project(AOIDL LANGUAGES C CXX)
+project(AIMOES LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 23)
 
 # Force utf-8 on all source files

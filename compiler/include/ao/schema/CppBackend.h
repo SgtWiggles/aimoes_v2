@@ -4,14 +4,22 @@
 #include "IR.h"
 
 #include <filesystem>
+#include <functional>
 #include <iostream>
+#include <memory>
 
 namespace ao::schema::cpp {
 struct OutputFiles {
-    std::ostream& header;
-    std::ostream& ir;
+    // Generates to includeRoot/outDir/projectName
+    // Includes will generate without include root
+    std::string projectName;
+    std::filesystem::path outDir;
+    std::filesystem::path root;
 
-    std::ostream* irHeader = nullptr;
+    std::function<std::unique_ptr<std::ostream>(std::filesystem::path openFile,
+                                                std::ios_base::openmode mode,
+                                                ErrorContext& errs)>
+        loader;
 };
 bool generateCppCode(ir::IR const& ir, ErrorContext& errs, OutputFiles& files);
 

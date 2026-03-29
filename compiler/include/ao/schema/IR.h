@@ -28,7 +28,7 @@ struct Type;
 struct IRHeader {
     // aosl in hex
     uint32_t magic = 0x616f736c;
-    uint64_t version = 1;
+    uint64_t version = 2;
 
     auto operator<=>(IRHeader const& other) const = default;
 };
@@ -195,9 +195,39 @@ inline size_t hash_value(Optional const& scalar) {
     return hash_value(scalar.type);
 }
 
+struct EnumField {
+    AO_MEMBER(int64_t, fieldNumber);
+    AO_MEMBER(IdFor<std::string>, name);
+    auto operator<=>(EnumField const& other) const = default;
+};
+inline size_t hash_value(EnumField const& v) {
+    size_t ret = 0;
+    boost::hash_combine(ret, boost::hash_value(v.fieldNumber));
+    boost::hash_combine(ret, hash_value(v.name));
+    return ret;
+}
+
+struct Enum {
+    AO_MEMBER(IdFor<std::string>, name);
+    AO_MEMBER(std::vector<IdFor<EnumField>>, fields);
+    AO_MEMBER(IdFor<DirectiveSet>, directives);
+    auto operator<=>(Enum const& other) const = default;
+};
+inline size_t hash_value(Enum const& e) {
+    size_t ret = 0;
+    boost::hash_combine(ret, e.name);
+    boost::hash_combine(ret, e.fields);
+    boost::hash_combine(ret, e.directives);
+    return ret;
+}
+
 struct Type {
-    using Value =
-        std::variant<Scalar, Array, Optional, IdFor<OneOf>, IdFor<Message>>;
+    using Value = std::variant<Scalar,
+                               Array,
+                               Optional,
+                               IdFor<OneOf>,
+                               IdFor<Message>,
+                               IdFor<Enum>>;
     AO_MEMBER(Value, payload);
     auto operator<=>(Type const& other) const = default;
 };
@@ -208,6 +238,7 @@ inline size_t hash_value(Type const& type) {
 struct Module {
     AO_MEMBER(IdFor<std::string>, moduleName);
     AO_MEMBER(std::vector<IdFor<Message>>, messages);
+    AO_MEMBER(std::vector<IdFor<Enum>>, enums);
     auto operator<=>(Module const& other) const = default;
 };
 inline size_t hash_value(Module const& m) {
@@ -227,6 +258,9 @@ struct IR {
     AO_MEMBER(std::vector<Message>, messages);
     AO_MEMBER(std::vector<Type>, types);
     AO_MEMBER(std::vector<Module>, modules);
+
+    AO_MEMBER(std::vector<Enum>, enums);
+    AO_MEMBER(std::vector<EnumField>, enumFields);
 };
 
 IR generateIR(
