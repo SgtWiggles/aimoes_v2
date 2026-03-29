@@ -158,7 +158,7 @@ void generateTypeProgram(VMGenerateContext& ctx,
                 uint16_t armBits =
                     std::min(std::max(std::bit_width(desc.arms.size()), 1), 64);
                 // TODO ext32
-                assembler.emit({Op::ONEOF_BEGIN, 0, 0}, {});
+                assembler.oneofBegin(oneof.idx, {});
                 assembler.emit(
                     {
                         encodeMode ? Op::O_READ_ONEOF_ARM
@@ -233,7 +233,23 @@ void generateTypeProgram(VMGenerateContext& ctx,
             [&](IdFor<ir::Enum> enumId) {
                 auto const kind = ScalarKind::INT;
                 auto const& desc = irCode.enums[enumId.idx];
-                auto width = std::bit_width(desc.fields.size());
+
+                size_t width = 0;
+                if (desc.fields.size() == 0) {
+                    width = 1;
+                } else {
+                    auto min = std::numeric_limits<int64_t>::max();
+                    auto max = std::numeric_limits<int64_t>::min();
+                    for (auto const f : desc.fields) {
+                        auto n = irCode.enumFields[f.idx].fieldNumber;
+                        min = std::min(min, n);
+                        max = std::max(max, n);
+                    }
+                    auto range =
+                        static_cast<uint64_t>(std::max(std::abs(max), std::abs(min)));
+                    width = std::bit_width(range) + 1;
+                }
+
                 if (encodeMode) {
                     assembler.emit(
                         {Op::O_READ_SCALAR, static_cast<uint8_t>(kind),

@@ -23,6 +23,7 @@ struct CodecMessage {
 struct CodecOneof {
     uint32_t fieldStart;
     uint32_t fieldCount;
+    uint32_t indexWidth;
 };
 
 struct CodecTable {

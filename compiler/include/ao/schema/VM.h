@@ -20,6 +20,7 @@ enum class ExtKind : uint8_t {
     JZ32,           // imm32: rel32
     DISPATCH32,     // imm32: branch count
     MSG_BEGIN32,    // imm32: msgId
+    ONEOF_BEGIN32,  // imm32: oneof
     FIELD_BEGIN32,  // imm32: fieldId
     CALL_TYPE32,    // imm32: typeEntryId
     ARRAY_BEGIN32,  // imm32: maxSize

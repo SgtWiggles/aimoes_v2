@@ -59,6 +59,7 @@ CodecTable generateCodecTable(ir::IR const& ir) {
         ret.oneofs.push_back(CodecOneof{
             .fieldStart = (uint32_t)ret.oneofFieldNumbers.size(),
             .fieldCount = (uint32_t)oneofs.arms.size(),
+            .indexWidth = (uint32_t)std::bit_width(oneofs.arms.size()),
         });
 
         for (auto const& arm : oneofs.arms) {

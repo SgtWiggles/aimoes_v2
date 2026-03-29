@@ -82,10 +82,10 @@ struct NetEncodeCodec {
 
     // Net format uses the compressed armid
     void oneofArm(uint32_t oneofId, uint64_t armid) {
-        auto width = std::bit_width(net.oneofs[oneofId].fieldCount);
-        if (width > 0) {
-            out.bits(armid, width);
-        }
+        auto width = net.oneofs[oneofId].indexWidth;
+        if (width == 0)
+            return;
+        out.bits(armid, width);
     }
 
     bool ok() const { return out.ok(); }
@@ -183,7 +183,7 @@ struct NetDecodeCodec {
     void oneofEnter(uint32_t typeId) {}
     void oneofExit() {}
     uint32_t oneofArm(uint32_t oneofId) {
-        auto width = std::bit_width(net.oneofs[oneofId].fieldCount);
+        auto width = net.oneofs[oneofId].indexWidth;
         if (width == 0)
             return 0;
         uint64_t u = 0;

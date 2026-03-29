@@ -62,6 +62,9 @@ struct Assembler {
     void arrayBegin(uint64_t typeId, std::optional<uint64_t> label) {
          emitExt32(Op::ARRAY_BEGIN, ExtKind::ARRAY_BEGIN32, typeId, label);
     }
+    void oneofBegin(uint64_t oneofId, std::optional<uint64_t> label) {
+        emitExt32(Op::ONEOF_BEGIN, ExtKind::ONEOF_BEGIN32, oneofId, label);
+    }
 
     void emitExt32(Op baseOp,
                    ExtKind ext,
