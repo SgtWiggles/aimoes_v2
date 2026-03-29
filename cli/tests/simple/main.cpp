@@ -177,3 +177,25 @@ TEMPLATE_LIST_TEST_CASE("Simple message 7 round trip 2",
         REQUIRE(input == output);
     }
 }
+
+TEMPLATE_LIST_TEST_CASE("Composed messages round trip",
+                        "[simple]",
+                        StreamTypes) {
+    messages::ComposedMessages input{
+        .enum1 = messages::TestEnum::hello,
+        .enum2 = messages::TestEnum::world,
+        .values =
+            {
+                messages::TestMessage2{.value = 1},
+                messages::TestMessage2{.value = 2},
+                messages::TestMessage2{.value = 3},
+            },
+    };
+
+    messages::ComposedMessages output;
+
+    using WS = typename TestType::WS;
+    using RS = typename TestType::RS;
+    cppRoundTrip<WS, RS>(irSpan, input, output);
+    REQUIRE(input == output);
+}

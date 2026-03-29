@@ -4,7 +4,9 @@ message 1 TestMessage {
 	1 value int;
 }
 
-message 2 TestMessage2 {
+message 2 TestMessage2 
+	@cpp(compare="default")
+{
 	1 value uint;
 }
 
@@ -57,6 +59,23 @@ enum TestEnum
 	2 world;
 }
 
-message 8 TestMessage8 {
+message 8 TestMessage8 
+	@cpp(compare="default")
+{
 	1 value TestEnum;
+}
+
+message 9 ComposedMessages 
+	@cpp(compare="default")
+{
+	1 enum1 TestEnum;
+	2 enum2 TestEnum;
+	3 values array<oneof {
+		1 enumValue TestEnum;
+		2 intValue int;
+		3 uintValue uint;
+		4 floatValue float;
+		5 doubleValue double;
+		6 msgValue TestMessage2;
+	}>;
 }
