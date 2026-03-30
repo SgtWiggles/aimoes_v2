@@ -1,4 +1,4 @@
-add_library(compiler OBJECT
+add_library(compiler STATIC
  "src/Ast.cpp"
  "src/SemanticContext.cpp"
  "src/AstValidateIds.h"
@@ -62,7 +62,6 @@ target_link_libraries(compiler PUBLIC
 	foonathan::lexy
 	pack
 	meta
-	$<TARGET_OBJECTS:pack>
 	nlohmann_json
 	BLAKE3::blake3)
 

@@ -1,7 +1,7 @@
-add_library(pack OBJECT
+add_library(pack STATIC
 	"src/BitStream.cpp"
 	"src/ByteStream.cpp"
- "include/ao/pack/HashingStream.h")
+    "include/ao/pack/HashingStream.h")
 target_include_directories(pack PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> 
     $<INSTALL_INTERFACE:include>
