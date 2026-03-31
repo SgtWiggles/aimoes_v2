@@ -8,7 +8,7 @@
 #include "ao/utils/Array.h"
 #include "ao/utils/Overloaded.h"
 
-#include "ao/pack/OStreamWriteStream.h"
+#include "ao/pack/IOByteStream.h"
 
 #include "CppBackendHelpers.h"
 #include "CppTypeAccessor.h"

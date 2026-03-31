@@ -60,4 +60,67 @@ class OStreamWriteStream {
     std::ostream* m_os = nullptr;
 };
 
+class IStreamReadStream {
+   public:
+    explicit IStreamReadStream(std::istream& is) : m_is(&is) {
+        auto const start = is.tellg();
+        is.seekg(0, std::ios::end);
+        auto const end = is.tellg();
+        m_totalSize = end - start;
+
+        // move stream back to where we started
+        is.seekg(start, std::ios_base::beg);
+    }
+
+    IStreamReadStream& bytes(std::span<std::byte> data, size_t count) {
+        if (!ok())
+            return *this;
+        if (count == 0)
+            return *this;
+        if (!m_is->good())
+            return fail(Error::StreamError);
+        if (data.size() < count)
+            return fail(Error::BadArg);
+
+        m_is->read(reinterpret_cast<char*>(data.data()),
+                   static_cast<std::streamsize>(count));
+        if (m_is->fail())
+            return fail(Error::Eof);
+
+        m_position += count;
+        return *this;
+    }
+
+    IStreamReadStream& require(bool condition, Error err) {
+        if (!ok())
+            return *this;
+        if (!condition)
+            m_status = err;
+        return *this;
+    }
+
+    size_t remainingBytes() const {
+        if (m_totalSize >= m_position)
+            return m_totalSize - m_position;
+        else
+            return 0;
+    }
+
+    bool ok() const { return m_status == Error::Ok; }
+    Error error() const { return m_status; }
+
+    size_t byteSize() const { return m_position; }
+
+   private:
+    IStreamReadStream& fail(Error err) {
+        m_status = err;
+        return *this;
+    }
+
+    Error m_status = Error::Ok;
+    size_t m_position = 0;
+    size_t m_totalSize = 0;
+    std::istream* m_is = nullptr;
+};
+
 }  // namespace ao::pack::byte
