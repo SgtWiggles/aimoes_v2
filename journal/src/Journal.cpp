@@ -67,7 +67,10 @@ listFilesInDirectory(std::filesystem::path const& dirPath, Filter filter) {
 }
 
 void JournalStorage::appendFrame(FrameBatch const& frameBatchStart,
-                                 AppendOptions opts) {}
+                                 AppendOptions opts) {
+    if (!m_writeStream) {
+    }
+}
 
 std::optional<FrameBatchView> JournalStorage::nextFrame() {
     return {};
@@ -152,24 +155,23 @@ size_t JournalStorage::getLastFrame() {
 
     ao::pack::byte::IStreamReadStream read{*m_readStream};
 
-    v1::FrameBatchStart frameHeader;
-    schema::deserialize(read, frameHeader);
-    if (!read.ok()) {
-        m_status = JournalStatus::Corruption;
+    size_t lastFrame = 0;
+    auto status = JournalStatus::Ok;
+    FrameBatch batch;
+    batch.frame = 0;
+    while (status == JournalStatus::Ok) {
+        lastFrame = batch.frame;
+        batch.frame = 0;
+        status = v1::FrameBatchV1::deserialize(read, batch);
+    }
+    if (status == JournalStatus::EndOfStream ||
+        status == JournalStatus::Corruption) {
+        return lastFrame;
+    } else {
+        // Return 0 as there was some sort of error which is _really_ bad
         return 0;
     }
 
-    // TODO verify header hash
-    static auto constexpr hashLen = utils::hash::Blake3Hasher::Hash{}.size();
-
-    m_readStream->seekg(hashLen + frameHeader.payloadSize )
-
-    
-
-    
-
-
-    return size_t();
 }
 
 }  // namespace ao::journal
